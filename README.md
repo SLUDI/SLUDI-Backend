@@ -27,18 +27,45 @@ Configure the application in [application.properties](src/main/resources/applica
 server.port=5000
 spring.application.name=sludi
 
-# Fabric Configuration
+#Properties of Fabric
 fabric.msp-id=Org1MSP
-fabric.channel-name=channel1
-fabric.chaincode-name=identity
-fabric.crypto-path=/path/to/crypto/materials
+fabric.channel-name=sludi-channel
+fabric.chaincode-name=sludi-Chaincode
+fabric.crypto-path=/home/tsm/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com
 fabric.peer-endpoint=localhost:7051
 fabric.override-auth=peer0.org1.example.com
+sludi.issuer-did=did:sludi:government789
+fabric.wallet.path=/home/tsm/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/msp/keystore
 
-# PostgreSQL Configuration
-spring.datasource.url=jdbc:postgresql://localhost:5432/sluidtest
-spring.datasource.username=postgres
-spring.datasource.password=mysecretpassword
+#Properties of postgresql
+spring.datasource.url = jdbc:postgresql://localhost:5432/sluidtest
+spring.datasource.username = postgres
+spring.datasource.password = mysecretpassword
+spring.datasource.driver-class-name = org.postgresql.Driver
+spring.jpa.hibernate.ddl-auto = update
+spring.jpa.properties.hibernate.dialect = org.hibernate.dialect.PostgreSQLDialect
+
+#Properties of IPFS
+ipfs.api.host=localhost
+ipfs.api.port=5001
+ipfs.gateway.url=http://localhost:8080/ipfs/
+sludi.ipfs.encryption.enabled=true
+sludi.ipfs.pin.enabled=true
+sludi.ipfs.timeout.seconds=30
+sludi.ipfs.retry.attempts=3
+
+# Properties of JWT
+sludi.jwt.secret=mysecretkey1234567890
+sludi.jwt.access-token-expiration=3600
+sludi.jwt.refresh-token-expiration=2592000
+
+# Encryption and Decryption Key
+sludi.encryption.key=myencryptionkey1234567890
+
+# Properties for file upload
+spring.servlet.multipart.enabled=true
+spring.servlet.multipart.max-file-size=5MB
+spring.servlet.multipart.max-request-size=5MB
 ```
 
 ## Building the Project
