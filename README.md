@@ -65,6 +65,10 @@ Using Maven:
 mvn spring-boot:run
 ```
 
+## Running IPFS and PostgreSQL containers
+```bash
+docker-compose up -d
+```
 ## API Endpoints
 
 ### User Registration

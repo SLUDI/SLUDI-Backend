@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: ipfs_node
+    ports:
+      - "4001:4001" 
+      - "5001:5001" 
+      - "8080:8080" 
+    volumes:
+      - ./ipfs_data:/data/ipfs
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres-container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: sluidtest
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
