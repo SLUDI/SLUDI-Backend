@@ -19,7 +19,7 @@ import java.util.UUID;
 @Table(name = "citizen_users")
 public class CitizenUser {
 
-    public enum UserStatus { PENDING, ACTIVE, SUSPENDED, DEACTIVATED }
+    public enum UserStatus { PENDING, ACTIVE, INACTIVE, DEACTIVATED }
 
     public enum KYCStatus { NOT_STARTED, IN_PROGRESS, VERIFIED, REJECTED }
 

@@ -14,5 +14,6 @@ public class UserProfileUpdateRequestDto {
     private AddressDto address;
     private String newPublicKey;
     private List<MultipartFile> newDocuments;
+    MultipartFile profilePhoto;
     private DeviceInfoDto deviceInfo;
 }

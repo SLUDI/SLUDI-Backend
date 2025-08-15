@@ -11,4 +11,6 @@ public interface CitizenUserRepository extends JpaRepository<CitizenUser, UUID> 
     boolean existsByNic(String nic);
     boolean existsByEmail(String email);
     CitizenUser findByEmailOrNicOrDidId(String email, String nic, String didId);
+    boolean existsByDidId(String didId);
+    long countByStatus(CitizenUser.UserStatus userStatus);
 }

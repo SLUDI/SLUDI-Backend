@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.security.MessageDigest;
@@ -126,6 +125,21 @@ public class UserRegistrationService {
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, e);
         }
+    }
+
+    /**
+     * Check if a citizen user exists by NIC, email, or DID ID
+     */
+    public boolean isCitizenUserExistsByNic(String nic) {
+        return citizenUserRepository.existsByNic(nic);
+    }
+
+    public boolean isCitizenUserExistsByEmail(String email) {
+        return citizenUserRepository.existsByEmail(email);
+    }
+
+    public boolean isCitizenUserExistsByDidId(String didId) {
+        return citizenUserRepository.existsByDidId(didId);
     }
 
     /**
@@ -293,6 +307,26 @@ public class UserRegistrationService {
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.USER_DEACTIVATION_FAILED, e.getMessage(), e);
+        }
+    }
+
+    public Map<String, Object> getUserStatistics() {
+        try {
+            long totalUsers = citizenUserRepository.count();
+            long activeUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.ACTIVE);
+            long inactiveUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.INACTIVE);
+            long deactivatedUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.DEACTIVATED);
+
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalUsers", totalUsers);
+            stats.put("activeUsers", activeUsers);
+            stats.put("inactiveUsers", inactiveUsers);
+            stats.put("deactivatedUsers", deactivatedUsers);
+
+            return stats;
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.STATISTICS_RETRIEVAL_FAILED, e.getMessage(), e);
         }
     }
 
