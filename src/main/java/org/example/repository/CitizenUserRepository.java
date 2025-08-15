@@ -1,14 +1,14 @@
 package org.example.repository;
 
-import org.example.entity.User;
+import org.example.entity.CitizenUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface CitizenUserRepository extends JpaRepository<CitizenUser, UUID> {
     boolean existsByNic(String nic);
     boolean existsByEmail(String email);
-    User findByEmailOrNicOrDidId(String email, String nic, String didId);
+    CitizenUser findByEmailOrNicOrDidId(String email, String nic, String didId);
 }

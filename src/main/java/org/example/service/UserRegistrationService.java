@@ -1,10 +1,12 @@
 package org.example.service;
 
 import org.example.dto.*;
-import org.example.entity.User;
+import org.example.entity.Address;
+import org.example.entity.CitizenUser;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.IPFSContent;
-import org.example.repository.UserRepository;
+import org.example.exception.ErrorCodes;
+import org.example.repository.CitizenUserRepository;
 import org.example.repository.AuthenticationLogRepository;
 import org.example.repository.IPFSContentRepository;
 import org.example.integration.IPFSService;
@@ -29,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
 public class UserRegistrationService {
 
     @Autowired
-    private UserRepository userRepository;
+    private CitizenUserRepository citizenUserRepository;
 
     @Autowired
     private AuthenticationLogRepository authLogRepository;
@@ -55,48 +57,48 @@ public class UserRegistrationService {
      */
     public UserRegistrationResponseDto registerUser(UserRegistrationRequestDto request) {
         try {
-            // Step 1: Validate input data
+            // Validate input data
             validateRegistrationRequest(request);
 
-            // Step 2: Check if user already exists
-            if (userRepository.existsByNic(request.getPersonalInfo().getNic())) {
-                throw new SludiException("User with this NIC already exists", "USER_EXISTS");
+            // Check if user already exists
+            if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
+                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
             }
 
-            if (userRepository.existsByEmail(request.getContactInfo().getEmail())) {
-                throw new SludiException("User with this email already exists", "EMAIL_EXISTS");
+            if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
+                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
             }
 
-            // Step 3: AI verification of biometric data
+            // verification of biometric data
             BiometricVerificationResult biometricResult = verifyBiometricAuthenticity(request.getBiometricData());
             if (!biometricResult.isAuthentic()) {
-                throw new SludiException("Biometric verification failed: " + biometricResult.getReason(), "BIOMETRIC_INVALID");
+                throw new SludiException(ErrorCodes.BIOMETRIC_INVALID, biometricResult.getReason());
             }
 
-            // Step 4: Create user entity (status: pending)
-            User user = createUserEntity(request);
-            user = userRepository.save(user);
+            // Create user entity (status: pending)
+            CitizenUser user = createUserEntity(request);
+            user = citizenUserRepository.save(user);
 
-            // Step 5: Store biometric data in IPFS (parallel execution)
+            // Store biometric data in IPFS (parallel execution)
             CompletableFuture<BiometricIPFSHashes> biometricFuture = storeBiometricDataAsync(user.getId(), request.getBiometricData());
 
-            // Step 6: Store profile photo in IPFS (if provided)
+            // Store profile photo in IPFS (if provided)
             CompletableFuture<String> profilePhotoFuture = null;
             if (request.getProfilePhoto() != null) {
                 profilePhotoFuture = storeProfilePhotoAsync(user.getId(), request.getProfilePhoto());
             }
 
-            // Step 7: Wait for IPFS operations to complete
+            // Wait for IPFS operations to complete
             BiometricIPFSHashes biometricHashes = biometricFuture.get();
             String profilePhotoHash = profilePhotoFuture != null ? profilePhotoFuture.get() : null;
 
-            // Step 8: Create DID on Hyperledger Fabric
+            // Create DID on Hyperledger Fabric
             String didId = "did:sludi:" + user.getId().toString();
             HyperledgerTransactionResult didResult = hyperledgerService.registerCitizen(
                     createCitizenRegistration(user, request, biometricHashes)
             );
 
-            // Step 9: Update user with IPFS hashes and blockchain references
+            // Update user with IPFS hashes and blockchain references
             user.setDidId(didId);
             user.setFingerprintIpfsHash(biometricHashes.getFingerprintHash());
             user.setFaceImageIpfsHash(biometricHashes.getFaceImageHash());
@@ -104,15 +106,15 @@ public class UserRegistrationService {
             user.setProfilePhotoIpfsHash(profilePhotoHash);
             user.setBlockchainTxId(didResult.getTransactionId());
             user.setDidCreationBlockNumber(didResult.getBlockNumber());
-            user.setStatus(User.UserStatus.ACTIVE);
+            user.setStatus(CitizenUser.UserStatus.ACTIVE);
             user.setUpdatedAt(LocalDateTime.now());
 
-            user = userRepository.save(user);
+            user = citizenUserRepository.save(user);
 
-            // Step 10: Log the registration activity
+            // Log the registration activity
             logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
 
-            // Step 11: Return success response
+            // Return success response
             return UserRegistrationResponseDto.builder()
                     .userId(user.getId())
                     .didId(didId)
@@ -122,7 +124,7 @@ public class UserRegistrationService {
                     .build();
 
         } catch (Exception e) {
-            throw new SludiException("User registration failed: " + e.getMessage(), "REGISTRATION_FAILED", e);
+            throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, e);
         }
     }
 
@@ -131,12 +133,12 @@ public class UserRegistrationService {
      */
     public UserProfileResponseDto updateUserProfile(UUID userId, UserProfileUpdateRequestDto request) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new SludiException("User not found", "USER_NOT_FOUND"));
+            CitizenUser user = citizenUserRepository.findById(userId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
 
             // Validate update permissions
-            if (!User.UserStatus.ACTIVE.equals(user.getStatus())) {
-                throw new SludiException("Cannot update inactive user profile", "USER_INACTIVE");
+            if (!CitizenUser.UserStatus.ACTIVE.equals(user.getStatus())) {
+                throw new SludiException(ErrorCodes.CANNOT_UPDATE_INACTIVE_USER);
             }
 
             // Store old values for audit
@@ -158,7 +160,7 @@ public class UserRegistrationService {
             }
 
             user.setUpdatedAt(LocalDateTime.now());
-            user = userRepository.save(user);
+            user = citizenUserRepository.save(user);
 
             // Create audit log
             logUserActivity(userId, "PROFILE_UPDATE", "Profile updated successfully", request.getDeviceInfo());
@@ -167,7 +169,7 @@ public class UserRegistrationService {
             return createUserProfileResponse(user);
 
         } catch (Exception e) {
-            throw new SludiException("Profile update failed: " + e.getMessage(), "UPDATE_FAILED", e);
+            throw new SludiException(ErrorCodes.USER_PROFILE_UPDATE_FAILED, e.getMessage(), e);
         }
     }
 
@@ -176,12 +178,12 @@ public class UserRegistrationService {
      */
     public UserProfileResponseDto getUserProfile(UUID userId, String requesterDid) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new SludiException("User not found", "USER_NOT_FOUND"));
+            CitizenUser user = citizenUserRepository.findById(userId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
 
             // Check access permissions (simplified - in production, implement proper authorization)
             if (!user.getDidId().equals(requesterDid) && !isAuthorizedVerifier(requesterDid)) {
-                throw new SludiException("Unauthorized access to user profile", "UNAUTHORIZED");
+                throw new SludiException(ErrorCodes.USER_NOT_AUTHORIZED_TO_ACCESS_PROFILE);
             }
 
             // Log access attempt
@@ -190,7 +192,7 @@ public class UserRegistrationService {
             return createUserProfileResponse(user);
 
         } catch (Exception e) {
-            throw new SludiException("Failed to retrieve user profile: " + e.getMessage(), "RETRIEVAL_FAILED", e);
+            throw new SludiException(ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE, e.getMessage(), e);
         }
     }
 
@@ -200,16 +202,16 @@ public class UserRegistrationService {
     public AuthenticationResponseDto authenticateUser(AuthenticationRequestDto request) {
         try {
             // Find user by identifier (email, NIC, or DID)
-            User user = findUserByIdentifier(request.getIdentifier());
+            CitizenUser user = findUserByIdentifier(request.getIdentifier());
             if (user == null) {
                 logFailedAuthentication(request.getIdentifier(), "USER_NOT_FOUND", request.getDeviceInfo());
-                throw new SludiException("Invalid credentials", "AUTH_FAILED");
+                throw new SludiException(ErrorCodes.INVALID_CREDENTIALS);
             }
 
             // Check user status
-            if (!User.UserStatus.ACTIVE.equals(user.getStatus())) {
+            if (!CitizenUser.UserStatus.ACTIVE.equals(user.getStatus())) {
                 logFailedAuthentication(request.getIdentifier(), "USER_INACTIVE", request.getDeviceInfo());
-                throw new SludiException("User account is inactive", "USER_INACTIVE");
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
             }
 
             // Retrieve stored biometric data from IPFS
@@ -224,7 +226,7 @@ public class UserRegistrationService {
 
             if (!matchResult.isMatch()) {
                 logFailedAuthentication(user.getDidId(), "BIOMETRIC_MISMATCH", request.getDeviceInfo());
-                throw new SludiException("Biometric verification failed", "AUTH_FAILED");
+                throw new SludiException(ErrorCodes.BIOMETRIC_MISMATCH);
             }
 
             // Verify on blockchain
@@ -238,7 +240,7 @@ public class UserRegistrationService {
 
             if (!"success".equals(verificationResult)) {
                 logFailedAuthentication(user.getDidId(), "BLOCKCHAIN_VERIFICATION_FAILED", request.getDeviceInfo());
-                throw new SludiException("Blockchain verification failed", "AUTH_FAILED");
+                throw new SludiException(ErrorCodes.BIOMETRIC_VERIFICATION_FAILED);
             }
 
             // Generate JWT token
@@ -247,7 +249,7 @@ public class UserRegistrationService {
 
             // Update last login
             user.setLastLogin(LocalDateTime.now());
-            userRepository.save(user);
+            citizenUserRepository.save(user);
 
             // Log successful authentication
             logSuccessfulAuthentication(user.getId(), user.getDidId(), request.getBiometric().getType(), request.getDeviceInfo());
@@ -262,7 +264,7 @@ public class UserRegistrationService {
                     .build();
 
         } catch (Exception e) {
-            throw new SludiException("Authentication failed: " + e.getMessage(), "AUTH_FAILED", e);
+            throw new SludiException(ErrorCodes.AUTH_FAILED, e.getMessage(), e);
         }
     }
 
@@ -271,16 +273,16 @@ public class UserRegistrationService {
      */
     public String deactivateUser(UUID userId, String reason) {
         try {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new SludiException("User not found", "USER_NOT_FOUND"));
+            CitizenUser user = citizenUserRepository.findById(userId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
 
             // Deactivate DID on blockchain
             hyperledgerService.deactivateDID(user.getDidId());
 
             // Update user status
-            user.setStatus(User.UserStatus.DEACTIVATED);
+            user.setStatus(CitizenUser.UserStatus.DEACTIVATED);
             user.setUpdatedAt(LocalDateTime.now());
-            userRepository.save(user);
+            citizenUserRepository.save(user);
 
             // Log deactivation
             logUserActivity(userId, "USER_DEACTIVATION", "User deactivated: " + reason, null);
@@ -290,29 +292,27 @@ public class UserRegistrationService {
             return "User account deactivated successfully";
 
         } catch (Exception e) {
-            throw new SludiException("User deactivation failed: " + e.getMessage(), "DEACTIVATION_FAILED", e);
+            throw new SludiException(ErrorCodes.USER_DEACTIVATION_FAILED, e.getMessage(), e);
         }
     }
 
-    // ===================== PRIVATE HELPER METHODS =====================
-
     private void validateRegistrationRequest(UserRegistrationRequestDto request) {
         if (request.getPersonalInfo() == null || request.getPersonalInfo().getNic() == null) {
-            throw new SludiException("Personal information and NIC are required", "INVALID_INPUT");
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "Personal information and NIC are required");
         }
 
         if (request.getPersonalInfo().getNic().length() != 12) {
-            throw new SludiException("Invalid NIC format. Must be 12 characters", "INVALID_NIC");
+            throw new SludiException(ErrorCodes.INVALID_NIC, "Must be 12 characters");
         }
 
         if (request.getBiometricData() == null ||
                 request.getBiometricData().getFingerprint() == null ||
                 request.getBiometricData().getFaceImage() == null) {
-            throw new SludiException("Biometric data (fingerprint and face image) are required", "MISSING_BIOMETRIC");
+            throw new SludiException(ErrorCodes.MISSING_BIOMETRIC_DATA, "fingerprint and face image are required");
         }
 
         if (request.getContactInfo() == null || request.getContactInfo().getEmail() == null) {
-            throw new SludiException("Contact information with email is required", "MISSING_CONTACT");
+            throw new SludiException(ErrorCodes.MISSING_CONTACT_EMAIL, "Contact information with email is required");
         }
     }
 
@@ -336,8 +336,20 @@ public class UserRegistrationService {
         return BiometricVerificationResult.success();
     }
 
-    private User createUserEntity(UserRegistrationRequestDto request) {
-        return User.builder()
+    private CitizenUser createUserEntity(UserRegistrationRequestDto request) {
+        AddressDto addressDto = request.getPersonalInfo().getAddress();
+        Address address = Address.builder()
+                .street(addressDto.getStreet())
+                .city(addressDto.getCity())
+                .state(addressDto.getState())
+                .postalCode(addressDto.getPostalCode())
+                .country("Sri Lanka")
+                .district(addressDto.getDistrict())
+                .divisionalSecretariat(addressDto.getDivisionalSecretariat())
+                .gramaNiladhariDivision(addressDto.getGramaNiladhariDivision())
+                .build();
+
+        return CitizenUser.builder()
                 .id(UUID.randomUUID())
                 .fullName(request.getPersonalInfo().getFullName())
                 .nic(request.getPersonalInfo().getNic())
@@ -346,9 +358,9 @@ public class UserRegistrationService {
                 .dateOfBirth(request.getPersonalInfo().getDateOfBirth())
                 .gender(request.getPersonalInfo().getGender())
                 .nationality("Sri Lankan")
-                .addressJson(convertAddressToJson(request.getPersonalInfo().getAddress()))
-                .status(User.UserStatus.PENDING)
-                .kycStatus(User.KYCStatus.NOT_STARTED)
+                .address(address)
+                .status(CitizenUser.UserStatus.PENDING)
+                .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -421,7 +433,7 @@ public class UserRegistrationService {
         ipfsContentRepository.save(content);
     }
 
-    private CitizenRegistrationDto createCitizenRegistration(User user, UserRegistrationRequestDto request, BiometricIPFSHashes hashes) {
+    private CitizenRegistrationDto createCitizenRegistration(CitizenUser user, UserRegistrationRequestDto request, BiometricIPFSHashes hashes) {
         return CitizenRegistrationDto.builder()
                 .userId(user.getId().toString())
                 .fullName(user.getFullName())
@@ -438,7 +450,9 @@ public class UserRegistrationService {
             byte[] hash = digest.digest(data.getBytes("UTF-8"));
             return "sha256:" + bytesToHex(hash);
         } catch (Exception e) {
-            throw new RuntimeException("Error generating hash", e);
+            throw new SludiException(
+                ErrorCodes.BIOMETRIC_HASH_GENERATION_ERROR, e.getMessage(), e
+            );
         }
     }
 
@@ -450,11 +464,11 @@ public class UserRegistrationService {
         return result.toString();
     }
 
-    private User findUserByIdentifier(String identifier) {
-        return userRepository.findByEmailOrNicOrDidId(identifier, identifier, identifier);
+    private CitizenUser findUserByIdentifier(String identifier) {
+        return citizenUserRepository.findByEmailOrNicOrDidId(identifier, identifier, identifier);
     }
 
-    private BiometricData retrieveStoredBiometricData(User user) {
+    private BiometricData retrieveStoredBiometricData(CitizenUser user) {
         try {
             byte[] fingerprintData = ipfsService.retrieveFile(user.getFingerprintIpfsHash());
             byte[] faceData = ipfsService.retrieveFile(user.getFaceImageIpfsHash());
@@ -464,7 +478,9 @@ public class UserRegistrationService {
                     .faceImageData(faceData)
                     .build();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to retrieve biometric data", e);
+            throw new SludiException(
+                ErrorCodes.BIOMETRIC_RETRIEVAL_ERROR, e.getMessage(), e
+            );
         }
     }
 
@@ -512,7 +528,8 @@ public class UserRegistrationService {
         authLogRepository.save(log);
     }
 
-    private UserProfileResponseDto createUserProfileResponse(User user) {
+    private UserProfileResponseDto createUserProfileResponse(CitizenUser user) {
+
         return UserProfileResponseDto.builder()
                 .userId(user.getId())
                 .didId(user.getDidId())
@@ -523,7 +540,7 @@ public class UserRegistrationService {
                 .dateOfBirth(user.getDateOfBirth())
                 .gender(user.getGender())
                 .nationality(user.getNationality())
-                .address(convertJsonToAddress(user.getAddressJson()))
+                .address(convertJsonToAddress(user.getAddress()))
                 .status(user.getStatus().toString())
                 .kycStatus(user.getKycStatus().toString())
                 .profilePhotoHash(user.getProfilePhotoIpfsHash())
@@ -533,22 +550,46 @@ public class UserRegistrationService {
                 .build();
     }
 
-    private String convertAddressToJson(AddressDto address) {
-        // Convert address DTO to JSON string for storage
+    private AddressDto convertJsonToAddress(Address address) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(address);
+            if (address == null) {
+                return AddressDto.builder()
+                        .street("")
+                        .city("")
+                        .state("")
+                        .postalCode("")
+                        .country("")
+                        .district("")
+                        .divisionalSecretariat("")
+                        .gramaNiladhariDivision("")
+                        .build();
+            }
+
+            return AddressDto.builder()
+                    .street(address.getStreet())
+                    .city(address.getCity())
+                    .state(address.getState())
+                    .postalCode(address.getPostalCode())
+                    .country(address.getCountry())
+                    .district(address.getDistrict())
+                    .divisionalSecretariat(address.getDivisionalSecretariat())
+                    .gramaNiladhariDivision(address.getGramaNiladhariDivision())
+                    .build();
+
         } catch (Exception e) {
-            return "{}";
+            throw new SludiException(
+                    ErrorCodes.ADDRESS_PARSE_ERROR, e.getMessage(), e
+            );
         }
     }
 
-    private AddressDto convertJsonToAddress(String addressJson) {
-        // Convert JSON string back to address DTO
+    private String convertAddressToJson(AddressDto address) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(addressJson, AddressDto.class);
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(address);
         } catch (Exception e) {
-            AddressDto addressDto = new AddressDto();
-            return addressDto;
+            throw new SludiException(
+                ErrorCodes.ADDRESS_CONVERSION_ERROR, e.getMessage(), e
+            );
         }
     }
 
@@ -556,7 +597,9 @@ public class UserRegistrationService {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(deviceInfo);
         } catch (Exception e) {
-            return "{}";
+            throw new SludiException(
+                ErrorCodes.DEVICE_INFO_CONVERSION_ERROR, e.getMessage(), e
+            );
         }
     }
 
@@ -567,7 +610,7 @@ public class UserRegistrationService {
                 verifierDid.startsWith("did:sludi:service");
     }
 
-    private Map<String, Object> createAuditMap(User user) {
+    private Map<String, Object> createAuditMap(CitizenUser user) {
         Map<String, Object> map = new HashMap<>();
         map.put("fullName", user.getFullName());
         map.put("email", user.getEmail());
@@ -577,7 +620,7 @@ public class UserRegistrationService {
         return map;
     }
 
-    private void updateUserFields(User user, UserProfileUpdateRequestDto request) {
+    private void updateUserFields(CitizenUser user, UserProfileUpdateRequestDto request) {
         if (request.getEmail() != null) {
             user.setEmail(request.getEmail());
         }
@@ -585,7 +628,17 @@ public class UserRegistrationService {
             user.setPhone(request.getPhone());
         }
         if (request.getAddress() != null) {
-            user.setAddressJson(convertAddressToJson(request.getAddress()));
+            Address newAddress = Address.builder()
+                    .street(request.getAddress().getStreet())
+                    .city(request.getAddress().getCity())
+                    .state(request.getAddress().getState())
+                    .postalCode(request.getAddress().getPostalCode())
+                    .country("Sri Lanka")
+                    .district(request.getAddress().getDistrict())
+                    .divisionalSecretariat(request.getAddress().getDivisionalSecretariat())
+                    .gramaNiladhariDivision(request.getAddress().getGramaNiladhariDivision())
+                    .build();
+            user.setAddress(newAddress);
         }
     }
 
@@ -604,16 +657,32 @@ public class UserRegistrationService {
         return documentHashes;
     }
 
-    private void updateUserDocumentReferences(User user, Map<String, String> documentHashes) {
-        // Store document references in the address_json field (or create a separate documents field)
+    private void updateUserDocumentReferences(CitizenUser user, Map<String, String> documentHashes) {
         try {
-            String currentAddress = user.getAddressJson();
-            Map<String, Object> addressData = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(currentAddress, Map.class);
-            addressData.put("documents", documentHashes);
-            user.setAddressJson(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(addressData));
+            Map<String, Object> documentData = new HashMap<>();
+            documentData.put("documents", documentHashes);
+            documentData.put("updatedAt", LocalDateTime.now().toString());
+
+            Address currentAddress = user.getAddress();
+            if (currentAddress == null) {
+                currentAddress = new Address();
+            }
+
+            user.setAddress(Address.builder()
+                    .street(currentAddress.getStreet())
+                    .city(currentAddress.getCity())
+                    .state(currentAddress.getState())
+                    .postalCode(currentAddress.getPostalCode())
+                    .country(currentAddress.getCountry())
+                    .district(currentAddress.getDistrict())
+                    .divisionalSecretariat(currentAddress.getDivisionalSecretariat())
+                    .gramaNiladhariDivision(currentAddress.getGramaNiladhariDivision())
+                    .build());
+
         } catch (Exception e) {
-            // Handle error appropriately
+            throw new SludiException(
+                    ErrorCodes.DOCUMENT_UPDATE_ERROR, e.getMessage(), e
+            );
         }
     }
 

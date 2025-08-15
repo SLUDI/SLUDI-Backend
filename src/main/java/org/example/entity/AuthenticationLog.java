@@ -28,6 +28,7 @@ public class AuthenticationLog {
     private String authMethod;
     private String result;
     private String failureReason;
+    private String ipAddress;
 
     @Column(columnDefinition = "TEXT")
     private String deviceInfo;

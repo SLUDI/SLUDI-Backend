@@ -16,15 +16,12 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "users")
-public class User {
-    public enum UserStatus {
-        PENDING, ACTIVE, SUSPENDED, DEACTIVATED
-    }
+@Table(name = "citizen_users")
+public class CitizenUser {
 
-    public enum KYCStatus {
-        NOT_STARTED, IN_PROGRESS, VERIFIED, REJECTED
-    }
+    public enum UserStatus { PENDING, ACTIVE, SUSPENDED, DEACTIVATED }
+
+    public enum KYCStatus { NOT_STARTED, IN_PROGRESS, VERIFIED, REJECTED }
 
     @Id
     private UUID id;
@@ -37,8 +34,8 @@ public class User {
     private String gender;
     private String nationality;
 
-    @Column(columnDefinition = "TEXT")
-    private String addressJson;
+    @Embedded
+    private Address address;
 
     @Enumerated(EnumType.STRING)
     private UserStatus status;
@@ -52,7 +49,7 @@ public class User {
     private String signatureIpfsHash;
     private String profilePhotoIpfsHash;
     private String blockchainTxId;
-    private String didCreationBlockNumber;
+    private Long didCreationBlockNumber;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

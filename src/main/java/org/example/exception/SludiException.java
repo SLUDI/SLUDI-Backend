@@ -1,19 +1,33 @@
 package org.example.exception;
 
+import lombok.Getter;
+
+@Getter
 public class SludiException extends RuntimeException {
     private final String errorCode;
-
-    public SludiException(String message, String errorCode) {
-        super(message);
-        this.errorCode = errorCode;
+    private final String errorDescription;
+    
+    public SludiException(ErrorCodes errorCode) {
+        super(errorCode.getDescription());
+        this.errorCode = errorCode.getCode();
+        this.errorDescription = errorCode.getDescription();
     }
 
-    public SludiException(String message, String errorCode, Throwable cause) {
-        super(message, cause);
-        this.errorCode = errorCode;
+    public SludiException(ErrorCodes errorCode, String additionalInfo) {
+        super(errorCode.getDescription() + ": " + additionalInfo);
+        this.errorCode = errorCode.getCode();
+        this.errorDescription = errorCode.getDescription();
     }
 
-    public String getErrorCode() {
-        return errorCode;
+    public SludiException(ErrorCodes errorCode, Throwable cause) {
+        super(errorCode.getDescription(), cause);
+        this.errorCode = errorCode.getCode();
+        this.errorDescription = errorCode.getDescription();
+    }
+
+    public SludiException(ErrorCodes errorCode, String additionalInfo, Throwable cause) {
+        super(errorCode.getDescription() + ": " + additionalInfo, cause);
+        this.errorCode = errorCode.getCode();
+        this.errorDescription = errorCode.getDescription();
     }
 }
