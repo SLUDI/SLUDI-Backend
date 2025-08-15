@@ -1,7 +1,9 @@
 package org.example.integration;
 
 import org.example.dto.*;
+import org.springframework.stereotype.Service;
 
+@Service
 public class AIService {
     BiometricVerificationResult verifyBiometricAuthenticity(BiometricDataDto biometric) {
         return null;

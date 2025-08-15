@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ProofData {
 
-    private String type;
+    private String proofType;
     private String created;
     private String verificationMethod;
 

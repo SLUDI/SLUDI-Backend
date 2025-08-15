@@ -21,9 +21,9 @@ public class DIDDocument {
     @Id
     private String id;
 
-    private String version;
-    private String created;
-    private String updated;
+    private String didVersion;
+    private String didCreated;
+    private String didUpdated;
 
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "id")

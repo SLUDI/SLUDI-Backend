@@ -10,14 +10,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "verifiable_credentials")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "verifiable_credentials")
 public class VerifiableCredential {
 
     @Id
+    @Column(name = "credential_id")
     private String id;
 
     @ElementCollection
@@ -28,7 +29,7 @@ public class VerifiableCredential {
     @ElementCollection
     @CollectionTable(name = "credential_types", joinColumns = @JoinColumn(name = "credential_id"))
     @Column(name = "credential_type")
-    private List<String> type;
+    private List<String> credentialTypes;
 
     private String issuer;
     private String issuanceDate;
@@ -49,12 +50,12 @@ public class VerifiableCredential {
     private String revocationReason;
     private LocalDateTime revokedAt;
 
-    public VerifiableCredential(List<String> context, String id, List<String> type,
+    public VerifiableCredential(List<String> context, String id, List<String> credentialTypes,
                                 String issuer, String issuanceDate, String expirationDate,
                                 CredentialSubject credentialSubject, String status, ProofData proof) {
         this.context = context;
         this.id = id;
-        this.type = type;
+        this.credentialTypes = credentialTypes;
         this.issuer = issuer;
         this.issuanceDate = issuanceDate;
         this.expirationDate = expirationDate;

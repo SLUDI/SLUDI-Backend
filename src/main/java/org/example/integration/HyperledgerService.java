@@ -37,7 +37,7 @@ public class HyperledgerService {
     @Value("${fabric.chaincode-name}")
     private String chaincodeName;
 
-    @Value("${sludi.issuer-did:did:sludi:government789}")
+    @Value("${sludi.issuer-did}")
     private String issuerDid;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
