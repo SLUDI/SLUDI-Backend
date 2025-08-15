@@ -9,32 +9,25 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "system_statistics")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "system_statistics")
 public class SystemStats {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private Integer totalDIDs;
     private Integer activeDIDs;
-    private Integer deactivatedDIDs;
-    private Integer revokedDIDs;
+
     private Integer totalCredentials;
     private Integer activeCredentials;
     private Integer revokedCredentials;
-    private Integer suspendedCredentials;
-    private Integer expiredCredentials;
-    private Integer totalVerificationsToday;
-    private Integer successfulVerificationsToday;
-    private Integer failedVerificationsToday;
-    private Integer totalRegistrationsToday;
-    private Double networkHealthScore;
+
     private String timestamp;
-    private Long blockchainHeight;
 
     public SystemStats(Integer totalDIDs, Integer activeDIDs, Integer totalCredentials,
                        Integer activeCredentials, Integer revokedCredentials, String timestamp) {

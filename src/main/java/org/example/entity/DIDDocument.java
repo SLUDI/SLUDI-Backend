@@ -11,11 +11,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "did_documents")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "did_documents")
 public class DIDDocument {
 
     @Id

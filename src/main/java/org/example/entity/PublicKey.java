@@ -9,11 +9,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "public_keys")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "public_keys")
 public class PublicKey {
 
     @Id

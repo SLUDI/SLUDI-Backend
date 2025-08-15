@@ -3,8 +3,8 @@ package org.example.integration;
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.DIDDocument;
-import org.example.entity.VerifiableCredential;
 import org.example.entity.SystemStats;
+import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
@@ -359,13 +359,13 @@ public class HyperledgerService {
     /**
      * Get system statistics from blockchain
      */
-    public SystemStats getSystemStats() {
+    public SystemStatsDto getSystemStats() {
         try {
             LOGGER.info("Getting system statistics");
 
             byte[] result = contract.evaluateTransaction("GetSystemStats");
             String statsJson = new String(result);
-            SystemStats stats = objectMapper.readValue(statsJson, SystemStats.class);
+            SystemStatsDto stats = objectMapper.readValue(statsJson, SystemStatsDto.class);
 
             LOGGER.info("Successfully retrieved system statistics");
             return stats;
@@ -485,7 +485,7 @@ public class HyperledgerService {
      */
     public BlockchainNetworkInfo getNetworkInfo() {
         try {
-            SystemStats stats = getSystemStats();
+            SystemStatsDto stats = getSystemStats();
 
             return BlockchainNetworkInfo.builder()
                     .networkName("SLUDI-Network")
@@ -493,7 +493,7 @@ public class HyperledgerService {
                     .chaincodeVersion("1.0.0")
                     .totalDIDs(stats.getTotalDIDs())
                     .totalCredentials(stats.getTotalCredentials())
-                    .lastUpdated(stats.getTimestamp())
+                    .lastUpdated(stats.getLastUpdated())
                     .status("HEALTHY")
                     .build();
 

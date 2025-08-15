@@ -1,8 +1,6 @@
 package org.example.controller;
 
-import org.example.entity.SystemStats;
-import org.example.exception.ErrorCodes;
-import org.example.exception.SludiException;
+import org.example.dto.SystemStatsDto;
 import org.example.integration.HyperledgerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +27,7 @@ public class BlockchainController {
     @GetMapping("/system-stats")
     public ResponseEntity<?> getSystemStats() {
         try {
-            SystemStats stats = hyperledgerService.getSystemStats();
+            SystemStatsDto stats = hyperledgerService.getSystemStats();
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             return ResponseEntity.status(500).body("An unexpected error occurred while fetching system statistics.");
