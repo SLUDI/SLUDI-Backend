@@ -42,8 +42,6 @@ public class HyperledgerService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // ===================== CITIZEN REGISTRATION =====================
-
     /**
      * Register a new citizen on the blockchain
      */
@@ -208,8 +206,6 @@ public class HyperledgerService {
         }
     }
 
-    // ===================== DID MANAGEMENT =====================
-
     /**
      * Read DID document from blockchain
      */
@@ -226,8 +222,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to read DID document: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_NOT_FOUND,
-                    "Failed to read DID document from blockchain", e);
+            throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
         }
     }
 
@@ -254,8 +249,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to update DID: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_UPDATE_FAILED,
-                    "Failed to update DID on blockchain", e);
+            throw new SludiException(ErrorCodes.DID_UPDATE_FAILED, e);
         }
     }
 
@@ -273,13 +267,12 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to deactivate DID: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_DEACTIVATION_FAILED,
-                    "Failed to deactivate DID on blockchain", e);
+            throw new SludiException(ErrorCodes.DID_DEACTIVATION_FAILED, e);
         }
     }
 
     /**
-     * Check if DID exists on blockchain
+     * Check if DID exist on blockchain
      */
     public boolean didExists(String didId) {
         try {
@@ -291,8 +284,6 @@ public class HyperledgerService {
             return false;
         }
     }
-
-    // ===================== CREDENTIAL MANAGEMENT =====================
 
     /**
      * Get all credentials for a specific DID
@@ -314,8 +305,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to get credentials: " + e.getMessage());
-            throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED,
-                    "Failed to retrieve credentials from blockchain", e);
+            throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED, e);
         }
     }
 
@@ -345,12 +335,9 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to revoke credential: " + e.getMessage());
-            throw new SludiException(ErrorCodes.CREDENTIAL_REVOCATION_FAILED,
-                    "Failed to revoke credential on blockchain", e);
+            throw new SludiException(ErrorCodes.CREDENTIAL_REVOCATION_FAILED, e);
         }
     }
-
-    // ===================== SYSTEM OPERATIONS =====================
 
     /**
      * Initialize the blockchain ledger
@@ -365,8 +352,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to initialize ledger: " + e.getMessage());
-            throw new SludiException(ErrorCodes.LEDGER_INITIALIZATION_FAILED,
-                    "Failed to initialize blockchain ledger", e);
+            throw new SludiException(ErrorCodes.LEDGER_INITIALIZATION_FAILED, e);
         }
     }
 
@@ -386,8 +372,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to get system statistics: " + e.getMessage());
-            throw new SludiException(ErrorCodes.SYSTEM_STATS_FAILED,
-                    "Failed to get system statistics from blockchain", e);
+            throw new SludiException(ErrorCodes.SYSTEM_STATS_FAILED, e);
         }
     }
 
@@ -411,8 +396,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to get authentication logs: " + e.getMessage());
-            throw new SludiException(ErrorCodes.AUTH_LOG_RETRIEVAL_FAILED,
-                    "Failed to retrieve authentication logs from blockchain", e);
+            throw new SludiException(ErrorCodes.AUTH_LOG_RETRIEVAL_FAILED, e);
         }
     }
 
@@ -436,8 +420,7 @@ public class HyperledgerService {
 
         } catch (Exception e) {
             LOGGER.severe("Failed to get all DIDs: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_RETRIEVAL_FAILED,
-                    "Failed to retrieve DIDs from blockchain", e);
+            throw new SludiException(ErrorCodes.DID_RETRIEVAL_FAILED, e);
         }
     }
 
@@ -466,8 +449,6 @@ public class HyperledgerService {
         }
     }
 
-    // ===================== ASYNC OPERATIONS =====================
-
     /**
      * Register citizen asynchronously
      */
@@ -484,8 +465,6 @@ public class HyperledgerService {
         return CompletableFuture.supplyAsync(() ->
                 verifyCitizen(didId, verifierDid, biometricType, biometricHash, challenge));
     }
-
-    // ===================== HEALTH CHECK =====================
 
     /**
      * Check blockchain connectivity and health
@@ -528,18 +507,23 @@ public class HyperledgerService {
         }
     }
 
-    // ===================== PRIVATE HELPER METHODS =====================
-
+    /**
+     * Generate a unique transaction ID
+     */
     private String generateTransactionId() {
-        // In production, this would be extracted from the actual blockchain transaction
         return "tx_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
+    /**
+     * Get current block number (using timestamp as block number)
+     */
     private Long getCurrentBlockNumber() {
-        // In production, this would be extracted from the actual blockchain
         return System.currentTimeMillis() / 1000; // Simple timestamp as block number
     }
 
+    /**
+     * Check if the credential is not expired
+     */
     private boolean isCredentialNotExpired(String expirationDate) {
         try {
             Instant expiration = Instant.parse(expirationDate);
