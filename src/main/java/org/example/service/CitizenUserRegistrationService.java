@@ -6,12 +6,11 @@ import org.example.entity.CitizenUser;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.IPFSContent;
 import org.example.exception.ErrorCodes;
-import org.example.integration.HyperledgerService;
 import org.example.repository.AuthenticationLogRepository;
 import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
-import org.example.integration.IPFSService;
-import org.example.integration.AIService;
+import org.example.integration.IPFSIntegration;
+import org.example.integration.AIIntegration;
 import org.example.security.CryptographyService;
 import org.example.exception.SludiException;
 
@@ -42,13 +41,13 @@ public class CitizenUserRegistrationService {
     private IPFSContentRepository ipfsContentRepository;
 
     @Autowired
-    private IPFSService ipfsService;
+    private IPFSIntegration ipfsIntegration;
 
     @Autowired
     private HyperledgerService hyperledgerService;
 
     @Autowired
-    private AIService aiService;
+    private AIIntegration aiIntegration;
 
     @Autowired
     private CryptographyService cryptographyService;
@@ -235,7 +234,7 @@ public class CitizenUserRegistrationService {
             BiometricData storedBiometric = retrieveStoredBiometricData(user);
 
             // Perform biometric verification with AI deepfake detection
-            BiometricMatchResult matchResult = aiService.verifyBiometricMatch(
+            BiometricMatchResult matchResult = aiIntegration.verifyBiometricMatch(
                     request.getBiometric().getData(),
                     storedBiometric,
                     request.getBiometric().getType()
@@ -356,7 +355,7 @@ public class CitizenUserRegistrationService {
     private BiometricVerificationResult verifyBiometricAuthenticity(BiometricDataDto biometric) {
         // AI deepfake detection for face image
         if (biometric.getFaceImage() != null) {
-            AIDetectionResult faceResult = aiService.detectDeepfake(biometric.getFaceImage(), "face");
+            AIDetectionResult faceResult = aiIntegration.detectDeepfake(biometric.getFaceImage(), "face");
             if (!faceResult.isAuthentic()) {
                 return BiometricVerificationResult.failed("Face image failed deepfake detection");
             }
@@ -364,7 +363,7 @@ public class CitizenUserRegistrationService {
 
         // Liveness detection for fingerprint
         if (biometric.getFingerprint() != null) {
-            AIDetectionResult fingerprintResult = aiService.performLivenessCheck(biometric.getFingerprint(), "fingerprint");
+            AIDetectionResult fingerprintResult = aiIntegration.performLivenessCheck(biometric.getFingerprint(), "fingerprint");
             if (!fingerprintResult.isAuthentic()) {
                 return BiometricVerificationResult.failed("Fingerprint failed liveness detection");
             }
@@ -408,17 +407,17 @@ public class CitizenUserRegistrationService {
             try {
                 // Store fingerprint
                 String fingerprintPath = String.format("biometric/users/%s/fingerprint/fingerprint.jpg", userId);
-                String fingerprintHash = ipfsService.storeFile(fingerprintPath, biometric.getFingerprint());
+                String fingerprintHash = ipfsIntegration.storeFile(fingerprintPath, biometric.getFingerprint());
 
                 // Store face image
                 String facePath = String.format("biometric/users/%s/face/face_image.jpg", userId);
-                String faceHash = ipfsService.storeFile(facePath, biometric.getFaceImage());
+                String faceHash = ipfsIntegration.storeFile(facePath, biometric.getFaceImage());
 
                 // Store signature if provided
                 String signatureHash = null;
                 if (biometric.getSignature() != null) {
                     String signaturePath = String.format("biometric/users/%s/signature/signature.png", userId);
-                    signatureHash = ipfsService.storeFile(signaturePath, biometric.getSignature());
+                    signatureHash = ipfsIntegration.storeFile(signaturePath, biometric.getSignature());
                 }
 
                 // Record IPFS content metadata
@@ -444,7 +443,7 @@ public class CitizenUserRegistrationService {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String path = String.format("profile/users/%s/profile_photo.jpg", userId);
-                String hash = ipfsService.storeFile(path, profilePhoto.getBytes());
+                String hash = ipfsIntegration.storeFile(path, profilePhoto.getBytes());
                 recordIPFSContent(userId, hash, "profile", "photo", "image/jpeg");
                 return hash;
             } catch (Exception e) {
@@ -508,8 +507,8 @@ public class CitizenUserRegistrationService {
 
     private BiometricData retrieveStoredBiometricData(CitizenUser user) {
         try {
-            byte[] fingerprintData = ipfsService.retrieveFile(user.getFingerprintIpfsHash());
-            byte[] faceData = ipfsService.retrieveFile(user.getFaceImageIpfsHash());
+            byte[] fingerprintData = ipfsIntegration.retrieveFile(user.getFingerprintIpfsHash());
+            byte[] faceData = ipfsIntegration.retrieveFile(user.getFaceImageIpfsHash());
 
             return BiometricData.builder()
                     .fingerprintData(fingerprintData)
@@ -685,7 +684,7 @@ public class CitizenUserRegistrationService {
         for (MultipartFile doc : documents) {
             try {
                 String path = String.format("documents/users/%s/%s", userId, doc.getOriginalFilename());
-                String hash = ipfsService.storeFile(path, doc.getBytes());
+                String hash = ipfsIntegration.storeFile(path, doc.getBytes());
                 documentHashes.put(doc.getOriginalFilename(), hash);
                 recordIPFSContent(userId, hash, "document", "user_document", doc.getContentType());
             } catch (Exception e) {

@@ -1,7 +1,7 @@
 package org.example.controller;
 
 import org.example.dto.SystemStatsDto;
-import org.example.integration.HyperledgerService;
+import org.example.service.HyperledgerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

@@ -1,4 +1,4 @@
-package org.example.config;
+package org.example.integration;
 
 import io.grpc.Grpc;
 import io.grpc.ManagedChannel;
@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 @Configuration
-public class HyperledgerFabricConfiguration {
-    private static final Logger LOGGER = Logger.getLogger(HyperledgerFabricConfiguration.class.getName());
+public class HyperledgerFabricIntegration {
+    private static final Logger LOGGER = Logger.getLogger(HyperledgerFabricIntegration.class.getName());
 
     @Value("${fabric.msp-id}")
     private String mspId;
