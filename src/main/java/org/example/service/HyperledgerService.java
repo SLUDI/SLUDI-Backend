@@ -72,6 +72,14 @@ public class HyperledgerService {
             String resultString = new String(result);
             DIDDocument didDocument = objectMapper.readValue(resultString, DIDDocument.class);
 
+            if (didDocument.getPublicKey() != null) {
+                didDocument.getPublicKey().forEach(pk -> pk.setDidDocument(didDocument));
+            }
+
+            if (didDocument.getService() != null) {
+                didDocument.getService().forEach(s -> s.setDidDocument(didDocument));
+            }
+
             // Save the DID document to the database
             didRepository.save(didDocument);
 

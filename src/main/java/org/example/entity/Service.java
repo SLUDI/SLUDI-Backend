@@ -26,15 +26,13 @@ public class Service {
     @Column(name = "service_endpoint", length = 1000)
     private String serviceEndpoint;
 
-    private String description;
-    private LocalDateTime createdAt;
-    private Boolean isActive;
+    @ManyToOne
+    @JoinColumn(name = "did_document_id", nullable = false)
+    private DIDDocument didDocument;
 
     public Service(String id, String type, String serviceEndpoint) {
         this.id = id;
         this.type = type;
         this.serviceEndpoint = serviceEndpoint;
-        this.isActive = true;
-        this.createdAt = LocalDateTime.now();
     }
 }

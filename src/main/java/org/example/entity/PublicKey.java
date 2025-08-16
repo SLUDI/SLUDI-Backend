@@ -36,6 +36,10 @@ public class PublicKey {
     private LocalDateTime createdAt;
     private Boolean isActive;
 
+    @ManyToOne
+    @JoinColumn(name = "did_document_id", nullable = false)
+    private DIDDocument didDocument;
+
     public PublicKey(String id, String type, String controller, String publicKeyBase58) {
         this.id = id;
         this.type = type;
