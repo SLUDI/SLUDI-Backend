@@ -8,6 +8,7 @@ import lombok.Data;
 public class CitizenRegistrationChaincode {
     private String userId;
     private String fullName;
+    private String dateOfBirth;
     private String nic;
     private String publicKeyBase58;
     private String fingerprintHash;

@@ -21,6 +21,7 @@ public class DIDDocument {
     @Id
     private String id;
 
+    private String version;
     private String didVersion;
     private String didCreated;
     private String didUpdated;

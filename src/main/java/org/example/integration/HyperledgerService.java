@@ -53,6 +53,7 @@ public class HyperledgerService {
             CitizenRegistrationChaincode chaincodeRegistration = CitizenRegistrationChaincode.builder()
                     .userId(registration.getUserId())
                     .fullName(registration.getFullName())
+                    .dateOfBirth(registration.getDateOfBirth())
                     .nic(registration.getNic())
                     .publicKeyBase58(registration.getPublicKeyBase58())
                     .fingerprintHash(registration.getFingerprintHash())
