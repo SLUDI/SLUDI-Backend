@@ -38,7 +38,7 @@ sludi.issuer-did=did:sludi:government789
 fabric.wallet.path=/home/tsm/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/msp/keystore
 
 #Properties of postgresql
-spring.datasource.url = jdbc:postgresql://localhost:5432/sluidtest
+spring.datasource.url = jdbc:postgresql://localhost:5432/sluditest
 spring.datasource.username = postgres
 spring.datasource.password = mysecretpassword
 spring.datasource.driver-class-name = org.postgresql.Driver
