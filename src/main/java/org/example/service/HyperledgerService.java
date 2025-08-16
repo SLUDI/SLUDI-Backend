@@ -8,6 +8,7 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
 import org.example.repository.DIDDocumentRepository;
+import org.example.repository.VerifiableCredentialRepository;
 import org.hyperledger.fabric.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,9 @@ public class HyperledgerService {
 
     @Autowired
     private DIDDocumentRepository didRepository;
+
+    @Autowired
+    private VerifiableCredentialRepository credentialRepository;
 
     @Autowired
     private Contract contract;
@@ -83,15 +87,11 @@ public class HyperledgerService {
             // Save the DID document to the database
             didRepository.save(didDocument);
 
-            // Get transaction info from the gateway
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
-
             LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
 
             return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
+                    .transactionId(didDocument.getBlockchainTxId())
+                    .blockNumber(didDocument.getBlockNumber())
                     .status("SUCCESS")
                     .message("Citizen registered successfully")
                     .timestamp(Instant.now())
@@ -131,14 +131,14 @@ public class HyperledgerService {
             String resultString = new String(result);
             VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
 
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
-
             LOGGER.info("Successfully issued credential: " + credential.getId());
 
+            // Save the credential to the database
+            credentialRepository.save(credential);
+
             return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
+                    .transactionId(credential.getBlockchainTxId())
+                    .blockNumber(credential.getBlockNumber())
                     .status("SUCCESS")
                     .message("Credential issued successfully")
                     .timestamp(Instant.now())
@@ -331,18 +331,30 @@ public class HyperledgerService {
             LOGGER.info("Revoking credential: " + credentialId);
 
             byte[] result = contract.submitTransaction("RevokeCredential", credentialId, reason);
-            String resultMessage = new String(result);
 
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
+            String resultString = new String(result);
+            VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
+
+            // Update the credential status to revoked
+            VerifiableCredential existingCredential = credentialRepository.findById(credentialId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
+
+            existingCredential.setStatus("revoked");
+            existingCredential.setRevokedBy(credential.getRevokedBy());
+            existingCredential.setRevocationReason(credential.getRevocationReason());
+            existingCredential.setRevokedAt(credential.getRevokedAt());
+            existingCredential.setRevocationTxId(credential.getRevocationTxId());
+            existingCredential.setRevocationBlockNumber(credential.getRevocationBlockNumber());
+
+            credentialRepository.save(existingCredential);
 
             LOGGER.info("Successfully revoked credential: " + credentialId);
 
             return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
+                    .transactionId(credential.getRevocationTxId())
+                    .blockNumber(credential.getRevocationBlockNumber())
                     .status("SUCCESS")
-                    .message(resultMessage)
+                    .message("Successfully revoked credential")
                     .timestamp(Instant.now())
                     .credentialId(credentialId)
                     .build();
@@ -519,20 +531,6 @@ public class HyperledgerService {
                     .lastUpdated(Instant.now().toString())
                     .build();
         }
-    }
-
-    /**
-     * Generate a unique transaction ID
-     */
-    private String generateTransactionId() {
-        return "tx_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-    }
-
-    /**
-     * Get current block number (using timestamp as block number)
-     */
-    private Long getCurrentBlockNumber() {
-        return System.currentTimeMillis() / 1000; // Simple timestamp as block number
     }
 
     /**

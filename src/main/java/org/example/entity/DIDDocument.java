@@ -21,7 +21,6 @@ public class DIDDocument {
     @Id
     private String id;
 
-    private String version;
     private String didVersion;
     private String didCreated;
     private String didUpdated;
@@ -41,8 +40,6 @@ public class DIDDocument {
 
     @Embedded
     private ProofData proof;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
     private String blockchainTxId;
     private Long blockNumber;
 }

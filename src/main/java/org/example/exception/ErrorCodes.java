@@ -27,6 +27,7 @@ public enum ErrorCodes {
     FAILD_TO_RETRIEVE_USER_PROFILE("2010", "Failed to retrieve user profile"),
     USER_DEACTIVATION_FAILED("2011", "User deactivation failed"),
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
+    CREDENTIAL_NOT_FOUND("2013", "Credential not found"),
     
     
     // Storage Errors (3000-3999)
