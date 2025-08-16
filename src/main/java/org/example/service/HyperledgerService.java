@@ -1,13 +1,13 @@
-package org.example.integration;
+package org.example.service;
 
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.DIDDocument;
-import org.example.entity.SystemStats;
 import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
+import org.example.repository.DIDDocumentRepository;
 import org.hyperledger.fabric.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,13 +20,15 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 @Service
 public class HyperledgerService {
 
     private static final Logger LOGGER = Logger.getLogger(HyperledgerService.class.getName());
+
+    @Autowired
+    private DIDDocumentRepository didRepository;
 
     @Autowired
     private Contract contract;
@@ -69,6 +71,17 @@ public class HyperledgerService {
             // Parse the result
             String resultString = new String(result);
             DIDDocument didDocument = objectMapper.readValue(resultString, DIDDocument.class);
+
+            if (didDocument.getPublicKey() != null) {
+                didDocument.getPublicKey().forEach(pk -> pk.setDidDocument(didDocument));
+            }
+
+            if (didDocument.getService() != null) {
+                didDocument.getService().forEach(s -> s.setDidDocument(didDocument));
+            }
+
+            // Save the DID document to the database
+            didRepository.save(didDocument);
 
             // Get transaction info from the gateway
             String transactionId = generateTransactionId();

@@ -27,9 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 @Service
-public class IPFSService {
+public class IPFSIntegration {
 
-    private static final Logger LOGGER = Logger.getLogger(IPFSService.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(IPFSIntegration.class.getName());
 
     @Value("${ipfs.api.host}")
     private String ipfsHost;

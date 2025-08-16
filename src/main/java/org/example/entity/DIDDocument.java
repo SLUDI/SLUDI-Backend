@@ -26,8 +26,7 @@ public class DIDDocument {
     private String didCreated;
     private String didUpdated;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "id")
+    @OneToMany(mappedBy = "didDocument", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<PublicKey> publicKey;
 
     @ElementCollection
@@ -35,8 +34,7 @@ public class DIDDocument {
     @Column(name = "auth_reference")
     private List<String> authentication;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "id")
+    @OneToMany(mappedBy = "didDocument", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<Service> service;
 
     private String status; // active, deactivated, revoked
