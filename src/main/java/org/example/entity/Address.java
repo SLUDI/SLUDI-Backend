@@ -15,12 +15,12 @@ public class Address {
 
     private String street;
     private String city;
-    private String state;
-    private String postalCode;
-    private String country;
     private String district;
+    private String postalCode;
     private String divisionalSecretariat;
     private String gramaNiladhariDivision;
+    private String state;
+    private String country;
 
     public Address(String street, String city, String state, String postalCode) {
         this.street = street;

@@ -43,16 +43,20 @@ public class VerifiableCredential {
     @Embedded
     private ProofData proof;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String createdAt;
+    private String updatedAt;
     private String blockchainTxId;
     private Long blockNumber;
+    private String revokedBy;
     private String revocationReason;
-    private LocalDateTime revokedAt;
+    private String revokedAt;
+    private String revocationTxId;
+    private Long revocationBlockNumber;
 
     public VerifiableCredential(List<String> context, String id, List<String> credentialTypes,
                                 String issuer, String issuanceDate, String expirationDate,
-                                CredentialSubject credentialSubject, String status, ProofData proof) {
+                                CredentialSubject credentialSubject, String status, ProofData proof, String createdAt,
+                                String updatedAt, String blockchainTxId, Long blockNumber) {
         this.context = context;
         this.id = id;
         this.credentialTypes = credentialTypes;
@@ -62,7 +66,9 @@ public class VerifiableCredential {
         this.credentialSubject = credentialSubject;
         this.status = status;
         this.proof = proof;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+        this.blockchainTxId = blockchainTxId;
+        this.blockNumber = blockNumber;
     }
 }

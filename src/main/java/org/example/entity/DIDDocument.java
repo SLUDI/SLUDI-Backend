@@ -2,12 +2,8 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
@@ -21,7 +17,6 @@ public class DIDDocument {
     @Id
     private String id;
 
-    private String version;
     private String didVersion;
     private String didCreated;
     private String didUpdated;
@@ -35,14 +30,12 @@ public class DIDDocument {
     private List<String> authentication;
 
     @OneToMany(mappedBy = "didDocument", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    private List<Service> service;
+    private List<Services> services;
 
     private String status; // active, deactivated, revoked
 
     @Embedded
     private ProofData proof;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
     private String blockchainTxId;
     private Long blockNumber;
 }

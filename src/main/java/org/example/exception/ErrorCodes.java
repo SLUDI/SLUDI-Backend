@@ -12,6 +12,7 @@ public enum ErrorCodes {
     INVALID_AUTHRTIZATION_HEADER("1007", "Invalid authorization header provided"),
     UNAUTHORIZED("1008", "Unauthorized access"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
+    FAILED_TO_RETRIEVE_IDENTITY_VC("1010", "Failed to retrieve identity Verifiable Credential"),
     
     // Data Processing Errors (2000-2999)
     ADDRESS_PARSE_ERROR("2000", "Failed to parse address data"),
@@ -27,6 +28,8 @@ public enum ErrorCodes {
     FAILD_TO_RETRIEVE_USER_PROFILE("2010", "Failed to retrieve user profile"),
     USER_DEACTIVATION_FAILED("2011", "User deactivation failed"),
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
+    CREDENTIAL_NOT_FOUND("2013", "Credential not found"),
+    FAILED_TO_RETRIEVE_DID_DOCUMENT("2014", "Failed to retrieve DID document from blockchain"),
     
     
     // Storage Errors (3000-3999)
@@ -59,6 +62,7 @@ public enum ErrorCodes {
     SYSTEM_STATS_FAILED("3026", "Failed to retrieve system statistics"),
     AUTH_LOG_RETRIEVAL_FAILED("3027", "Failed to retrieve authentication logs"),
     DID_RETRIEVAL_FAILED("3028", "Failed to retrieve DIDs document from blockchain"),
+    IDENTITY_VC_NOT_FOUND("3029", "Identity Verifiable Credential not found"),
     
     // Validation Errors (4000-4999
     INVALID_INPUT("4000", "Invalid input provided"),
@@ -73,6 +77,7 @@ public enum ErrorCodes {
     EMPTY_IMAGE("4009", "Image data cannot be empty"),
     FILE_TOO_LARGE("4010", "File size exceeds the maximum limit"),
     INVALID_FORMAT_IMAGE("4011", "Invalid image format. Only JPEG, JPG, and PNG are allowed"),
+    INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),
@@ -88,7 +93,9 @@ public enum ErrorCodes {
     ENCRYPTION_KEY_ERROR("5010", "Failed to process encryption key"),
     KEY_GENERATION_FAILED("5011", "Failed to generate key pair"),
     BIOMETRIC_ENCRYPTION_FAILED("5012", "Biometric data encryption failed"),
-    BIOMETRIC_DECRYPTION_FAILED("5013", "Biometric data decryption failed"),;
+    BIOMETRIC_DECRYPTION_FAILED("5013", "Biometric data decryption failed"),
+    CREDENTIAL_INTEGRITY_VIOLATION("5014", "Credential integrity violation detected"),
+    DID_INTEGRITY_VIOLATION("5015", "DID integrity violation detected"),;
 
     private final String code;
     private final String description;

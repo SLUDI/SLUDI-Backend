@@ -8,6 +8,7 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
 import org.example.repository.DIDDocumentRepository;
+import org.example.repository.VerifiableCredentialRepository;
 import org.hyperledger.fabric.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +19,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -28,7 +28,10 @@ public class HyperledgerService {
     private static final Logger LOGGER = Logger.getLogger(HyperledgerService.class.getName());
 
     @Autowired
-    private DIDDocumentRepository didRepository;
+    private DIDDocumentRepository didDocumentRepository;
+
+    @Autowired
+    private VerifiableCredentialRepository credentialRepository;
 
     @Autowired
     private Contract contract;
@@ -76,22 +79,18 @@ public class HyperledgerService {
                 didDocument.getPublicKey().forEach(pk -> pk.setDidDocument(didDocument));
             }
 
-            if (didDocument.getService() != null) {
-                didDocument.getService().forEach(s -> s.setDidDocument(didDocument));
+            if (didDocument.getServices() != null) {
+                didDocument.getServices().forEach(s -> s.setDidDocument(didDocument));
             }
 
             // Save the DID document to the database
-            didRepository.save(didDocument);
-
-            // Get transaction info from the gateway
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
+            didDocumentRepository.save(didDocument);
 
             LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
 
             return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
+                    .transactionId(didDocument.getBlockchainTxId())
+                    .blockNumber(didDocument.getBlockNumber())
                     .status("SUCCESS")
                     .message("Citizen registered successfully")
                     .timestamp(Instant.now())
@@ -107,47 +106,82 @@ public class HyperledgerService {
     /**
      * Issue a verifiable credential to a citizen
      */
-    public HyperledgerTransactionResult issueCredential(CredentialIssuanceRequestDto request) {
+    public void issueCredentialNationalID(NationalIDCredentialIssuanceRequestDto request) {
         try {
-            LOGGER.info("Issuing credential: " + request.getCredentialId());
-
             byte[] result = contract.submitTransaction(
-                    "IssueCredential",
-                    request.getCredentialId(),
+                    "IssueCredentialNationalID",
                     request.getSubjectDID(),
                     request.getCredentialType(),
                     request.getFullName(),
                     request.getNic(),
                     request.getDateOfBirth(),
                     request.getCitizenship(),
+                    request.getGender(),
+                    request.getNationality(),
                     request.getFingerprintHash(),
                     request.getFaceImageHash(),
                     request.getAddress().getStreet(),
                     request.getAddress().getCity(),
                     request.getAddress().getState(),
-                    request.getAddress().getPostalCode()
+                    request.getAddress().getPostalCode(),
+                    request.getAddress().getCountry(),
+                    request.getAddress().getDistrict(),
+                    request.getAddress().getDivisionalSecretariat(),
+                    request.getAddress().getGramaNiladhariDivision()
             );
 
             String resultString = new String(result);
             VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
+            LOGGER.info("Issued credential: " + credential);
 
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
+            // Save the issued credential to the database
+            credentialRepository.save(credential);
 
             LOGGER.info("Successfully issued credential: " + credential.getId());
-
-            return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
-                    .status("SUCCESS")
-                    .message("Credential issued successfully")
-                    .timestamp(Instant.now())
-                    .credentialId(credential.getId())
-                    .build();
 
         } catch (Exception e) {
             LOGGER.severe("Failed to issue credential: " + e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_ISSUANCE_FAILED, e);
+        }
+    }
+
+    /**
+     * Read DID document from blockchain
+     */
+    public DIDDocument getDIDDocument(String didId) {
+        try {
+            LOGGER.info("Reading DID document: " + didId);
+
+            byte[] result = contract.evaluateTransaction("ReadDID", didId);
+            String didJson = new String(result);
+            DIDDocument didDocument = objectMapper.readValue(didJson, DIDDocument.class);
+
+            LOGGER.info("Successfully retrieved DID document: " + didDocument.getId());
+            return didDocument;
+
+        } catch (Exception e) {
+            LOGGER.severe("Failed to read DID document: " + e.getMessage());
+            throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
+        }
+    }
+
+    /**
+     * Read Identity Credential from blockchain
+     */
+    public VerifiableCredential readCredential(String credentialId) {
+        try {
+            LOGGER.info("Reading identity credential: " + credentialId);
+
+            byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
+            String credentialJson = new String(result);
+            VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
+
+            LOGGER.info("Successfully retrieved credential: " + credential.getId());
+            return credential;
+
+        } catch (Exception e) {
+            LOGGER.severe("Failed to read identity credential: " + e.getMessage());
+            throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, e);
         }
     }
 
@@ -203,7 +237,7 @@ public class HyperledgerService {
         try {
             LOGGER.info("Verifying credential: " + credentialId);
 
-            byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
+            byte[] result = contract.evaluateTransaction("ReadIdentityCredential", credentialId);
             String credentialJson = new String(result);
             VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
 
@@ -217,26 +251,6 @@ public class HyperledgerService {
         } catch (Exception e) {
             LOGGER.warning("Failed to verify credential: " + e.getMessage());
             return false;
-        }
-    }
-
-    /**
-     * Read DID document from blockchain
-     */
-    public DIDDocument getDIDDocument(String didId) {
-        try {
-            LOGGER.info("Reading DID document: " + didId);
-
-            byte[] result = contract.evaluateTransaction("ReadDID", didId);
-            String didJson = new String(result);
-            DIDDocument didDocument = objectMapper.readValue(didJson, DIDDocument.class);
-
-            LOGGER.info("Successfully retrieved DID document: " + didId);
-            return didDocument;
-
-        } catch (Exception e) {
-            LOGGER.severe("Failed to read DID document: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
         }
     }
 
@@ -331,18 +345,30 @@ public class HyperledgerService {
             LOGGER.info("Revoking credential: " + credentialId);
 
             byte[] result = contract.submitTransaction("RevokeCredential", credentialId, reason);
-            String resultMessage = new String(result);
 
-            String transactionId = generateTransactionId();
-            Long blockNumber = getCurrentBlockNumber();
+            String resultString = new String(result);
+            VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
+
+            // Update the credential status to revoked
+            VerifiableCredential existingCredential = credentialRepository.findById(credentialId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
+
+            existingCredential.setStatus("revoked");
+            existingCredential.setRevokedBy(credential.getRevokedBy());
+            existingCredential.setRevocationReason(credential.getRevocationReason());
+            existingCredential.setRevokedAt(credential.getRevokedAt());
+            existingCredential.setRevocationTxId(credential.getRevocationTxId());
+            existingCredential.setRevocationBlockNumber(credential.getRevocationBlockNumber());
+
+            credentialRepository.save(existingCredential);
 
             LOGGER.info("Successfully revoked credential: " + credentialId);
 
             return HyperledgerTransactionResult.builder()
-                    .transactionId(transactionId)
-                    .blockNumber(blockNumber)
+                    .transactionId(credential.getRevocationTxId())
+                    .blockNumber(credential.getRevocationBlockNumber())
                     .status("SUCCESS")
-                    .message(resultMessage)
+                    .message("Successfully revoked credential")
                     .timestamp(Instant.now())
                     .credentialId(credentialId)
                     .build();
@@ -519,20 +545,6 @@ public class HyperledgerService {
                     .lastUpdated(Instant.now().toString())
                     .build();
         }
-    }
-
-    /**
-     * Generate a unique transaction ID
-     */
-    private String generateTransactionId() {
-        return "tx_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-    }
-
-    /**
-     * Get current block number (using timestamp as block number)
-     */
-    private Long getCurrentBlockNumber() {
-        return System.currentTimeMillis() / 1000; // Simple timestamp as block number
     }
 
     /**

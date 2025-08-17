@@ -11,6 +11,8 @@ public class PersonalInfoDto {
     private String fullName;
     private String nic;
     private LocalDate dateOfBirth;
+    private String citizenship;
     private String gender;
+    private String nationality;
     private AddressDto address;
 }
