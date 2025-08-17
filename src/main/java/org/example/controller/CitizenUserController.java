@@ -60,6 +60,74 @@ public class CitizenUserController {
     }
 
     /**
+     * Get user by DID
+     * GET /api/citizen-users/did/{did}
+     */
+    @GetMapping("/did/{did}")
+    public ResponseEntity<ApiResponseDto<DIDDocumentDto>> getUserByDid(
+            @PathVariable String did) {
+        try {
+            DIDDocumentDto didDocument = citizenUserService.getDIDDocument(did);
+            return ResponseEntity.ok(ApiResponseDto.<DIDDocumentDto>builder()
+                    .success(true)
+                    .message("User retrieved successfully")
+                    .data(didDocument)
+                    .timestamp(java.time.Instant.now())
+                    .build());
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<DIDDocumentDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<DIDDocumentDto>builder()
+                            .success(false)
+                            .message("Failed to retrieve user by DID")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Get user Verifiable Credential by Credential ID
+     * GET /api/citizen-users/credential/{credentialId}
+     */
+    @GetMapping("/credential/{credentialId}")
+    public ResponseEntity<ApiResponseDto<VerifiableCredentialDto>> getUserCredential(
+            @PathVariable String credentialId) {
+        try {
+            VerifiableCredentialDto credential = citizenUserService.getVerifiableCredential(credentialId);
+            return ResponseEntity.ok(ApiResponseDto.<VerifiableCredentialDto>builder()
+                    .success(true)
+                    .message("Credential retrieved successfully")
+                    .data(credential)
+                    .timestamp(java.time.Instant.now())
+                    .build());
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<VerifiableCredentialDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<VerifiableCredentialDto>builder()
+                            .success(false)
+                            .message("Failed to retrieve credential")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        }
+    }
+
+    /**
      * Update user profile information
      * PUT /api/citizen-users/{userId}/profile
      */

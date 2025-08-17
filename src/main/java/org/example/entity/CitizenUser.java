@@ -32,6 +32,7 @@ public class CitizenUser {
     private LocalDate dateOfBirth;
     private String gender;
     private String nationality;
+    private String citizenship;
 
     @Embedded
     private Address address;

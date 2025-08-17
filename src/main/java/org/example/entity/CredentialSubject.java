@@ -14,7 +14,6 @@ import lombok.NoArgsConstructor;
 public class CredentialSubject {
 
     private String id; // DID of the subject
-    private String type;
     private String fullName;
     private String nic;
     private String dateOfBirth;

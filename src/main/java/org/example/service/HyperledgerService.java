@@ -28,7 +28,7 @@ public class HyperledgerService {
     private static final Logger LOGGER = Logger.getLogger(HyperledgerService.class.getName());
 
     @Autowired
-    private DIDDocumentRepository didRepository;
+    private DIDDocumentRepository didDocumentRepository;
 
     @Autowired
     private VerifiableCredentialRepository credentialRepository;
@@ -79,12 +79,12 @@ public class HyperledgerService {
                 didDocument.getPublicKey().forEach(pk -> pk.setDidDocument(didDocument));
             }
 
-            if (didDocument.getService() != null) {
-                didDocument.getService().forEach(s -> s.setDidDocument(didDocument));
+            if (didDocument.getServices() != null) {
+                didDocument.getServices().forEach(s -> s.setDidDocument(didDocument));
             }
 
             // Save the DID document to the database
-            didRepository.save(didDocument);
+            didDocumentRepository.save(didDocument);
 
             LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
 
@@ -116,6 +116,8 @@ public class HyperledgerService {
                     request.getNic(),
                     request.getDateOfBirth(),
                     request.getCitizenship(),
+                    request.getGender(),
+                    request.getNationality(),
                     request.getFingerprintHash(),
                     request.getFaceImageHash(),
                     request.getAddress().getStreet(),
@@ -130,6 +132,7 @@ public class HyperledgerService {
 
             String resultString = new String(result);
             VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
+            LOGGER.info("Issued credential: " + credential);
 
             // Save the issued credential to the database
             credentialRepository.save(credential);
@@ -139,6 +142,46 @@ public class HyperledgerService {
         } catch (Exception e) {
             LOGGER.severe("Failed to issue credential: " + e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_ISSUANCE_FAILED, e);
+        }
+    }
+
+    /**
+     * Read DID document from blockchain
+     */
+    public DIDDocument getDIDDocument(String didId) {
+        try {
+            LOGGER.info("Reading DID document: " + didId);
+
+            byte[] result = contract.evaluateTransaction("ReadDID", didId);
+            String didJson = new String(result);
+            DIDDocument didDocument = objectMapper.readValue(didJson, DIDDocument.class);
+
+            LOGGER.info("Successfully retrieved DID document: " + didDocument.getId());
+            return didDocument;
+
+        } catch (Exception e) {
+            LOGGER.severe("Failed to read DID document: " + e.getMessage());
+            throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
+        }
+    }
+
+    /**
+     * Read Identity Credential from blockchain
+     */
+    public VerifiableCredential readCredential(String credentialId) {
+        try {
+            LOGGER.info("Reading identity credential: " + credentialId);
+
+            byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
+            String credentialJson = new String(result);
+            VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
+
+            LOGGER.info("Successfully retrieved credential: " + credential.getId());
+            return credential;
+
+        } catch (Exception e) {
+            LOGGER.severe("Failed to read identity credential: " + e.getMessage());
+            throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, e);
         }
     }
 
@@ -194,7 +237,7 @@ public class HyperledgerService {
         try {
             LOGGER.info("Verifying credential: " + credentialId);
 
-            byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
+            byte[] result = contract.evaluateTransaction("ReadIdentityCredential", credentialId);
             String credentialJson = new String(result);
             VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
 
@@ -208,26 +251,6 @@ public class HyperledgerService {
         } catch (Exception e) {
             LOGGER.warning("Failed to verify credential: " + e.getMessage());
             return false;
-        }
-    }
-
-    /**
-     * Read DID document from blockchain
-     */
-    public DIDDocument getDIDDocument(String didId) {
-        try {
-            LOGGER.info("Reading DID document: " + didId);
-
-            byte[] result = contract.evaluateTransaction("ReadDID", didId);
-            String didJson = new String(result);
-            DIDDocument didDocument = objectMapper.readValue(didJson, DIDDocument.class);
-
-            LOGGER.info("Successfully retrieved DID document: " + didId);
-            return didDocument;
-
-        } catch (Exception e) {
-            LOGGER.severe("Failed to read DID document: " + e.getMessage());
-            throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
         }
     }
 

@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 @Builder
 public class AuthenticationRequestDto {
+    private String identifierType;
     private String identifier;
     private BiometricInfoDto biometric;
     private DeviceInfoDto deviceInfo;
