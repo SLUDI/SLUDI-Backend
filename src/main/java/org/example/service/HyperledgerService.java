@@ -19,7 +19,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -107,13 +106,10 @@ public class HyperledgerService {
     /**
      * Issue a verifiable credential to a citizen
      */
-    public HyperledgerTransactionResult issueCredential(CredentialIssuanceRequestDto request) {
+    public void issueCredentialNationalID(NationalIDCredentialIssuanceRequestDto request) {
         try {
-            LOGGER.info("Issuing credential: " + request.getCredentialId());
-
             byte[] result = contract.submitTransaction(
-                    "IssueCredential",
-                    request.getCredentialId(),
+                    "IssueCredentialNationalID",
                     request.getSubjectDID(),
                     request.getCredentialType(),
                     request.getFullName(),
@@ -125,25 +121,20 @@ public class HyperledgerService {
                     request.getAddress().getStreet(),
                     request.getAddress().getCity(),
                     request.getAddress().getState(),
-                    request.getAddress().getPostalCode()
+                    request.getAddress().getPostalCode(),
+                    request.getAddress().getCountry(),
+                    request.getAddress().getDistrict(),
+                    request.getAddress().getDivisionalSecretariat(),
+                    request.getAddress().getGramaNiladhariDivision()
             );
 
             String resultString = new String(result);
             VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
 
-            LOGGER.info("Successfully issued credential: " + credential.getId());
-
-            // Save the credential to the database
+            // Save the issued credential to the database
             credentialRepository.save(credential);
 
-            return HyperledgerTransactionResult.builder()
-                    .transactionId(credential.getBlockchainTxId())
-                    .blockNumber(credential.getBlockNumber())
-                    .status("SUCCESS")
-                    .message("Credential issued successfully")
-                    .timestamp(Instant.now())
-                    .credentialId(credential.getId())
-                    .build();
+            LOGGER.info("Successfully issued credential: " + credential.getId());
 
         } catch (Exception e) {
             LOGGER.severe("Failed to issue credential: " + e.getMessage());

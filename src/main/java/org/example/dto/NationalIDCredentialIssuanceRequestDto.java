@@ -5,8 +5,7 @@ import lombok.Data;
 
 @Data
 @Builder
-public class CredentialIssuanceRequestDto {
-    private String credentialId;
+public class NationalIDCredentialIssuanceRequestDto {
     private String subjectDID;
     private String credentialType;
     private String fullName;

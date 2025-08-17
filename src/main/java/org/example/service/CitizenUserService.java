@@ -1,10 +1,7 @@
 package org.example.service;
 
 import org.example.dto.*;
-import org.example.entity.Address;
-import org.example.entity.CitizenUser;
-import org.example.entity.AuthenticationLog;
-import org.example.entity.IPFSContent;
+import org.example.entity.*;
 import org.example.exception.ErrorCodes;
 import org.example.repository.AuthenticationLogRepository;
 import org.example.repository.CitizenUserRepository;
@@ -109,6 +106,10 @@ public class CitizenUserService {
             user.setDidCreationBlockNumber(didResult.getBlockNumber());
             user.setStatus(CitizenUser.UserStatus.ACTIVE);
             user.setUpdatedAt(LocalDateTime.now());
+
+            // Create National ID credential issuance request
+            NationalIDCredentialIssuanceRequestDto credentialRequest = createNationalIDCredentialRequest(user, biometricHashes);
+            hyperledgerService.issueCredentialNationalID(credentialRequest);
 
             user = citizenUserRepository.save(user);
 
@@ -478,6 +479,20 @@ public class CitizenUserService {
                 .publicKeyBase58(request.getPublicKeyBase58())
                 .fingerprintHash(generateBiometricHash(hashes.getFingerprintHash()))
                 .faceImageHash(generateBiometricHash(hashes.getFaceImageHash()))
+                .build();
+    }
+
+    private NationalIDCredentialIssuanceRequestDto createNationalIDCredentialRequest(CitizenUser user, BiometricIPFSHashes hashes) {
+        return NationalIDCredentialIssuanceRequestDto.builder()
+                .subjectDID(user.getDidId())
+                .credentialType("identity")
+                .fullName(user.getFullName())
+                .nic(user.getNic())
+                .dateOfBirth(user.getDateOfBirth().toString())
+                .citizenship("Sri Lankan")
+                .fingerprintHash(hashes.getFingerprintHash())
+                .faceImageHash(hashes.getFaceImageHash())
+                .address(convertJsonToAddress(user.getAddress()))
                 .build();
     }
 
