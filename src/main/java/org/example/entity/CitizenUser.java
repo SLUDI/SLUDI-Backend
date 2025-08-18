@@ -44,6 +44,7 @@ public class CitizenUser {
     private KYCStatus kycStatus;
 
     private String didId;
+    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;
@@ -54,4 +55,7 @@ public class CitizenUser {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastLogin;
+
+    @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Wallet wallet;
 }

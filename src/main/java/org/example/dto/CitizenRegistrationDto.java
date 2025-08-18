@@ -10,7 +10,6 @@ public class CitizenRegistrationDto {
     private String fullName;
     private String dateOfBirth;
     private String nic;
-    private String publicKeyBase58;
     private String fingerprintHash;
     private String faceImageHash;
 }
