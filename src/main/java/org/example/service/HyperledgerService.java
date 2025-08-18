@@ -1,5 +1,6 @@
 package org.example.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.DIDDocument;
@@ -17,7 +18,9 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
@@ -26,12 +29,6 @@ import java.util.logging.Logger;
 public class HyperledgerService {
 
     private static final Logger LOGGER = Logger.getLogger(HyperledgerService.class.getName());
-
-    @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
-    private VerifiableCredentialRepository credentialRepository;
 
     @Autowired
     private Contract contract;
@@ -44,6 +41,12 @@ public class HyperledgerService {
 
     @Value("${sludi.issuer-did}")
     private String issuerDid;
+
+    @Autowired
+    private DIDDocumentRepository didDocumentRepository;
+
+    @Autowired
+    private VerifiableCredentialRepository credentialRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -132,7 +135,6 @@ public class HyperledgerService {
 
             String resultString = new String(result);
             VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
-            LOGGER.info("Issued credential: " + credential);
 
             // Save the issued credential to the database
             credentialRepository.save(credential);
@@ -321,16 +323,25 @@ public class HyperledgerService {
             LOGGER.info("Getting credentials for DID: " + subjectDID);
 
             byte[] result = contract.evaluateTransaction("GetCredentialsByDID", subjectDID);
-            String credentialsJson = new String(result);
+            String credentialsJson = new String(result, StandardCharsets.UTF_8);
+
+            if (credentialsJson.trim().isEmpty() || credentialsJson.equals("null")) {
+                return new ArrayList<>();
+            }
 
             List<VerifiableCredential> credentials = objectMapper.readValue(
                     credentialsJson,
                     new TypeReference<List<VerifiableCredential>>() {}
             );
 
-            LOGGER.info("Found " + credentials.size() + " credentials for DID: " + subjectDID);
+            if (credentials == null) {
+                return new ArrayList<>();
+            }
+
             return credentials;
 
+        } catch (JsonProcessingException e) {
+            throw new SludiException(ErrorCodes.JSON_PARSING_FAILED, e);
         } catch (Exception e) {
             LOGGER.severe("Failed to get credentials: " + e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED, e);

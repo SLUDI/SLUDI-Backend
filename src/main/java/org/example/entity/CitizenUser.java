@@ -54,4 +54,7 @@ public class CitizenUser {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastLogin;
+
+    @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Wallet wallet;
 }

@@ -30,8 +30,13 @@ public enum ErrorCodes {
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
     CREDENTIAL_NOT_FOUND("2013", "Credential not found"),
     FAILED_TO_RETRIEVE_DID_DOCUMENT("2014", "Failed to retrieve DID document from blockchain"),
-    
-    
+    OTP_SEND_FAILED("2015", "Failed to send OTP email"),
+    WALLET_CREATION_FAILED("2016", "Failed to create wallet"),
+    VC_STORAGE_FAILED("2017", "Failed to store Verifiable Credential"),
+    WALLET_NOT_FOUND("2018", "Wallet not found for the provided DID"),
+    WALLET_RETRIEVAL_FAILED("2019", "Failed to retrieve wallet data"),
+    JSON_PARSING_FAILED("2020", "Failed to parse credentials JSON"),
+
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
     BIOMETRIC_RETRIEVAL_ERROR("3001", "Failed to retrieve biometric data"),
@@ -78,6 +83,7 @@ public enum ErrorCodes {
     FILE_TOO_LARGE("4010", "File size exceeds the maximum limit"),
     INVALID_FORMAT_IMAGE("4011", "Invalid image format. Only JPEG, JPG, and PNG are allowed"),
     INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
+    INVALID_DID("4013", "No DID found for the provided identifier"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),
@@ -95,7 +101,8 @@ public enum ErrorCodes {
     BIOMETRIC_ENCRYPTION_FAILED("5012", "Biometric data encryption failed"),
     BIOMETRIC_DECRYPTION_FAILED("5013", "Biometric data decryption failed"),
     CREDENTIAL_INTEGRITY_VIOLATION("5014", "Credential integrity violation detected"),
-    DID_INTEGRITY_VIOLATION("5015", "DID integrity violation detected"),;
+    DID_INTEGRITY_VIOLATION("5015", "DID integrity violation detected"),
+    KEY_FINGERPRINT_GENERATION_FAILED("5016", "Failed to generate key fingerprint"),;
 
     private final String code;
     private final String description;

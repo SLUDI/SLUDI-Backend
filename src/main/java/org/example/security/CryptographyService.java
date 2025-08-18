@@ -1,6 +1,8 @@
 package org.example.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.entity.CitizenUser;
+import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
@@ -13,7 +15,9 @@ import org.springframework.stereotype.Service;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -44,7 +48,8 @@ public class CryptographyService {
     private static final String AES_ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 16;
-
+    private static final int KEY_LENGTH = 256;
+    private static final int ITERATION_COUNT = 65536;
 
     /**
      * Generate access token for authenticated user
@@ -257,11 +262,11 @@ public class CryptographyService {
     /**
      * Generate cryptographically secure salt
      */
-    public String generateSalt() {
+    public byte[] generateSalt() {
         SecureRandom random = new SecureRandom();
         byte[] salt = new byte[32]; // 256-bit salt
         random.nextBytes(salt);
-        return Base64.getEncoder().encodeToString(salt);
+        return salt;
     }
 
     /**
@@ -295,7 +300,9 @@ public class CryptographyService {
             // For now, using secure hash as placeholder
             String timestamp = String.valueOf(Instant.now().toEpochMilli());
             String signingData = data + timestamp + privateKey;
-            return generateSecureHash(signingData, generateSalt());
+            byte[] salt = generateSalt();
+            String saltBase64 = Base64.getEncoder().encodeToString(salt);
+            return generateSecureHash(signingData, saltBase64);
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.SIGNATURE_GENERATION_FAILED, "Failed to generate DID signature", e);
@@ -349,6 +356,94 @@ public class CryptographyService {
             throw new SludiException(ErrorCodes.KEY_GENERATION_FAILED, e);
         }
     }
+
+    /**
+     * Generate a secure key for wallet encryption
+     */
+    public SecretKey generateWalletKey(String password, byte[] salt) {
+
+        try {
+            PBEKeySpec spec = new PBEKeySpec(
+                    password.toCharArray(),
+                    salt,
+                    ITERATION_COUNT,
+                    KEY_LENGTH
+            );
+
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            byte[] keyBytes = factory.generateSecret(spec).getEncoded();
+
+            return new SecretKeySpec(keyBytes, "AES");
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.KEY_GENERATION_FAILED, e);
+        }
+    }
+
+    /**
+     * Generate key fingerprint
+     */
+    public String generateKeyFingerprint(SecretKey key) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(key.getEncoded());
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.KEY_FINGERPRINT_GENERATION_FAILED, e);
+        }
+    }
+
+    /**
+     * Encrypt key for storage
+     */
+    public static String encryptKey(SecretKey key) {
+        return Base64.getEncoder().encodeToString(key.getEncoded());
+    }
+
+    /**
+     * Encrypt VC for wallet storage
+     */
+    public static String encryptVC(VerifiableCredential vc, SecretKey key) throws Exception {
+        // Convert VC to JSON string
+        ObjectMapper objectMapper = new ObjectMapper();
+        String vcJson = objectMapper.writeValueAsString(vc);
+
+        // Initialize AES/GCM cipher
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+
+        // Encrypt
+        byte[] encrypted = cipher.doFinal(vcJson.getBytes());
+
+        // Combine IV and ciphertext
+        byte[] iv = cipher.getIV();
+        byte[] combined = new byte[iv.length + encrypted.length];
+        System.arraycopy(iv, 0, combined, 0, iv.length);
+        System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length);
+
+        // Encode for storage (Base64)
+        return Base64.getEncoder().encodeToString(combined);
+    }
+
+    public static VerifiableCredential decryptVC(String encryptedVC, SecretKey key) throws Exception {
+        byte[] combined = Base64.getDecoder().decode(encryptedVC);
+
+        // Extract IV and ciphertext
+        byte[] iv = new byte[12]; // GCM standard IV size
+        byte[] ciphertext = new byte[combined.length - iv.length];
+        System.arraycopy(combined, 0, iv, 0, iv.length);
+        System.arraycopy(combined, iv.length, ciphertext, 0, ciphertext.length);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        cipher.init(Cipher.DECRYPT_MODE, key, spec);
+
+        byte[] decrypted = cipher.doFinal(ciphertext);
+
+        // Convert JSON back to VC object
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue(new String(decrypted), VerifiableCredential.class);
+    }
+
 
     /**
      * Encrypt biometric data for IPFS storage
