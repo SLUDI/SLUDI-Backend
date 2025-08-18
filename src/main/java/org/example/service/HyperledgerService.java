@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -63,7 +64,6 @@ public class HyperledgerService {
                     .fullName(registration.getFullName())
                     .dateOfBirth(registration.getDateOfBirth())
                     .nic(registration.getNic())
-                    .publicKeyBase58(registration.getPublicKeyBase58())
                     .fingerprintHash(registration.getFingerprintHash())
                     .faceImageHash(registration.getFaceImageHash())
                     .build();
@@ -266,7 +266,7 @@ public class HyperledgerService {
             String serviceEndpoint = metadata != null ? metadata : "";
 
             byte[] result = contract.submitTransaction(
-                    "UpdateDID",
+                    "UpdateDIDPublicKey",
                     didId,
                     newPublicKey != null ? newPublicKey : "",
                     serviceEndpoint
@@ -274,6 +274,11 @@ public class HyperledgerService {
 
             String resultString = new String(result);
             DIDDocument updatedDid = objectMapper.readValue(resultString, DIDDocument.class);
+
+            Optional<DIDDocument> didDocumentOptional = didDocumentRepository.findById(updatedDid.getId());
+            DIDDocument didDocument = didDocumentOptional.get();
+            didDocument.setPublicKey(updatedDid.getPublicKey());
+            didDocumentRepository.save(didDocument);
 
             LOGGER.info("Successfully updated DID: " + updatedDid.getId());
 

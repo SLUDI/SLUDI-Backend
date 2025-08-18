@@ -1,6 +1,7 @@
 package org.example.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.ipfs.multibase.Base58;
 import org.example.entity.CitizenUser;
 import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
@@ -20,6 +21,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -342,15 +345,22 @@ public class CryptographyService {
      */
     public Map<String, String> generateKeyPair() {
         try {
-            // In production, this would generate actual Ed25519 or secp256k1 key pairs
-            String privateKey = generateSecureRandomString(32);
-            String publicKey = generateSecureHash(privateKey, "public-key-derivation");
-            
-            Map<String, String> keyPair = new HashMap<>();
-            keyPair.put("privateKey", privateKey);
-            keyPair.put("publicKey", publicKey);
-            
-            return keyPair;
+            // Generate real Ed25519 key pair
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("Ed25519");
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] privateKeyBytes = keyPair.getPrivate().getEncoded();
+            byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
+
+            // Convert to Base58
+            String privateKeyBase58 = Base58.encode(privateKeyBytes);
+            String publicKeyBase58 = Base58.encode(publicKeyBytes);
+
+            Map<String, String> result = new HashMap<>();
+            result.put("privateKey", privateKeyBase58);
+            result.put("publicKey", publicKeyBase58);
+
+            return result;
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.KEY_GENERATION_FAILED, e);

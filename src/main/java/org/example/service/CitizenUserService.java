@@ -299,6 +299,20 @@ public class CitizenUserService {
         }
     }
 
+    public void generateUserKeyPair(String didId) {
+        // Check if the DID exist
+        if (didId == null || didId.isEmpty()) {
+            throw new SludiException(ErrorCodes.DID_NOT_FOUND, "DID ID cannot be null or empty");
+        }
+
+        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, didId);
+        if(user==null) {
+            throw new SludiException(ErrorCodes.USER_NOT_FOUND);
+        }
+
+
+    }
+
     /**
      * Update user profile information
      */
@@ -563,17 +577,23 @@ public class CitizenUserService {
             try {
                 // Store fingerprint
                 String fingerprintPath = String.format("biometric/users/%s/fingerprint/fingerprint.jpg", userId);
-                String fingerprintHash = ipfsIntegration.storeFile(fingerprintPath, biometric.getFingerprint());
+                String fingerprintHash = ipfsIntegration.storeBiometricData(
+                        userId.toString(), "fingerprint", biometric.getFingerprint()
+                );
 
                 // Store face image
                 String facePath = String.format("biometric/users/%s/face/face_image.jpg", userId);
-                String faceHash = ipfsIntegration.storeFile(facePath, biometric.getFaceImage());
+                String faceHash = ipfsIntegration.storeBiometricData(
+                        userId.toString(), "face", biometric.getFaceImage()
+                );
 
                 // Store signature if provided
                 String signatureHash = null;
                 if (biometric.getSignature() != null) {
                     String signaturePath = String.format("biometric/users/%s/signature/signature.png", userId);
-                    signatureHash = ipfsIntegration.storeFile(signaturePath, biometric.getSignature());
+                    signatureHash = ipfsIntegration.storeBiometricData(
+                            userId.toString(), "fingerprint", biometric.getSignature()
+                    );
                 }
 
                 // Record IPFS content metadata
@@ -618,7 +638,7 @@ public class CitizenUserService {
                 .mimeType(mimeType)
                 .accessLevel("private")
                 .isEncrypted(true)
-                .encryptionAlgorithm("AES-256")
+                .encryptionAlgorithm("SHA-256")
                 .uploadedAt(LocalDateTime.now())
                 .build();
 
@@ -631,7 +651,6 @@ public class CitizenUserService {
                 .fullName(user.getFullName())
                 .dateOfBirth(user.getDateOfBirth().toString())
                 .nic(user.getNic())
-                .publicKeyBase58(request.getPublicKeyBase58())
                 .fingerprintHash(generateBiometricHash(hashes.getFingerprintHash()))
                 .faceImageHash(generateBiometricHash(hashes.getFaceImageHash()))
                 .build();

@@ -36,6 +36,7 @@ public enum ErrorCodes {
     WALLET_NOT_FOUND("2018", "Wallet not found for the provided DID"),
     WALLET_RETRIEVAL_FAILED("2019", "Failed to retrieve wallet data"),
     JSON_PARSING_FAILED("2020", "Failed to parse credentials JSON"),
+    CONTENT_NOT_FOUND("2021", "IPFS content not found in DB"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),

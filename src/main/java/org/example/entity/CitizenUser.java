@@ -44,6 +44,7 @@ public class CitizenUser {
     private KYCStatus kycStatus;
 
     private String didId;
+    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;

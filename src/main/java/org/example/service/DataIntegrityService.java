@@ -1,24 +1,35 @@
 package org.example.service;
 
-import org.example.entity.DIDDocument;
-import org.example.entity.PublicKey;
-import org.example.entity.Services;
-import org.example.entity.VerifiableCredential;
+import io.ipfs.multibase.Base58;
+import org.example.entity.*;
+import org.example.integration.IPFSIntegration;
+import org.example.repository.IPFSContentRepository;
 import org.example.security.CryptographyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
+import java.util.logging.Logger;
 
 @Service
 public class DataIntegrityService {
+
+    private static final Logger LOGGER = Logger.getLogger(DataIntegrityService.class.getName());
 
     @Autowired
     private HyperledgerService hyperledgerService;
 
     @Autowired
     private CryptographyService cryptographyService;
+
+    @Autowired
+    private IPFSContentRepository ipfsContentRepository;
+
+    @Autowired
+    private IPFSIntegration ipfsIntegration;
 
     /**
      * Validates the integrity of a DID Document
@@ -56,6 +67,13 @@ public class DataIntegrityService {
             return false; // Credential not found on the blockchain
         }
 
+        String userId = credential.getCredentialSubject().getId();
+        BiometricHashes biometricHashes = credential.getCredentialSubject().getBiometricHashes();
+
+        if(!verifyIPFSIntegrity(userId, biometricHashes)) {
+            return false;
+        }
+
         // Compare the local and blockchain records
         return Objects.equals(credential.getId(), blockchainCredential.getId())
                 && compareContext(credential.getContext(), blockchainCredential.getContext())
@@ -67,6 +85,53 @@ public class DataIntegrityService {
                 && Objects.equals(credential.getStatus(), blockchainCredential.getStatus())
                 && Objects.equals(credential.getProof(), blockchainCredential.getProof());
     }
+
+    public boolean verifyIPFSIntegrity(String userId, BiometricHashes biometricHashes) {
+        // Get PostgreSQL records for this user
+        List<IPFSContent> ipfsContentList = ipfsContentRepository.findByOwnerUserId(UUID.fromString(userId));
+
+        if (ipfsContentList.isEmpty()) {
+            LOGGER.warning("No IPFS records found for user: " + userId);
+            return false;
+        }
+
+        // Verify each biometric type
+        boolean fingerprintOk = verifySingleBiometric(ipfsContentList, "fingerprint", biometricHashes.getFingerprintHash());
+        boolean faceOk       = verifySingleBiometric(ipfsContentList, "face", biometricHashes.getFaceImageHash());
+
+        return fingerprintOk && faceOk;
+    }
+
+    private boolean verifySingleBiometric(List<IPFSContent> ipfsContentList, String subcategory, String blockchainHash) {
+        // matching IPFSContent from DB
+        IPFSContent content = ipfsContentList.stream()
+                .filter(c -> subcategory.equalsIgnoreCase(c.getSubcategory()))
+                .findFirst()
+                .orElse(null);
+
+        if (content == null) {
+            LOGGER.warning("No IPFS content found for subcategory: " + subcategory);
+            return false;
+        }
+
+        // Compare DB vs Blockchain
+        if (!Objects.equals(content.getIpfsHash(), blockchainHash)) {
+            LOGGER.warning("DB hash != Blockchain hash for " + subcategory);
+            return false;
+        }
+
+        // Fetch file from IPFS and recompute hash
+        byte[] fileData = ipfsIntegration.retrieveFile(blockchainHash);
+        String computedHash = computeIpfsHash(fileData);
+
+        if (!Objects.equals(computedHash, blockchainHash)) {
+            LOGGER.warning("IPFS file hash != Blockchain hash for " + subcategory);
+            return false;
+        }
+
+        return true;
+    }
+
 
     private boolean comparePublicKeys(List<PublicKey> localKeys, List<PublicKey> blockchainKeys) {
         if (localKeys == null) return blockchainKeys == null;
@@ -131,5 +196,24 @@ public class DataIntegrityService {
         }
         return true;
     }
+
+    private String computeIpfsHash(byte[] fileData) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] sha256 = digest.digest(fileData);
+
+            // Prepend multihash prefix for IPFS
+            byte[] multihash = new byte[sha256.length + 2];
+            multihash[0] = 0x12; // SHA2
+            multihash[1] = 0x20; // length 32
+            System.arraycopy(sha256, 0, multihash, 2, sha256.length);
+
+            return Base58.encode(multihash); // same encoding IPFS uses
+        } catch (Exception e) {
+            throw new RuntimeException("Error computing IPFS hash", e);
+        }
+    }
+
+
 
 }

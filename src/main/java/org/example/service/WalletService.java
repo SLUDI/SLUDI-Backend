@@ -16,10 +16,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -76,11 +73,19 @@ public class WalletService {
     /**
      * Create wallet with password
      */
-    public String createWallet(String did, String password) {
+    public Map<String, String> createWallet(String did, String password) {
 
         try {
             // Generate wallet ID
             String walletId = UUID.randomUUID().toString();
+
+            // Generate key pair
+            Map<String, String> keyPair = cryptoService.generateKeyPair();
+            String publicKey = keyPair.get("publicKey");
+            String privateKey = keyPair.get("privateKey");
+
+            // Update publicKey in DID
+            hyperledgerService.updateDID(did, publicKey, "api/wallet/create");
 
             // Generate
             byte[] salt = cryptoService.generateSalt();
@@ -122,7 +127,11 @@ public class WalletService {
             // Save wallet
             walletRepository.save(wallet);
 
-            return "Create wallet for user" + did;
+            //Return key pair to user (public + private)
+            Map<String, String> response = new HashMap<>();
+            response.put("publicKey", publicKey);
+            response.put("privateKey", privateKey);
+            return response;
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.WALLET_CREATION_FAILED, e);

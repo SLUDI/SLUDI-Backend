@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/wallet")
 @Validated
@@ -70,19 +72,19 @@ public class WalletController {
      * Create wallet with password
      */
     @PostMapping("/create")
-    public ResponseEntity<ApiResponseDto<String>> createWallet(
+    public ResponseEntity<ApiResponseDto<Map<String, String>>> createWallet(
             @Valid @RequestBody WalletRequest request) {
         try {
-            String result = walletService.createWallet(request.getDid(), request.getPassword());
-            return ResponseEntity.ok(ApiResponseDto.<String>builder()
-                            .success(true)
-                            .message("Wallet create successfully")
-                            .data(result)
-                            .timestamp(java.time.Instant.now())
-                            .build());
+            Map<String, String> result = walletService.createWallet(request.getDid(), request.getPassword());
+            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                    .success(true)
+                    .message("Wallet created successfully")
+                    .data(result)
+                    .timestamp(java.time.Instant.now())
+                    .build());
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<String>builder()
+                    .body(ApiResponseDto.<Map<String, String>>builder()
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
@@ -90,7 +92,7 @@ public class WalletController {
                             .build());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<String>builder()
+                    .body(ApiResponseDto.<Map<String, String>>builder()
                             .success(false)
                             .message("Failed to create Wallet")
                             .errorCode("INTERNAL_ERROR")
