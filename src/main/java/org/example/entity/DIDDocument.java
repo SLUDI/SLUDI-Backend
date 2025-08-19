@@ -22,6 +22,8 @@ public class DIDDocument {
     private String didUpdated;
 
     @OneToMany(mappedBy = "didDocument", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<PublicKey> publicKey;
 
     @ElementCollection
@@ -30,6 +32,8 @@ public class DIDDocument {
     private List<String> authentication;
 
     @OneToMany(mappedBy = "didDocument", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Services> services;
 
     private String status; // active, deactivated, revoked

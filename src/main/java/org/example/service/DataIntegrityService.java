@@ -9,9 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 
 @Service
@@ -44,10 +42,13 @@ public class DataIntegrityService {
             return false; // DID Document not found on the blockchain
         }
 
+        List<PublicKey> localKeys = Optional.ofNullable(didDocument.getPublicKey()).orElse(Collections.emptyList());
+        List<PublicKey> chainKeys = Optional.ofNullable(blockchainDidDocument.getPublicKey()).orElse(Collections.emptyList());
+        if (!comparePublicKeys(localKeys, chainKeys)) return false;
+
         // Compare the local and blockchain records
         return Objects.equals(didDocument.getId(), blockchainDidDocument.getId())
                 && Objects.equals(didDocument.getDidVersion(), blockchainDidDocument.getDidVersion())
-                && comparePublicKeys(didDocument.getPublicKey(), blockchainDidDocument.getPublicKey())
                 && compareAuthentication(didDocument.getAuthentication(), blockchainDidDocument.getAuthentication())
                 && compareServices(didDocument.getServices(), blockchainDidDocument.getServices())
                 && Objects.equals(didDocument.getStatus(), blockchainDidDocument.getStatus())
