@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Built archives
+*.jar
+*.war
+
+# Ignore Gradle wrapper jar
+gradle-wrapper.jar
