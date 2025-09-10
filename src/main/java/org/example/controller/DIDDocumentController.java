@@ -1,9 +1,16 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
-import org.example.service.CitizenUserService;
+import org.example.service.DIDDocumentService;
 import org.example.exception.SludiException;
 import org.example.exception.HttpStatusHandler;
 
@@ -17,17 +24,37 @@ import java.util.UUID;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/citizen-users")
+@RequestMapping("/api/did")
 @CrossOrigin(origins = "*")
-public class CitizenUserController {
+@Tag(name = "DID Documents", description = "Operations related to DID Documents")
+public class DIDDocumentController {
 
     @Autowired
-    private CitizenUserService citizenUserService;
+    private DIDDocumentService DIDDocumentService;
 
     /**
      * Register new user and create DID
-     * POST /api/citizen-users/register
+     * POST /api/did/register
      */
+    @Operation(
+            summary = "Register a new citizen user and create DID",
+            description = "Registers a new citizen with personal info, contact info, profile photo, and device info. Returns DID and user ID.",
+            requestBody = @RequestBody(
+                    content = @Content(
+                            mediaType = "multipart/form-data",
+                            schema = @Schema(implementation = UserRegistrationRequestDto.class)
+                    )
+            ),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "201",
+                            description = "User registered successfully",
+                            content = @Content(schema = @Schema(implementation = UserRegistrationResponseDto.class))),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Internal server error")
+            }
+    )
     @PostMapping("/register")
     public ResponseEntity<ApiResponseDto<UserRegistrationResponseDto>> registerUser(
             @RequestPart("userData") @Valid UserRegistrationRequestDto request,
@@ -38,7 +65,7 @@ public class CitizenUserController {
 
             request.setProfilePhoto(profilePhoto);
 
-            UserRegistrationResponseDto response = citizenUserService.registerUser(request);
+            UserRegistrationResponseDto response = DIDDocumentService.registerUser(request);
 
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponseDto.<UserRegistrationResponseDto>builder()
@@ -61,13 +88,37 @@ public class CitizenUserController {
 
     /**
      * Get user by DID
-     * GET /api/citizen-users/did/{did}
+     * GET /api/did/did/{did}
      */
+    @Operation(
+            summary = "Get DID Document by DID",
+            description = "Retrieves the DID Document of a citizen user using their DID identifier.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "User retrieved successfully",
+                            content = @Content(schema = @Schema(implementation = DIDDocumentDto.class))
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "DID not found"
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Internal server error"
+                    )
+            }
+    )
     @GetMapping("/did/{did}")
     public ResponseEntity<ApiResponseDto<DIDDocumentDto>> getUserByDid(
+            @Parameter(
+                    description = "The Decentralized Identifier (DID) of the user",
+                    required = true,
+                    example = "did:example:123456789"
+            )
             @PathVariable String did) {
         try {
-            DIDDocumentDto didDocument = citizenUserService.getDIDDocument(did);
+            DIDDocumentDto didDocument = DIDDocumentService.getDIDDocument(did);
             return ResponseEntity.ok(ApiResponseDto.<DIDDocumentDto>builder()
                     .success(true)
                     .message("User retrieved successfully")
@@ -94,42 +145,8 @@ public class CitizenUserController {
     }
 
     /**
-     * Get user Verifiable Credential by Credential ID
-     * GET /api/citizen-users/credential/{credentialId}
-     */
-    @GetMapping("/credential/{credentialId}")
-    public ResponseEntity<ApiResponseDto<VerifiableCredentialDto>> getUserCredential(
-            @PathVariable String credentialId) {
-        try {
-            VerifiableCredentialDto credential = citizenUserService.getVerifiableCredential(credentialId);
-            return ResponseEntity.ok(ApiResponseDto.<VerifiableCredentialDto>builder()
-                    .success(true)
-                    .message("Credential retrieved successfully")
-                    .data(credential)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<VerifiableCredentialDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<VerifiableCredentialDto>builder()
-                            .success(false)
-                            .message("Failed to retrieve credential")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
      * Update user profile information
-     * PUT /api/citizen-users/{userId}/profile
+     * PUT /api/did/{userId}/profile
      */
     @PutMapping("/{userId}/profile")
     public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> updateUserProfile(
@@ -141,7 +158,7 @@ public class CitizenUserController {
             // Extract user from JWT token for authorization
             validateAuthorization(authHeader, userId);
 
-            UserProfileResponseDto response = citizenUserService.updateUserProfile(userId, request);
+            UserProfileResponseDto response = DIDDocumentService.updateUserProfile(userId, request);
 
             return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
                     .success(true)
@@ -172,7 +189,7 @@ public class CitizenUserController {
 
     /**
      * Retrieve user profile information
-     * GET /api/citizen-users/{userId}/profile
+     * GET /api/did/{userId}/profile
      */
     @GetMapping("/{userId}/profile")
     public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> getUserProfile(
@@ -182,7 +199,7 @@ public class CitizenUserController {
         try {
             String requesterDid = extractDidFromAuthHeader(authHeader);
 
-            UserProfileResponseDto response = citizenUserService.getUserProfile(userId, requesterDid);
+            UserProfileResponseDto response = DIDDocumentService.getUserProfile(userId, requesterDid);
 
             return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
                     .success(true)
@@ -213,7 +230,7 @@ public class CitizenUserController {
 
     /**
      * Upload profile photo
-     * POST /api/citizen-users/{userId}/profile-photo
+     * POST /api/did/{userId}/profile-photo
      */
     @PostMapping("/{userId}/profile-photo")
     public ResponseEntity<ApiResponseDto<Map<String, String>>> uploadProfilePhoto(
@@ -232,7 +249,7 @@ public class CitizenUserController {
                     .profilePhoto(photo)
                     .build();
 
-            UserProfileResponseDto response = citizenUserService.updateUserProfile(userId, request);
+            UserProfileResponseDto response = DIDDocumentService.updateUserProfile(userId, request);
 
             return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
                     .success(true)
@@ -266,7 +283,7 @@ public class CitizenUserController {
 
     /**
      * Upload additional documents
-     * POST /api/citizen-users/{userId}/documents
+     * POST /api/did/{userId}/documents
      */
     @PostMapping("/{userId}/documents")
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> uploadDocuments(
@@ -287,7 +304,7 @@ public class CitizenUserController {
                     .newDocuments(java.util.Arrays.asList(documents))
                     .build();
 
-            citizenUserService.updateUserProfile(userId, request);
+            DIDDocumentService.updateUserProfile(userId, request);
 
             return ResponseEntity.ok(ApiResponseDto.<Map<String, Object>>builder()
                     .success(true)
@@ -322,7 +339,7 @@ public class CitizenUserController {
 
     /**
      * Deactivate user account
-     * POST /api/citizen-users/{userId}/deactivate
+     * POST /api/did/{userId}/deactivate
      */
     @PostMapping("/{userId}/deactivate")
     public ResponseEntity<ApiResponseDto<String>> deactivateUser(
@@ -335,7 +352,7 @@ public class CitizenUserController {
             validateDeactivationAuthorization(authHeader, userId);
 
             String reason = requestBody.getOrDefault("reason", "User requested deactivation");
-            String result = citizenUserService.deactivateUser(userId, reason);
+            String result = DIDDocumentService.deactivateUser(userId, reason);
 
             return ResponseEntity.ok(ApiResponseDto.<String>builder()
                     .success(true)
@@ -366,7 +383,7 @@ public class CitizenUserController {
 
     /**
      * Check if user exists by identifier
-     * GET /api/citizen-users/exists
+     * GET /api/did/exists
      */
     @GetMapping("/exists")
     public ResponseEntity<ApiResponseDto<Map<String, Boolean>>> checkUserExists(
@@ -377,13 +394,13 @@ public class CitizenUserController {
             boolean exists;
             switch (type.toLowerCase()) {
                 case "email":
-                    exists = citizenUserService.isCitizenUserExistsByEmail(identifier);
+                    exists = DIDDocumentService.isCitizenUserExistsByEmail(identifier);
                     break;
                 case "nic":
-                    exists = citizenUserService.isCitizenUserExistsByNic(identifier);
+                    exists = DIDDocumentService.isCitizenUserExistsByNic(identifier);
                     break;
                 case "did":
-                    exists = citizenUserService.isCitizenUserExistsByDidId(identifier);
+                    exists = DIDDocumentService.isCitizenUserExistsByDidId(identifier);
                     break;
                 default:
                     throw new SludiException(ErrorCodes.INVALID_TYPE);
@@ -418,7 +435,7 @@ public class CitizenUserController {
 
     /**
      * Get user statistics (for admin)
-     * GET /api/citizen-users/statistics
+     * GET /api/did/statistics
      */
     @GetMapping("/statistics")
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> getUserStatistics(
@@ -427,7 +444,7 @@ public class CitizenUserController {
         try {
             validateAdminAuthorization(authHeader);
 
-            Map<String, Object> stats = citizenUserService.getUserStatistics();
+            Map<String, Object> stats = DIDDocumentService.getUserStatistics();
 
             return ResponseEntity.ok(ApiResponseDto.<Map<String, Object>>builder()
                     .success(true)

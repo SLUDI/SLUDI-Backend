@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Logger;
@@ -207,7 +206,7 @@ public class WalletService {
                 .build();
 
         // Convert CredentialSubject to DTO
-        CredentialSubjectDto credentialSubjectDto = CredentialSubjectDto.builder()
+        CredentialSubject credentialSubject = CredentialSubject.builder()
                 .id(ivc.getCredentialSubject().getId())
                 .fullName(ivc.getCredentialSubject().getFullName())
                 .nic(ivc.getCredentialSubject().getNic())
@@ -235,7 +234,7 @@ public class WalletService {
                 .issuer(ivc.getIssuer())
                 .issuanceDate(ivc.getIssuanceDate())
                 .expirationDate(ivc.getExpirationDate())
-                .credentialSubject(credentialSubjectDto)
+                .credentialSubject(credentialSubject)
                 .status(ivc.getStatus())
                 .proof(proofDto)
                 .createdAt(ivc.getCreatedAt())

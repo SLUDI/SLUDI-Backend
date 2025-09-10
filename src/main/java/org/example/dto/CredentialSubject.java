@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Builder
-public class CredentialSubjectDto {
+public class CredentialSubject {
     private String id; // DID of the subject
     private String fullName;
     private String nic;
@@ -15,5 +15,4 @@ public class CredentialSubjectDto {
     private String nationality;
     private BiometricHashesDto biometricData;
     private AddressDto address;
-    private String additionalAttributes; // JSON string for additional attributes
 }

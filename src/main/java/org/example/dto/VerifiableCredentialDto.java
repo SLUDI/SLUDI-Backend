@@ -14,7 +14,7 @@ public class VerifiableCredentialDto {
     private String issuer;
     private String issuanceDate;
     private String expirationDate;
-    private CredentialSubjectDto credentialSubject;
+    private CredentialSubject credentialSubject;
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;
     private String createdAt;
