@@ -3,6 +3,7 @@ package org.example.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
+import org.example.entity.ProofData;
 import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
@@ -47,12 +48,17 @@ public class HyperledgerService {
     /**
      * create a new DID on the blockchain
      */
-    public HyperledgerTransactionResult createDID(String nic) {
+    public DIDDocumentDto createDID(
+            String didId,
+            String createTime,
+            ProofData proof) {
         try {
-            LOGGER.info("Registering citizen with ID: " + nic);
+            LOGGER.info("Registering citizen with DID: " + didId);
+
+            String proofJson = objectMapper.writeValueAsString(proof);
 
             // Submit transaction to blockchain
-            byte[] result = contract.submitTransaction("CreateDID", nic);
+            byte[] result = contract.submitTransaction("CreateDID", didId, createTime, proofJson);
 
             // Parse the result
             String resultString = new String(result);
@@ -60,14 +66,7 @@ public class HyperledgerService {
 
             LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
 
-            return HyperledgerTransactionResult.builder()
-                    .transactionId(didDocument.getBlockchainTxId())
-                    .blockNumber(didDocument.getBlockNumber())
-                    .status("SUCCESS")
-                    .message("Citizen registered successfully")
-                    .timestamp(Instant.now())
-                    .didId(didDocument.getId())
-                    .build();
+            return didDocument;
 
         } catch (Exception e) {
             LOGGER.severe("Failed to register citizen: " + e.getMessage());

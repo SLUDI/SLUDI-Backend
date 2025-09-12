@@ -1,7 +1,9 @@
 package org.example.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.ProofPurpose;
 import org.example.exception.ErrorCodes;
 import org.example.repository.*;
 import org.example.integration.IPFSIntegration;
@@ -9,11 +11,13 @@ import org.example.integration.AIIntegration;
 import org.example.security.CryptographyService;
 import org.example.exception.SludiException;
 
+import org.example.utils.DIDIdGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.security.MessageDigest;
@@ -42,10 +46,15 @@ public class DIDDocumentService {
     private HyperledgerService hyperledgerService;
 
     @Autowired
+    private DigitalSignatureService digitalSignatureService;
+
+    @Autowired
     private AIIntegration aiIntegration;
 
     @Autowired
     private CryptographyService cryptographyService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Register a new user with complete identity setup
@@ -67,16 +76,38 @@ public class DIDDocumentService {
 
             // Create user entity (status: pending)
             CitizenUser user = createUserEntity(request);
+            user.setCreatedAt(LocalDateTime.now().toString());
             user = citizenUserRepository.save(user);
 
-            // Create DID on Hyperledger Fabric
-            HyperledgerTransactionResult didResult = hyperledgerService.createDID(request.getPersonalInfo().getNic());
+            // Convert user entity to JSON string
+            String userData = objectMapper.writeValueAsString(user);
 
-            user.setDidId(didResult.getDidId());
-            user.setBlockchainTxId(didResult.getTransactionId());
+            // Create DID ID
+            LocalDate dob = request.getPersonalInfo().getDateOfBirth();
+            DIDIdGenerator.Gender gender =
+                    request.getPersonalInfo().getGender().equalsIgnoreCase("FEMALE")
+                            ? DIDIdGenerator.Gender.FEMALE
+                            : DIDIdGenerator.Gender.MALE;
+
+            String didId = DIDIdGenerator.generateDID(dob, gender);
+
+
+            // Create Proof of Data
+            ProofData proofData = digitalSignatureService.createProofData(
+                    userData,
+                    didId,
+                    LocalDateTime.now().toString(),
+                    ProofPurpose.DID_CREATION.getValue()
+            );
+
+            // Create DID on Hyperledger Fabric
+            DIDDocumentDto didResult = hyperledgerService.createDID(didId, user.getCreatedAt(), proofData);
+
+            user.setDidId(didResult.getId());
+            user.setBlockchainTxId(didResult.getBlockchainTxId());
             user.setDidCreationBlockNumber(didResult.getBlockNumber());
             user.setStatus(CitizenUser.UserStatus.ACTIVE);
-            user.setUpdatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now().toString());
 
             user = citizenUserRepository.save(user);
 
@@ -89,7 +120,7 @@ public class DIDDocumentService {
                     .didId(user.getDidId())
                     .status("SUCCESS")
                     .message("User registered successfully")
-                    .blockchainTxId(didResult.getTransactionId())
+                    .blockchainTxId(didResult.getBlockchainTxId())
                     .build();
 
         } catch (Exception e) {
@@ -140,76 +171,6 @@ public class DIDDocumentService {
         if(user==null) {
             throw new SludiException(ErrorCodes.USER_NOT_FOUND);
         }
-
-
-    }
-
-    /**
-     * Update user profile information
-     */
-    public UserProfileResponseDto updateUserProfile(UUID userId, UserProfileUpdateRequestDto request) {
-        try {
-            CitizenUser user = citizenUserRepository.findById(userId)
-                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
-
-            // Validate update permissions
-            if (!CitizenUser.UserStatus.ACTIVE.equals(user.getStatus())) {
-                throw new SludiException(ErrorCodes.CANNOT_UPDATE_INACTIVE_USER);
-            }
-
-            // Store old values for audit
-            Map<String, Object> oldValues = createAuditMap(user);
-
-            // Update profile information
-            updateUserFields(user, request);
-
-            // Handle new documents upload if provided
-            if (request.getNewDocuments() != null && !request.getNewDocuments().isEmpty()) {
-                Map<String, String> documentHashes = storeUserDocuments(userId, request.getNewDocuments());
-                // Update user with document references (stored as JSON in address_json field for flexibility)
-                updateUserDocumentReferences(user, documentHashes);
-            }
-
-            // Update DID document on blockchain if keys changed
-            if (request.getNewPublicKey() != null) {
-                hyperledgerService.updateDID(user.getDidId(), request.getNewPublicKey(), null);
-            }
-
-            user.setUpdatedAt(LocalDateTime.now());
-            user = citizenUserRepository.save(user);
-
-            // Create audit log
-            logUserActivity(userId, "PROFILE_UPDATE", "Profile updated successfully", request.getDeviceInfo());
-            createAuditTrail(userId, "update", "user", userId.toString(), oldValues, createAuditMap(user), "Profile update");
-
-            return createUserProfileResponse(user);
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.USER_PROFILE_UPDATE_FAILED, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Retrieve user profile information
-     */
-    public UserProfileResponseDto getUserProfile(UUID userId, String requesterDid) {
-        try {
-            CitizenUser user = citizenUserRepository.findById(userId)
-                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
-
-            // Check access permissions (simplified - in production, implement proper authorization)
-            if (!user.getDidId().equals(requesterDid) && !isAuthorizedVerifier(requesterDid)) {
-                throw new SludiException(ErrorCodes.USER_NOT_AUTHORIZED_TO_ACCESS_PROFILE);
-            }
-
-            // Log access attempt
-            logUserActivity(userId, "PROFILE_ACCESS", "Profile accessed by: " + requesterDid, null);
-
-            return createUserProfileResponse(user);
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE, e.getMessage(), e);
-        }
     }
 
     /**
@@ -225,7 +186,7 @@ public class DIDDocumentService {
 
             // Update user status
             user.setStatus(CitizenUser.UserStatus.DEACTIVATED);
-            user.setUpdatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now().toString());
             citizenUserRepository.save(user);
 
             // Log deactivation
@@ -265,8 +226,9 @@ public class DIDDocumentService {
             throw new SludiException(ErrorCodes.INVALID_INPUT, "Personal information and NIC are required");
         }
 
-        if (request.getPersonalInfo().getNic().length() != 12) {
-            throw new SludiException(ErrorCodes.INVALID_NIC, "Must be 12 characters");
+        String nic = request.getPersonalInfo().getNic();
+        if (!nic.matches("\\d{12}") && !nic.matches("\\d{9}[VX]")) {
+            throw new SludiException(ErrorCodes.INVALID_NIC, "Invalid Sri Lankan NIC format");
         }
 
         if (request.getContactInfo() == null || request.getContactInfo().getEmail() == null) {
@@ -313,15 +275,15 @@ public class DIDDocumentService {
                 .nic(request.getPersonalInfo().getNic())
                 .email(request.getContactInfo().getEmail())
                 .phone(request.getContactInfo().getPhone())
-                .dateOfBirth(request.getPersonalInfo().getDateOfBirth())
+                .dateOfBirth(request.getPersonalInfo().getDateOfBirth().toString())
                 .gender(request.getPersonalInfo().getGender())
                 .nationality(request.getPersonalInfo().getNationality())
                 .citizenship(request.getPersonalInfo().getCitizenship())
                 .address(address)
                 .status(CitizenUser.UserStatus.PENDING)
                 .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(LocalDateTime.now().toString())
+                .updatedAt(LocalDateTime.now().toString())
                 .build();
     }
 
@@ -364,19 +326,6 @@ public class DIDDocumentService {
 
             } catch (Exception e) {
                 throw new RuntimeException("Failed to store biometric data: " + e.getMessage(), e);
-            }
-        });
-    }
-
-    private CompletableFuture<String> storeProfilePhotoAsync(UUID userId, MultipartFile profilePhoto) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                String path = String.format("profile/users/%s/profile_photo.jpg", userId);
-                String hash = ipfsIntegration.storeFile(path, profilePhoto.getBytes());
-                recordIPFSContent(userId, hash, "profile", "photo", "image/jpeg");
-                return hash;
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to store profile photo: " + e.getMessage(), e);
             }
         });
     }
@@ -500,71 +449,6 @@ public class DIDDocumentService {
         authLogRepository.save(log);
     }
 
-    private UserProfileResponseDto createUserProfileResponse(CitizenUser user) {
-
-        return UserProfileResponseDto.builder()
-                .userId(user.getId())
-                .didId(user.getDidId())
-                .fullName(user.getFullName())
-                .nic(user.getNic())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .dateOfBirth(user.getDateOfBirth())
-                .gender(user.getGender())
-                .nationality(user.getNationality())
-                .address(convertJsonToAddress(user.getAddress()))
-                .status(user.getStatus().toString())
-                .kycStatus(user.getKycStatus().toString())
-                .profilePhotoHash(user.getProfilePhotoIpfsHash())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .lastLogin(user.getLastLogin())
-                .build();
-    }
-
-    private AddressDto convertJsonToAddress(Address address) {
-        try {
-            if (address == null) {
-                return AddressDto.builder()
-                        .street("")
-                        .city("")
-                        .state("")
-                        .postalCode("")
-                        .country("")
-                        .district("")
-                        .divisionalSecretariat("")
-                        .gramaNiladhariDivision("")
-                        .build();
-            }
-
-            return AddressDto.builder()
-                    .street(address.getStreet())
-                    .city(address.getCity())
-                    .state(address.getState())
-                    .postalCode(address.getPostalCode())
-                    .country(address.getCountry())
-                    .district(address.getDistrict())
-                    .divisionalSecretariat(address.getDivisionalSecretariat())
-                    .gramaNiladhariDivision(address.getGramaNiladhariDivision())
-                    .build();
-
-        } catch (Exception e) {
-            throw new SludiException(
-                    ErrorCodes.ADDRESS_PARSE_ERROR, e.getMessage(), e
-            );
-        }
-    }
-
-    private String convertAddressToJson(AddressDto address) {
-        try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(address);
-        } catch (Exception e) {
-            throw new SludiException(
-                    ErrorCodes.ADDRESS_CONVERSION_ERROR, e.getMessage(), e
-            );
-        }
-    }
-
     private String convertDeviceInfoToJson(DeviceInfoDto deviceInfo) {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(deviceInfo);
@@ -580,82 +464,6 @@ public class DIDDocumentService {
         // This could involve checking against a list of approved verifiers
         return verifierDid.startsWith("did:sludi:government") ||
                 verifierDid.startsWith("did:sludi:service");
-    }
-
-    private Map<String, Object> createAuditMap(CitizenUser user) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("fullName", user.getFullName());
-        map.put("email", user.getEmail());
-        map.put("phone", user.getPhone());
-        map.put("status", user.getStatus().toString());
-        map.put("updatedAt", user.getUpdatedAt());
-        return map;
-    }
-
-    private void updateUserFields(CitizenUser user, UserProfileUpdateRequestDto request) {
-        if (request.getEmail() != null) {
-            user.setEmail(request.getEmail());
-        }
-        if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
-        }
-        if (request.getAddress() != null) {
-            Address newAddress = Address.builder()
-                    .street(request.getAddress().getStreet())
-                    .city(request.getAddress().getCity())
-                    .state(request.getAddress().getState())
-                    .postalCode(request.getAddress().getPostalCode())
-                    .country("Sri Lanka")
-                    .district(request.getAddress().getDistrict())
-                    .divisionalSecretariat(request.getAddress().getDivisionalSecretariat())
-                    .gramaNiladhariDivision(request.getAddress().getGramaNiladhariDivision())
-                    .build();
-            user.setAddress(newAddress);
-        }
-    }
-
-    private Map<String, String> storeUserDocuments(UUID userId, List<MultipartFile> documents) {
-        Map<String, String> documentHashes = new HashMap<>();
-        for (MultipartFile doc : documents) {
-            try {
-                String path = String.format("documents/users/%s/%s", userId, doc.getOriginalFilename());
-                String hash = ipfsIntegration.storeFile(path, doc.getBytes());
-                documentHashes.put(doc.getOriginalFilename(), hash);
-                recordIPFSContent(userId, hash, "document", "user_document", doc.getContentType());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to store document: " + doc.getOriginalFilename(), e);
-            }
-        }
-        return documentHashes;
-    }
-
-    private void updateUserDocumentReferences(CitizenUser user, Map<String, String> documentHashes) {
-        try {
-            Map<String, Object> documentData = new HashMap<>();
-            documentData.put("documents", documentHashes);
-            documentData.put("updatedAt", LocalDateTime.now().toString());
-
-            Address currentAddress = user.getAddress();
-            if (currentAddress == null) {
-                currentAddress = new Address();
-            }
-
-            user.setAddress(Address.builder()
-                    .street(currentAddress.getStreet())
-                    .city(currentAddress.getCity())
-                    .state(currentAddress.getState())
-                    .postalCode(currentAddress.getPostalCode())
-                    .country(currentAddress.getCountry())
-                    .district(currentAddress.getDistrict())
-                    .divisionalSecretariat(currentAddress.getDivisionalSecretariat())
-                    .gramaNiladhariDivision(currentAddress.getGramaNiladhariDivision())
-                    .build());
-
-        } catch (Exception e) {
-            throw new SludiException(
-                    ErrorCodes.DOCUMENT_UPDATE_ERROR, e.getMessage(), e
-            );
-        }
     }
 
     private void createAuditTrail(UUID userId, String actionType, String resourceType, String resourceId,

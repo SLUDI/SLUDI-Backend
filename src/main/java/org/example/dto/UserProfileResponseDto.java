@@ -16,14 +16,14 @@ public class UserProfileResponseDto {
     private String nic;
     private String email;
     private String phone;
-    private LocalDate dateOfBirth;
+    private String dateOfBirth;
     private String gender;
     private String nationality;
     private AddressDto address;
     private String status;
     private String kycStatus;
     private String profilePhotoHash;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime lastLogin;
+    private String createdAt;
+    private String updatedAt;
+    private String lastLogin;
 }

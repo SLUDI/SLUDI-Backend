@@ -72,6 +72,7 @@ public enum ErrorCodes {
     FAILED_TO_ISSUE_IDENTITY_VC("3030", "Failed to issued Identity VC"),
     CRYPTO_INITIALIZATION_FAILED("3031", "Failed to initialize unified signature service"),
     SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
+    PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
     
     // Validation Errors (4000-4999
     INVALID_INPUT("4000", "Invalid input provided"),

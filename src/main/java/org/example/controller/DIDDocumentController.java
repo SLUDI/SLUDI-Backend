@@ -13,8 +13,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.UUID;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @RestController
@@ -33,39 +35,58 @@ public class DIDDocumentController {
      */
     @PostMapping("/register")
     public ResponseEntity<ApiResponseDto<UserRegistrationResponseDto>> registerUser(
-            @Valid @RequestBody UserRegistrationRequestDto request){
+            @Valid @RequestBody UserRegistrationRequestDto request) {
+
+        LOGGER.info("Received user registration NIC: " + request.getPersonalInfo().getNic());
 
         try {
             UserRegistrationResponseDto response = didDocumentService.registerUser(request);
 
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponseDto.<UserRegistrationResponseDto>builder()
-                            .success(true)
-                            .message("User registered successfully")
-                            .data(response)
-                            .timestamp(java.time.Instant.now())
-                            .build());
+            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+                    .success(true)
+                    .message("User registered successfully")
+                    .data(response)
+                    .timestamp(Instant.now())
+                    .build();
 
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<UserRegistrationResponseDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
+            return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
+
+        } catch (SludiException ex) {
+            LOGGER.log(Level.SEVERE,"User registration failed: " + ex.getMessage(), ex);
+
+            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .errorCode(ex.getErrorCode())
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
+
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Unexpected error during registration: " + ex.getMessage(), ex);
+
+            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+                    .success(false)
+                    .message("Internal server error")
+                    .errorCode("INTERNAL_ERROR")
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
         }
     }
 
     /**
      * Get user by DID
-     * GET /api/did/did/{did}
+     * GET /api/did/{did}
      */
-    @GetMapping("/did/{did}")
+    @GetMapping("/{did}")
     public ResponseEntity<ApiResponseDto<DIDDocumentDto>> getUserByDid(
             @PathVariable String did) {
         try {
-            DIDDocumentDto didDocument = didDocumentService.getDIDDocument(did);
+            String id = "did:sludi:" + did;
+            DIDDocumentDto didDocument = didDocumentService.getDIDDocument(id);
             return ResponseEntity.ok(ApiResponseDto.<DIDDocumentDto>builder()
                     .success(true)
                     .message("User retrieved successfully")
@@ -85,199 +106,6 @@ public class DIDDocumentController {
                     .body(ApiResponseDto.<DIDDocumentDto>builder()
                             .success(false)
                             .message("Failed to retrieve user by DID")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Update user profile information
-     * PUT /api/did/{userId}/profile
-     */
-    @PutMapping("/{userId}/profile")
-    public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> updateUserProfile(
-            @PathVariable UUID userId,
-            @Valid @RequestBody UserProfileUpdateRequestDto request,
-            @RequestHeader(value = "Authorization", required = true) String authHeader) {
-
-        try {
-            // Extract user from JWT token for authorization
-            validateAuthorization(authHeader, userId);
-
-            UserProfileResponseDto response = didDocumentService.updateUserProfile(userId, request);
-
-            return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
-                    .success(true)
-                    .message("Profile updated successfully")
-                    .data(response)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
-                            .success(false)
-                            .message("Failed to update profile")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Retrieve user profile information
-     * GET /api/did/{userId}/profile
-     */
-    @GetMapping("/{userId}/profile")
-    public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> getUserProfile(
-            @PathVariable UUID userId,
-            @RequestHeader(value = "Authorization", required = true) String authHeader) {
-
-        try {
-            String requesterDid = extractDidFromAuthHeader(authHeader);
-
-            UserProfileResponseDto response = didDocumentService.getUserProfile(userId, requesterDid);
-
-            return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
-                    .success(true)
-                    .message("Profile retrieved successfully")
-                    .data(response)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
-                            .success(false)
-                            .message("Failed to retrieve profile")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Upload profile photo
-     * POST /api/did/{userId}/profile-photo
-     */
-    @PostMapping("/{userId}/profile-photo")
-    public ResponseEntity<ApiResponseDto<Map<String, String>>> uploadProfilePhoto(
-            @PathVariable UUID userId,
-            @RequestParam("photo") MultipartFile photo,
-            @RequestHeader(value = "Authorization", required = true) String authHeader) {
-
-        try {
-            validateAuthorization(authHeader, userId);
-
-            // Validate file type and size
-            validateImageFile(photo);
-
-            // Update profile with new photo
-            UserProfileUpdateRequestDto request = UserProfileUpdateRequestDto.builder()
-                    .profilePhoto(photo)
-                    .build();
-
-            UserProfileResponseDto response = didDocumentService.updateUserProfile(userId, request);
-
-            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
-                    .success(true)
-                    .message("Profile photo uploaded successfully")
-                    .data(Map.of(
-                            "photoHash", response.getProfilePhotoHash(),
-                            "photoUrl", "/api/files/ipfs/" + response.getProfilePhotoHash()
-                    ))
-                    .timestamp(java.time.Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message("Failed to upload profile photo")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Upload additional documents
-     * POST /api/did/{userId}/documents
-     */
-    @PostMapping("/{userId}/documents")
-    public ResponseEntity<ApiResponseDto<Map<String, Object>>> uploadDocuments(
-            @PathVariable UUID userId,
-            @RequestParam("documents") MultipartFile[] documents,
-            @RequestParam(value = "category", required = false, defaultValue = "general") String category,
-            @RequestHeader(value = "Authorization", required = true) String authHeader) {
-
-        try {
-            validateAuthorization(authHeader, userId);
-
-            // Validate documents
-            for (MultipartFile doc : documents) {
-                validateDocumentFile(doc);
-            }
-
-            UserProfileUpdateRequestDto request = UserProfileUpdateRequestDto.builder()
-                    .newDocuments(java.util.Arrays.asList(documents))
-                    .build();
-
-            didDocumentService.updateUserProfile(userId, request);
-
-            return ResponseEntity.ok(ApiResponseDto.<Map<String, Object>>builder()
-                    .success(true)
-                    .message("Documents uploaded successfully")
-                    .data(Map.of(
-                            "documentsCount", documents.length,
-                            "category", category,
-                            "uploadedAt", java.time.Instant.now()
-                    ))
-                    .timestamp(java.time.Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<Map<String, Object>>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, Object>>builder()
-                            .success(false)
-                            .message("Failed to upload documents")
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(java.time.Instant.now())
                             .build());
@@ -471,49 +299,6 @@ public class DIDDocumentController {
 
         if (!"ADMIN".equals(userRole)) {
             throw new SludiException(ErrorCodes.ADMIN_ONLY_OPERATION);
-        }
-    }
-
-    /**
-     * Validate image file for profile photo upload
-     * @param file
-     */
-    private void validateImageFile(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new SludiException(ErrorCodes.EMPTY_IMAGE);
-        }
-
-        if (file.getSize() > 5 * 1024 * 1024) { // 5MB limit
-            throw new SludiException(ErrorCodes.FILE_TOO_LARGE,"Image file too large. Maximum size is 5MB");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null ||
-                (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/jpg"))) {
-            throw new SludiException(ErrorCodes.INVALID_FORMAT_IMAGE);
-        }
-    }
-
-    /**
-     * Validate document file for upload
-     * @param file
-     */
-    private void validateDocumentFile(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new SludiException(ErrorCodes.MISSING_REQUIRED_FIELD);
-        }
-
-        if (file.getSize() > 10 * 1024 * 1024) { // 10MB limit
-            throw new SludiException(ErrorCodes.FILE_TOO_LARGE, "Document file too large. Maximum size is 10MB");
-        }
-
-        String contentType = file.getContentType();
-        if (contentType == null ||
-                (!contentType.equals("application/pdf") &&
-                        !contentType.equals("image/jpeg") &&
-                        !contentType.equals("image/png") &&
-                        !contentType.equals("image/jpg"))) {
-            throw new SludiException(ErrorCodes.INVALID_FORMAT);
         }
     }
 

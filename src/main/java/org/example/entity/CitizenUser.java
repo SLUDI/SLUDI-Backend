@@ -29,7 +29,7 @@ public class CitizenUser {
     private String nic;
     private String email;
     private String phone;
-    private LocalDate dateOfBirth;
+    private String dateOfBirth;
     private String gender;
     private String nationality;
     private String citizenship;
@@ -52,9 +52,9 @@ public class CitizenUser {
     private String blockchainTxId;
     private Long didCreationBlockNumber;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime lastLogin;
+    private String createdAt;
+    private String updatedAt;
+    private String lastLogin;
 
     @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Wallet wallet;
