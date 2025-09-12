@@ -10,6 +10,5 @@ public class UserRegistrationRequestDto {
     private PersonalInfoDto personalInfo;
     private ContactInfoDto contactInfo;
     private BiometricDataDto biometricData;
-    private MultipartFile profilePhoto;
     private DeviceInfoDto deviceInfo;
 }

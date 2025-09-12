@@ -69,6 +69,9 @@ public enum ErrorCodes {
     AUTH_LOG_RETRIEVAL_FAILED("3027", "Failed to retrieve authentication logs"),
     DID_RETRIEVAL_FAILED("3028", "Failed to retrieve DIDs document from blockchain"),
     IDENTITY_VC_NOT_FOUND("3029", "Identity Verifiable Credential not found"),
+    FAILED_TO_ISSUE_IDENTITY_VC("3030", "Failed to issued Identity VC"),
+    CRYPTO_INITIALIZATION_FAILED("3031", "Failed to initialize unified signature service"),
+    SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
     
     // Validation Errors (4000-4999
     INVALID_INPUT("4000", "Invalid input provided"),

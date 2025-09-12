@@ -8,6 +8,7 @@ import java.util.List;
 @Data
 @Builder
 public class DIDDocumentDto {
+
     private String id;
     private String didVersion;
     private String didCreated;
@@ -15,6 +16,8 @@ public class DIDDocumentDto {
     private List<PublicKeyDto> publicKey;
     private List<String> authentication;
     private List<ServiceDto> service;
-    private String status; // active, deactivated, revoked
+    private String status;
     private ProofDataDto proof;
+    private String blockchainTxId;
+    private Long blockNumber;
 }
