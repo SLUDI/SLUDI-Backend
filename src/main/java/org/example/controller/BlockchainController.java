@@ -1,10 +1,15 @@
 package org.example.controller;
 
+import org.example.dto.ApiResponseDto;
 import org.example.dto.SystemStatsDto;
 import org.example.service.HyperledgerService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/blockchain")
@@ -15,22 +20,50 @@ public class BlockchainController {
     private HyperledgerService hyperledgerService;
 
     @PostMapping("/init-ledger")
-    public ResponseEntity<String> initializeLedger() {
+    public ResponseEntity<ApiResponseDto<Map<String, String>>> initializeLedger() {
         try {
             hyperledgerService.initializeLedger();
-            return ResponseEntity.ok("Ledger initialized successfully");
+
+            Map<String, String> data = Map.of("status", "initialized");
+
+            return ResponseEntity.ok(
+                    ApiResponseDto.<Map<String, String>>builder()
+                            .success(true)
+                            .message("Ledger initialized successfully")
+                            .data(data)
+                            .timestamp(Instant.now())
+                            .build()
+            );
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Failed to initialize ledger: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<Map<String, String>>builder()
+                            .success(false)
+                            .message("Failed to initialize ledger: " + e.getMessage())
+                            .timestamp(Instant.now())
+                            .build());
         }
     }
 
     @GetMapping("/system-stats")
-    public ResponseEntity<?> getSystemStats() {
+    public ResponseEntity<ApiResponseDto<SystemStatsDto>> getSystemStats() {
         try {
             SystemStatsDto stats = hyperledgerService.getSystemStats();
-            return ResponseEntity.ok(stats);
+
+            return ResponseEntity.ok(
+                    ApiResponseDto.<SystemStatsDto>builder()
+                            .success(true)
+                            .message("System stats fetched successfully")
+                            .data(stats)
+                            .timestamp(Instant.now())
+                            .build()
+            );
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("An unexpected error occurred while fetching system statistics.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<SystemStatsDto>builder()
+                            .success(false)
+                            .message("An unexpected error occurred while fetching system statistics: " + e.getMessage())
+                            .timestamp(Instant.now())
+                            .build());
         }
     }
 }

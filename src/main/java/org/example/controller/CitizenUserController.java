@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -56,7 +57,7 @@ public class CitizenUserController {
             return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
                     .success(true)
                     .message("Profile photo uploaded successfully")
-                    .timestamp(java.time.Instant.now())
+                    .timestamp(Instant.now())
                     .build());
 
         } catch (SludiException e) {
@@ -65,7 +66,7 @@ public class CitizenUserController {
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
 
         } catch (Exception e) {
@@ -74,7 +75,7 @@ public class CitizenUserController {
                             .success(false)
                             .message("Failed to upload profile photo")
                             .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
         }
     }
@@ -88,13 +89,15 @@ public class CitizenUserController {
             @PathVariable String did) {
 
         try {
-            UserProfileResponseDto response = citizenUserService.getUserProfile(did);
+            String id = "did:sludi:" + did;
+
+            UserProfileResponseDto response = citizenUserService.getUserProfile(id);
 
             return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
                     .success(true)
                     .message("Profile retrieved successfully")
                     .data(response)
-                    .timestamp(java.time.Instant.now())
+                    .timestamp(Instant.now())
                     .build());
 
         } catch (SludiException e) {
@@ -103,7 +106,7 @@ public class CitizenUserController {
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
 
         } catch (Exception e) {
@@ -112,7 +115,7 @@ public class CitizenUserController {
                             .success(false)
                             .message("Failed to retrieve profile")
                             .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
         }
     }
@@ -127,14 +130,15 @@ public class CitizenUserController {
             @Valid @RequestBody UserProfileUpdateRequestDto request) {
 
         try {
+            String id = "did:sludi:" + did;
 
-            UserProfileResponseDto response = citizenUserService.updateUserProfile(did, request);
+            UserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
 
             return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
                     .success(true)
                     .message("Profile updated successfully")
                     .data(response)
-                    .timestamp(java.time.Instant.now())
+                    .timestamp(Instant.now())
                     .build());
 
         } catch (SludiException e) {
@@ -143,7 +147,7 @@ public class CitizenUserController {
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
 
         } catch (Exception e) {
@@ -152,7 +156,7 @@ public class CitizenUserController {
                             .success(false)
                             .message("Failed to update profile")
                             .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
         }
     }
@@ -168,7 +172,7 @@ public class CitizenUserController {
             @RequestParam(value = "category", required = false, defaultValue = "general") String category){
 
         try {
-
+            String id = "did:sludi:" + did;
             // Validate documents
             for (MultipartFile doc : documents) {
                 validateDocumentFile(doc);
@@ -178,7 +182,7 @@ public class CitizenUserController {
                     .newDocuments(java.util.Arrays.asList(documents))
                     .build();
 
-            citizenUserService.updateUserProfile(did, request);
+            citizenUserService.updateUserProfile(id, request);
 
             return ResponseEntity.ok(ApiResponseDto.<Map<String, Object>>builder()
                     .success(true)
@@ -186,7 +190,7 @@ public class CitizenUserController {
                     .data(Map.of(
                             "documentsCount", documents.length,
                             "category", category,
-                            "uploadedAt", java.time.Instant.now()
+                            "uploadedAt", Instant.now()
                     ))
                     .timestamp(java.time.Instant.now())
                     .build());
@@ -197,7 +201,7 @@ public class CitizenUserController {
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
 
         } catch (Exception e) {
@@ -206,7 +210,7 @@ public class CitizenUserController {
                             .success(false)
                             .message("Failed to upload documents")
                             .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
+                            .timestamp(Instant.now())
                             .build());
         }
     }
