@@ -171,6 +171,8 @@ public class VerifiableCredentialService {
 
             LOGGER.info("Successfully retrieved Verifiable Credential for ID: " + credentialId);
 
+
+
             return VerifiableCredentialDto.builder()
                     .id(vcBlockChainResult.getId())
                     .context(vcBlockChainResult.getContext())
@@ -178,6 +180,8 @@ public class VerifiableCredentialService {
                     .issuer(vcBlockChainResult.getIssuer())
                     .issuanceDate(vcBlockChainResult.getIssuanceDate())
                     .expirationDate(vcBlockChainResult.getExpirationDate())
+                    .subjectDID(vcBlockChainResult.getSubjectDID())
+                    .supportingDocuments(vcBlockChainResult.getSupportingDocuments())
                     .credentialSubject(credentialSubject)
                     .status(vcBlockChainResult.getStatus())
                     .proof(vcBlockChainResult.getProof())

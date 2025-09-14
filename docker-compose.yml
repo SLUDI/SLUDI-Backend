@@ -5,11 +5,13 @@ services:
     image: ipfs/kubo:latest
     container_name: ipfs_node
     ports:
-      - "4001:4001" 
-      - "5001:5001" 
-      - "8080:8080" 
+      - "4001:4001"
+      - "5001:5001"
+      - "8080:8080"
     volumes:
       - ./ipfs_data:/data/ipfs
+    networks:
+      - sludi-network
     restart: unless-stopped
 
   postgres:
@@ -23,4 +25,52 @@ services:
       - "5432:5432"
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - sludi-network
     restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sludi-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+      - ipfs
+    environment:
+      # ==== Database ====
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluidtest
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: mysecretpassword
+
+      # ==== IPFS ====
+      IPFS_API_HOST: ipfs
+      IPFS_API_PORT: 5001
+      IPFS_GATEWAY_URL: http://ipfs:8080/ipfs/
+
+      # ==== Fabric (Injected via mounted volume) ====
+      FABRIC_MSP_ID: Org1MSP
+      FABRIC_CHANNEL_NAME: sludi-channel
+      FABRIC_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_CRYPTO_PATH: /organizations/peerOrganizations/org1.example.com
+      FABRIC_PEER_ENDPOINT: peer0.org1.example.com:7051
+      FABRIC_OVERRIDE_AUTH: peer0.org1.example.com
+      FABRIC_WALLET_PATH: /organizations/peerOrganizations/org1.example.com/msp/keystore
+
+      SLUDI_ORGANIZATION_PRIVATE_KEY_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore
+      SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/cert.pem
+      SLUDI_ORGANIZATION_MSP_ID: Org1MSP
+      SLUDI_ISSUER_DID: did:sludi:government789
+    volumes:
+      - /home/tishan/FYP/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations:/organizations
+    extra_hosts:
+      - "peer0.org1.example.com:192.168.8.100"  # Change to actual Fabric peer IP if not local
+    networks:
+      - sludi-network
+    restart: unless-stopped
+
+networks:
+  sludi-network:
+    driver: bridge
