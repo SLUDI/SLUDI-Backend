@@ -1,10 +1,5 @@
 package org.example.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Encoding;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.example.dto.ApiResponseDto;
 import org.example.dto.UserProfileResponseDto;
@@ -13,19 +8,15 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.CitizenUserService;
-import org.example.service.DIDDocumentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 import java.util.logging.Logger;
 
 @RestController
@@ -165,7 +156,7 @@ public class CitizenUserController {
      * Upload additional documents
      * POST /api/did/{did}/documents
      */
-    @PostMapping("/{did}/documents")
+    @PostMapping(value = "/{did}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> uploadDocuments(
             @PathVariable String did,
             @RequestParam("documents") MultipartFile[] documents,

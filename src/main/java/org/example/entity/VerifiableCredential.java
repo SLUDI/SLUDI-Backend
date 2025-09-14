@@ -32,5 +32,6 @@ public class VerifiableCredential {
     private String blockchainTxId;
     private Long blockNumber;
 
+    @Column(name = "credential_sub_hash", length = 2000)
     private String credentialSubjectHash;
 }

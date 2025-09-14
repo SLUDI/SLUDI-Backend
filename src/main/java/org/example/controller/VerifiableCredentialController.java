@@ -7,6 +7,7 @@ import org.example.exception.SludiException;
 import org.example.service.VerifiableCredentialService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,28 +31,41 @@ public class VerifiableCredentialController {
      * Issue Identity VC
      * POST /api/vc/identity/credential
      */
-    @PostMapping("/identity/credential")
+    @PostMapping(value = "/identity/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> createVCIdentity(
-            @RequestPart("request") @Valid IssueIdentityVCRequestDto requestDto,
-            @RequestPart(value = "supportingDocuments", required = false) List<MultipartFile> files) {
+            @RequestParam("did") @Valid String did,
+            @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
+            @RequestParam(value = "documentTypes", required = false) List<String> documentTypes) {
 
-        LOGGER.info("Received request to issue VC for DID: " + requestDto.getDid());
+        LOGGER.info("Received request to issue VC for DID: " + did);
 
         try {
+            String id = "did:sludi:" + did;
+
+            IssueVCRequestDto issueVCRequestDto = IssueVCRequestDto.builder()
+                    .did(id)
+                    .credentialType("identity")
+                    .build();
+
             // Attach uploaded files to DTO
             if (files != null && !files.isEmpty()) {
                 List<SupportingDocument> docs = new ArrayList<>();
-                for (MultipartFile file : files) {
+                for (int i = 0; i < files.size(); i++) {
+                    MultipartFile file = files.get(i);
+                    String docType = (documentTypes != null && documentTypes.size() > i)
+                            ? documentTypes.get(i)
+                            : "UNKNOWN";
+
                     docs.add(SupportingDocument.builder()
                             .name(file.getOriginalFilename())
-                            .type(file.getContentType())
+                            .type(docType) // e.g., NIC, Birth Certificate
                             .file(file)
                             .build());
                 }
-                requestDto.setSupportingDocuments(docs);
+                issueVCRequestDto.setSupportingDocuments(docs);
             }
 
-            VCIssuedResponseDto response = verifiableCredentialService.issueIdentityVC(requestDto);
+            VCIssuedResponseDto response = verifiableCredentialService.issueVC(issueVCRequestDto);
 
             ApiResponseDto<VCIssuedResponseDto> apiResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
                     .success(true)

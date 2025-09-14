@@ -9,8 +9,9 @@ import java.util.List;
 @Builder
 public class CredentialIssuanceRequestDto {
     private String subjectDID;
+    private String issuerDID;
     private String credentialType;
     private String credentialSubjectHash;
     private List<SupportingDocumentDto> supportingDocuments;
-    private String signatureValue;
+    private ProofDataDto proofData;
 }

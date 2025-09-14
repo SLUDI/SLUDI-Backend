@@ -1,21 +1,25 @@
 package org.example.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class VCBlockChainResult {
     private String id;
-    private String subjectDID;
     private List<String> context;
     private List<String> credentialTypes;
     private String issuer;
     private String issuanceDate;
     private String expirationDate;
+    private String subjectDID;
     private String credentialSubjectHash;
 
     @Builder.Default
@@ -23,6 +27,8 @@ public class VCBlockChainResult {
 
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;
+
+    // Blockchain metadata
     private String createdAt;
     private String updatedAt;
     private String blockchainTxId;

@@ -3,7 +3,9 @@ package org.example.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.dto.*;
 import org.example.entity.CitizenUser;
+import org.example.entity.ProofData;
 import org.example.entity.VerifiableCredential;
+import org.example.enums.ProofPurpose;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -42,11 +45,14 @@ public class VerifiableCredentialService {
     private CryptographyService cryptographyService;
 
     @Autowired
+    private DigitalSignatureService digitalSignatureService;
+
+    @Autowired
     private IPFSIntegration ipfsIntegration;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public VCIssuedResponseDto issueIdentityVC(IssueIdentityVCRequestDto request) {
+    public VCIssuedResponseDto issueVC(IssueVCRequestDto request) {
         LOGGER.info("Issuing identity VC for DID: " + request.getDid()
                 + ", CredentialType: " + request.getCredentialType());
 
@@ -65,11 +71,29 @@ public class VerifiableCredentialService {
 
             List<SupportingDocumentDto> supportingDocuments = mapSupportingDocuments(user, request);
 
+            // Create Proof of Data
+            ProofData proofData = digitalSignatureService.createProofData(
+                    credentialSubjectJson,
+                    user.getDidId(),
+                    LocalDateTime.now().toString(),
+                    ProofPurpose.CREDENTIAL_ISSUE.getValue()
+            );
+
+            ProofDataDto proofDataDto = ProofDataDto.builder()
+                    .proofType(proofData.getProofType())
+                    .creator(proofData.getCreator())
+                    .created(proofData.getCreated())
+                    .issuerDid(proofData.getIssuerDid())
+                    .signatureValue(proofData.getSignatureValue())
+                    .build();
+
             CredentialIssuanceRequestDto issuanceRequest = CredentialIssuanceRequestDto.builder()
                     .subjectDID(user.getDidId())
+                    .issuerDID(proofDataDto.getIssuerDid())
                     .credentialType(request.getCredentialType())
                     .credentialSubjectHash(credentialSubjectHash)
                     .supportingDocuments(supportingDocuments)
+                    .proofData(proofDataDto)
                     .build();
 
             LOGGER.info("Sending credential issuance request to Hyperledger for DID: " + user.getDidId());
@@ -205,7 +229,7 @@ public class VerifiableCredentialService {
                 .build();
     }
 
-    private List<SupportingDocumentDto> mapSupportingDocuments(CitizenUser user, IssueIdentityVCRequestDto request) {
+    private List<SupportingDocumentDto> mapSupportingDocuments(CitizenUser user, IssueVCRequestDto request) {
         List<SupportingDocumentDto> supportingDocuments = new ArrayList<>();
 
         if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {

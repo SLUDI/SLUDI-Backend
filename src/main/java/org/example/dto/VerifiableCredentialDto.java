@@ -1,12 +1,17 @@
 package org.example.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class VerifiableCredentialDto {
     private String id;
     private List<String> context;
@@ -14,9 +19,16 @@ public class VerifiableCredentialDto {
     private String issuer;
     private String issuanceDate;
     private String expirationDate;
+    private String subjectDID;
     private CredentialSubject credentialSubject;
+
+    @Builder.Default
+    private List<SupportingDocumentDto> supportingDocuments = new ArrayList<>();
+
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;
+
+    // Blockchain metadata
     private String createdAt;
     private String updatedAt;
     private String blockchainTxId;

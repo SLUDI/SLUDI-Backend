@@ -7,7 +7,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class IssueIdentityVCRequestDto {
+public class IssueVCRequestDto {
     private String did;
     private String credentialType;
     private List<SupportingDocument> supportingDocuments;

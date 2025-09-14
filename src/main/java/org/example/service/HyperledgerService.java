@@ -79,12 +79,19 @@ public class HyperledgerService {
      */
     public VCBlockChainResult issueCredential(CredentialIssuanceRequestDto request) {
         try {
-            // Convert to JSON for chaincode
-            String credentialJson = objectMapper.writeValueAsString(request);
+            LOGGER.info("Issue credential for DID: " + request.getSubjectDID());
+
+            String supportingDocsJson = objectMapper.writeValueAsString(request.getSupportingDocuments());
+            String proofJson = objectMapper.writeValueAsString(request.getProofData());
 
             byte[] result = contract.submitTransaction(
                     "IssueCredential",
-                    credentialJson
+                    request.getSubjectDID(),
+                    request.getIssuerDID(),
+                    request.getCredentialType(),
+                    supportingDocsJson,
+                    request.getCredentialSubjectHash(),
+                    proofJson
             );
 
             String resultString = new String(result);
