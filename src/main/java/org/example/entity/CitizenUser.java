@@ -33,6 +33,7 @@ public class CitizenUser {
     private String gender;
     private String nationality;
     private String citizenship;
+    private String bloodGroup;
 
     @Embedded
     private Address address;
@@ -49,8 +50,6 @@ public class CitizenUser {
     private String faceImageIpfsHash;
     private String signatureIpfsHash;
     private String profilePhotoIpfsHash;
-    private String blockchainTxId;
-    private Long didCreationBlockNumber;
 
     private String createdAt;
     private String updatedAt;

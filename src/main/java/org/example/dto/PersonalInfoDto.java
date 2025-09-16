@@ -14,5 +14,6 @@ public class PersonalInfoDto {
     private String citizenship;
     private String gender;
     private String nationality;
+    private String bloodGroup;
     private AddressDto address;
 }

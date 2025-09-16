@@ -11,20 +11,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/did")
 @CrossOrigin(origins = "*")
 public class DIDDocumentController {
 
-    private static final Logger LOGGER = Logger.getLogger(DIDDocumentController.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(DIDDocumentController.class.getName());
 
     @Autowired
     private DIDDocumentService didDocumentService;
@@ -34,15 +33,15 @@ public class DIDDocumentController {
      * POST /api/did/register
      */
     @PostMapping("/register")
-    public ResponseEntity<ApiResponseDto<UserRegistrationResponseDto>> registerUser(
-            @Valid @RequestBody UserRegistrationRequestDto request) {
+    public ResponseEntity<ApiResponseDto<DIDCreateResponseDto>> createDID(
+            @Valid @RequestBody DIDCreateRequestDto request) {
 
-        LOGGER.info("Received user registration NIC: " + request.getPersonalInfo().getNic());
+        LOGGER.info("Received user NIC: {} for DID create", request.getNic());
 
         try {
-            UserRegistrationResponseDto response = didDocumentService.registerUser(request);
+            DIDCreateResponseDto response = didDocumentService.createDID(request);
 
-            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+            ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(true)
                     .message("User registered successfully")
                     .data(response)
@@ -52,9 +51,9 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.log(Level.SEVERE,"User registration failed: " + ex.getMessage(), ex);
+            LOGGER.error("User registration failed: {}", ex.getMessage(), ex);
 
-            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+            ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)
                     .message(ex.getMessage())
                     .errorCode(ex.getErrorCode())
@@ -64,9 +63,9 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.log(Level.SEVERE, "Unexpected error during registration: " + ex.getMessage(), ex);
+            LOGGER.error("Unexpected error during registration: {}", ex.getMessage(), ex);
 
-            ApiResponseDto<UserRegistrationResponseDto> apiResponse = ApiResponseDto.<UserRegistrationResponseDto>builder()
+            ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)
                     .message("Internal server error")
                     .errorCode("INTERNAL_ERROR")

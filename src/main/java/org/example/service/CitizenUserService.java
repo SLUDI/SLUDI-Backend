@@ -1,13 +1,8 @@
 package org.example.service;
 
-import org.example.dto.AddressDto;
-import org.example.dto.DeviceInfoDto;
-import org.example.dto.UserProfileResponseDto;
-import org.example.dto.UserProfileUpdateRequestDto;
-import org.example.entity.Address;
-import org.example.entity.AuthenticationLog;
-import org.example.entity.CitizenUser;
-import org.example.entity.IPFSContent;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.dto.*;
+import org.example.entity.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
@@ -19,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -43,6 +37,50 @@ public class CitizenUserService {
 
     @Autowired
     private IPFSIntegration ipfsIntegration;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * Register a new user with complete identity setup
+     */
+    public CitizenUserRegistrationResponseDto registerCitizenUser(CitizenUserRegistrationRequestDto request) {
+        try {
+            // Validate input data
+            validateRegistrationRequest(request);
+
+            // Check if user already exists
+            if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
+                LOGGER.info("Checking for existing user with NIC: {}", request.getPersonalInfo().getNic());
+                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
+            }
+
+            if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
+                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
+            }
+
+            // Create user entity (status: pending)
+            CitizenUser user = createUserEntity(request);
+            user.setCreatedAt(LocalDateTime.now().toString());
+            user = citizenUserRepository.save(user);
+
+            user.setUpdatedAt(LocalDateTime.now().toString());
+
+            user = citizenUserRepository.save(user);
+
+            // Log the registration activity
+            logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
+
+            // Return success response
+            return CitizenUserRegistrationResponseDto.builder()
+                    .userId(user.getId())
+                    .status(user.getStatus().toString())
+                    .message("User registered successfully")
+                    .build();
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, e);
+        }
+    }
 
     /**
      * Uploads a profile photo to IPFS and links it to a CitizenUser by DID.
@@ -75,7 +113,7 @@ public class CitizenUserService {
     /**
      * Retrieve user profile information
      */
-    public UserProfileResponseDto getUserProfile(String did) {
+    public CitizenUserProfileResponseDto getUserProfile(String did) {
         try {
             CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
 
@@ -96,7 +134,7 @@ public class CitizenUserService {
     /**
      * Update user profile information
      */
-    public UserProfileResponseDto updateUserProfile(String did, UserProfileUpdateRequestDto request) {
+    public CitizenUserProfileResponseDto updateUserProfile(String did, CitizenUserProfileUpdateRequestDto request) {
         try {
             CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
 
@@ -134,6 +172,53 @@ public class CitizenUserService {
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.USER_PROFILE_UPDATE_FAILED, e.getMessage(), e);
         }
+    }
+
+    private void validateRegistrationRequest(CitizenUserRegistrationRequestDto request) {
+        if (request.getPersonalInfo() == null || request.getPersonalInfo().getNic() == null) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "Personal information and NIC are required");
+        }
+
+        String nic = request.getPersonalInfo().getNic();
+        if (!nic.matches("\\d{12}") && !nic.matches("\\d{9}[VX]")) {
+            throw new SludiException(ErrorCodes.INVALID_NIC, "Invalid Sri Lankan NIC format");
+        }
+
+        if (request.getContactInfo() == null || request.getContactInfo().getEmail() == null) {
+            throw new SludiException(ErrorCodes.MISSING_CONTACT_EMAIL, "Contact information with email is required");
+        }
+    }
+
+    private CitizenUser createUserEntity(CitizenUserRegistrationRequestDto request) {
+        AddressDto addressDto = request.getPersonalInfo().getAddress();
+        Address address = Address.builder()
+                .street(addressDto.getStreet())
+                .city(addressDto.getCity())
+                .district(addressDto.getDistrict())
+                .postalCode(addressDto.getPostalCode())
+                .divisionalSecretariat(addressDto.getDivisionalSecretariat())
+                .gramaNiladhariDivision(addressDto.getGramaNiladhariDivision())
+                .state(addressDto.getState())
+                .country(addressDto.getCountry())
+                .build();
+
+        return CitizenUser.builder()
+                .id(UUID.randomUUID())
+                .fullName(request.getPersonalInfo().getFullName())
+                .nic(request.getPersonalInfo().getNic())
+                .email(request.getContactInfo().getEmail())
+                .phone(request.getContactInfo().getPhone())
+                .dateOfBirth(request.getPersonalInfo().getDateOfBirth().toString())
+                .gender(request.getPersonalInfo().getGender())
+                .nationality(request.getPersonalInfo().getNationality())
+                .citizenship(request.getPersonalInfo().getCitizenship())
+                .bloodGroup(request.getPersonalInfo().getBloodGroup())
+                .address(address)
+                .status(CitizenUser.UserStatus.PENDING)
+                .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
+                .createdAt(LocalDateTime.now().toString())
+                .updatedAt(LocalDateTime.now().toString())
+                .build();
     }
 
     /**
@@ -186,9 +271,9 @@ public class CitizenUserService {
         LOGGER.info("IPFS content recorded for user {}. Hash: {}", userId, ipfsHash);
     }
 
-    private UserProfileResponseDto createUserProfileResponse(CitizenUser user) {
+    private CitizenUserProfileResponseDto createUserProfileResponse(CitizenUser user) {
 
-        return UserProfileResponseDto.builder()
+        return CitizenUserProfileResponseDto.builder()
                 .userId(user.getId())
                 .didId(user.getDidId())
                 .fullName(user.getFullName())
@@ -241,7 +326,7 @@ public class CitizenUserService {
         }
     }
 
-    private void updateUserFields(CitizenUser user, UserProfileUpdateRequestDto request) {
+    private void updateUserFields(CitizenUser user, CitizenUserProfileUpdateRequestDto request) {
         if (request.getEmail() != null) {
             user.setEmail(request.getEmail());
         }
@@ -312,7 +397,7 @@ public class CitizenUserService {
                 .id(UUID.randomUUID())
                 .userId(userId)
                 .authType(activityType)
-                .result("success")
+                .result(description)
                 .deviceInfo(deviceInfo != null ? convertDeviceInfoToJson(deviceInfo) : null)
                 .attemptedAt(LocalDateTime.now())
                 .completedAt(LocalDateTime.now())

@@ -2,13 +2,14 @@ package org.example.dto;
 
 import lombok.Builder;
 import lombok.Data;
-import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @Data
 @Builder
-public class UserRegistrationRequestDto {
+public class CitizenUserRegistrationRequestDto {
     private PersonalInfoDto personalInfo;
     private ContactInfoDto contactInfo;
-    private BiometricDataDto biometricData;
+    private List<SupportingDocument> supportingDocuments;
     private DeviceInfoDto deviceInfo;
 }

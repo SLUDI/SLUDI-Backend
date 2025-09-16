@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class UserProfileUpdateRequestDto {
+public class CitizenUserProfileUpdateRequestDto {
     private String email;
     private String phone;
     private AddressDto address;

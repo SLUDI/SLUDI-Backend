@@ -3,13 +3,11 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
 @Builder
-public class UserProfileResponseDto {
+public class CitizenUserProfileResponseDto {
     private UUID userId;
     private String didId;
     private String fullName;

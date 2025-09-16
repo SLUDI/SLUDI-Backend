@@ -15,20 +15,20 @@ import org.example.utils.DIDIdGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.security.MessageDigest;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @Transactional
 public class DIDDocumentService {
 
-    private static final Logger LOGGER = Logger.getLogger(DIDDocumentService.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(DIDDocumentService.class.getName());
 
     @Autowired
     private CitizenUserRepository citizenUserRepository;
@@ -57,67 +57,59 @@ public class DIDDocumentService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Register a new user with complete identity setup
+     * Create DID Document
      */
-    public UserRegistrationResponseDto registerUser(UserRegistrationRequestDto request) {
+    public DIDCreateResponseDto createDID(DIDCreateRequestDto request) {
         try {
             // Validate input data
-            validateRegistrationRequest(request);
+            validateDIDCreateRequest(request);
 
-            // Check if user already exists
-            if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
-                LOGGER.info("Checking for existing user with NIC: " + request.getPersonalInfo().getNic());
-                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
+            // Check if user exists
+            CitizenUser citizenUser = citizenUserRepository.findByEmailOrNicOrDidId(null, request.getNic(), null);
+
+            if (citizenUser == null) {
+                LOGGER.info("User doesn't exists with NIC: {}", request.getNic());
+                throw new SludiException(ErrorCodes.USER_NOT_FOUND, request.getNic());
             }
-
-            if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
-                throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
-            }
-
-            // Create user entity (status: pending)
-            CitizenUser user = createUserEntity(request);
-            user.setCreatedAt(LocalDateTime.now().toString());
-            user = citizenUserRepository.save(user);
 
             // Convert user entity to JSON string
-            String userData = objectMapper.writeValueAsString(user);
+            String userData = objectMapper.writeValueAsString(citizenUser);
 
             // Create DID ID
-            LocalDate dob = request.getPersonalInfo().getDateOfBirth();
+            LocalDate dob = LocalDate.parse(citizenUser.getDateOfBirth());
             DIDIdGenerator.Gender gender =
-                    request.getPersonalInfo().getGender().equalsIgnoreCase("FEMALE")
+                    citizenUser.getGender().equalsIgnoreCase("FEMALE")
                             ? DIDIdGenerator.Gender.FEMALE
                             : DIDIdGenerator.Gender.MALE;
 
             String didId = DIDIdGenerator.generateDID(dob, gender);
 
+            String timeNow = LocalDateTime.now().toString();
 
             // Create Proof of Data
             ProofData proofData = digitalSignatureService.createProofData(
                     userData,
                     didId,
-                    LocalDateTime.now().toString(),
+                    timeNow,
                     ProofPurpose.DID_CREATION.getValue()
             );
 
             // Create DID on Hyperledger Fabric
-            DIDDocumentDto didResult = hyperledgerService.createDID(didId, user.getCreatedAt(), proofData);
+            DIDDocumentDto didResult = hyperledgerService.createDID(didId, timeNow, proofData);
 
-            user.setDidId(didResult.getId());
-            user.setBlockchainTxId(didResult.getBlockchainTxId());
-            user.setDidCreationBlockNumber(didResult.getBlockNumber());
-            user.setStatus(CitizenUser.UserStatus.ACTIVE);
-            user.setUpdatedAt(LocalDateTime.now().toString());
+            citizenUser.setDidId(didResult.getId());
+            citizenUser.setStatus(CitizenUser.UserStatus.ACTIVE);
+            citizenUser.setUpdatedAt(LocalDateTime.now().toString());
 
-            user = citizenUserRepository.save(user);
+            citizenUser = citizenUserRepository.save(citizenUser);
 
             // Log the registration activity
-            logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
+            logUserActivity(citizenUser.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
 
             // Return success response
-            return UserRegistrationResponseDto.builder()
-                    .userId(user.getId())
-                    .didId(user.getDidId())
+            return DIDCreateResponseDto.builder()
+                    .userId(citizenUser.getId())
+                    .didId(citizenUser.getDidId())
                     .status("SUCCESS")
                     .message("User registered successfully")
                     .blockchainTxId(didResult.getBlockchainTxId())
@@ -221,18 +213,14 @@ public class DIDDocumentService {
         }
     }
 
-    private void validateRegistrationRequest(UserRegistrationRequestDto request) {
-        if (request.getPersonalInfo() == null || request.getPersonalInfo().getNic() == null) {
-            throw new SludiException(ErrorCodes.INVALID_INPUT, "Personal information and NIC are required");
+    private void validateDIDCreateRequest(DIDCreateRequestDto request) {
+        if (request.getNic() == null) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "NIC is required");
         }
 
-        String nic = request.getPersonalInfo().getNic();
+        String nic = request.getNic();
         if (!nic.matches("\\d{12}") && !nic.matches("\\d{9}[VX]")) {
-            throw new SludiException(ErrorCodes.INVALID_NIC, "Invalid Sri Lankan NIC format");
-        }
-
-        if (request.getContactInfo() == null || request.getContactInfo().getEmail() == null) {
-            throw new SludiException(ErrorCodes.MISSING_CONTACT_EMAIL, "Contact information with email is required");
+            throw new SludiException(ErrorCodes.INVALID_NIC, "Invalid NIC format");
         }
     }
 
@@ -256,7 +244,7 @@ public class DIDDocumentService {
         return BiometricVerificationResult.success();
     }
 
-    private CitizenUser createUserEntity(UserRegistrationRequestDto request) {
+    private CitizenUser createUserEntity(CitizenUserRegistrationRequestDto request) {
         AddressDto addressDto = request.getPersonalInfo().getAddress();
         Address address = Address.builder()
                 .street(addressDto.getStreet())
@@ -279,6 +267,7 @@ public class DIDDocumentService {
                 .gender(request.getPersonalInfo().getGender())
                 .nationality(request.getPersonalInfo().getNationality())
                 .citizenship(request.getPersonalInfo().getCitizenship())
+                .bloodGroup(request.getPersonalInfo().getBloodGroup())
                 .address(address)
                 .status(CitizenUser.UserStatus.PENDING)
                 .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
@@ -345,17 +334,6 @@ public class DIDDocumentService {
                 .build();
 
         ipfsContentRepository.save(content);
-    }
-
-    private CitizenRegistrationDto createCitizenRegistration(CitizenUser user, UserRegistrationRequestDto request, BiometricIPFSHashes hashes) {
-        return CitizenRegistrationDto.builder()
-                .userId(user.getId().toString())
-                .fullName(user.getFullName())
-                .dateOfBirth(user.getDateOfBirth().toString())
-                .nic(user.getNic())
-                .fingerprintHash(generateBiometricHash(hashes.getFingerprintHash()))
-                .faceImageHash(generateBiometricHash(hashes.getFaceImageHash()))
-                .build();
     }
 
     private String generateBiometricHash(String data) {

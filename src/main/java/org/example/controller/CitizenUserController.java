@@ -1,9 +1,7 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
-import org.example.dto.ApiResponseDto;
-import org.example.dto.UserProfileResponseDto;
-import org.example.dto.UserProfileUpdateRequestDto;
+import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
@@ -16,7 +14,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @RestController
@@ -28,6 +29,75 @@ public class CitizenUserController {
 
     @Autowired
     private CitizenUserService citizenUserService;
+
+    /**
+     * Register new user and create DID
+     * POST /api/citizen-user/register
+     */
+    @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponseDto<CitizenUserRegistrationResponseDto>> registerUser(
+            @Valid @RequestParam CitizenUserRegistrationRequestDto request,
+            @Valid @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
+            @Valid @RequestParam(value = "documentTypes") List<String> documentTypes) {
+
+        LOGGER.info("Received user registration NIC: " + request.getPersonalInfo().getNic());
+
+        try {
+
+            // Attach uploaded files to DTO
+            if (files != null && !files.isEmpty()) {
+                List<SupportingDocument> docs = new ArrayList<>();
+                for (int i = 0; i < files.size(); i++) {
+                    MultipartFile file = files.get(i);
+                    String docType = (documentTypes != null && documentTypes.size() > i)
+                            ? documentTypes.get(i)
+                            : "UNKNOWN";
+
+                    docs.add(SupportingDocument.builder()
+                            .name(file.getOriginalFilename())
+                            .type(docType) // e.g., NIC, Birth Certificate
+                            .file(file)
+                            .build());
+                }
+                request.setSupportingDocuments(docs);
+            }
+
+            CitizenUserRegistrationResponseDto response = citizenUserService.registerCitizenUser(request);
+
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                    .success(true)
+                    .message("User registered successfully")
+                    .data(response)
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
+
+        } catch (SludiException ex) {
+            LOGGER.log(Level.SEVERE,"User registration failed: " + ex.getMessage(), ex);
+
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                    .success(false)
+                    .message(ex.getMessage())
+                    .errorCode(ex.getErrorCode())
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
+
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Unexpected error during registration: " + ex.getMessage(), ex);
+
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                    .success(false)
+                    .message("Internal server error")
+                    .errorCode("INTERNAL_ERROR")
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        }
+    }
 
     /**
      * Upload profile photo
@@ -76,15 +146,15 @@ public class CitizenUserController {
      * GET /api/did/{did}/profile
      */
     @GetMapping("/{did}/profile")
-    public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> getUserProfile(
+    public ResponseEntity<ApiResponseDto<CitizenUserProfileResponseDto>> getUserProfile(
             @PathVariable String did) {
 
         try {
             String id = "did:sludi:" + did;
 
-            UserProfileResponseDto response = citizenUserService.getUserProfile(id);
+            CitizenUserProfileResponseDto response = citizenUserService.getUserProfile(id);
 
-            return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
+            return ResponseEntity.ok(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                     .success(true)
                     .message("Profile retrieved successfully")
                     .data(response)
@@ -93,7 +163,7 @@ public class CitizenUserController {
 
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
@@ -102,7 +172,7 @@ public class CitizenUserController {
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message("Failed to retrieve profile")
                             .errorCode("INTERNAL_ERROR")
@@ -116,16 +186,16 @@ public class CitizenUserController {
      * PUT /api/did/{did}/profile
      */
     @PutMapping("/{did}/profile")
-    public ResponseEntity<ApiResponseDto<UserProfileResponseDto>> updateUserProfile(
+    public ResponseEntity<ApiResponseDto<CitizenUserProfileResponseDto>> updateUserProfile(
             @PathVariable String did,
-            @Valid @RequestBody UserProfileUpdateRequestDto request) {
+            @Valid @RequestBody CitizenUserProfileUpdateRequestDto request) {
 
         try {
             String id = "did:sludi:" + did;
 
-            UserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
+            CitizenUserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
 
-            return ResponseEntity.ok(ApiResponseDto.<UserProfileResponseDto>builder()
+            return ResponseEntity.ok(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                     .success(true)
                     .message("Profile updated successfully")
                     .data(response)
@@ -134,7 +204,7 @@ public class CitizenUserController {
 
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
@@ -143,7 +213,7 @@ public class CitizenUserController {
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<UserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message("Failed to update profile")
                             .errorCode("INTERNAL_ERROR")
@@ -169,7 +239,7 @@ public class CitizenUserController {
                 validateDocumentFile(doc);
             }
 
-            UserProfileUpdateRequestDto request = UserProfileUpdateRequestDto.builder()
+            CitizenUserProfileUpdateRequestDto request = CitizenUserProfileUpdateRequestDto.builder()
                     .newDocuments(java.util.Arrays.asList(documents))
                     .build();
 

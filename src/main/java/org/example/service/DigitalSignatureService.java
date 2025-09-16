@@ -15,8 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * DigitalSignatureService
@@ -33,7 +33,7 @@ import java.util.logging.Logger;
 @Service
 public class DigitalSignatureService {
 
-    private static final Logger LOGGER = Logger.getLogger(DigitalSignatureService.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(DigitalSignatureService.class.getName());
 
     @Value("${sludi.organization.msp-id}")
     private String mspId;
@@ -64,23 +64,20 @@ public class DigitalSignatureService {
     @PostConstruct
     public void initializeFromFabricIdentity() {
         try {
-            LOGGER.info(() ->
-                    String.format("Initializing DigitalSignatureService with Fabric identity [MSP=%s]", mspId));
+            LOGGER.info("Initializing DigitalSignatureService with Fabric identity [MSP={}]", mspId);
 
             if (fabricIdentity instanceof X509Identity x509Identity) {
                 this.organizationCertificate = x509Identity.getCertificate();
 
-                LOGGER.info(() -> String.format(
-                        "Successfully extracted certificate. Subject: %s",
+                LOGGER.info("Successfully extracted certificate. Subject: {}",
                         organizationCertificate.getSubjectX500Principal().getName()
-                ));
+                );
             } else {
                 throw new IllegalStateException("Fabric identity is not of type X509Identity");
             }
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE,
-                    "Failed to initialize DigitalSignatureService: {0}", e.getMessage());
+            LOGGER.error("Failed to initialize DigitalSignatureService: {}", e.getMessage());
             throw new SludiException(ErrorCodes.CRYPTO_INITIALIZATION_FAILED, e.getMessage(), e);
         }
     }
@@ -100,9 +97,7 @@ public class DigitalSignatureService {
 
             String signatureValue = signDocument(data, id, timestamp, purpose);
 
-            LOGGER.info(() ->
-                    String.format("ProofData created for ID=%s, Issuer=%s, Timestamp=%s",
-                            id, issuerDid, timestamp));
+            LOGGER.info("ProofData created for ID={}, Issuer={}, Timestamp={}", id, issuerDid, timestamp);
 
             return ProofData.builder()
                     .proofType(proofType)
@@ -113,8 +108,8 @@ public class DigitalSignatureService {
                     .build();
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE,
-                    "Failed to create ProofData for ID {0}: {1}", new Object[]{id, e.getMessage()});
+            LOGGER.error(
+                    "Failed to create ProofData for ID {}: {}", id, e.getMessage());
             throw new SludiException(ErrorCodes.SIGNATURE_CREATION_FAILED, e.getMessage(), e);
         }
     }
@@ -136,16 +131,15 @@ public class DigitalSignatureService {
 
             if (auditEnabled) {
                 // Keep audit logs lightweight (avoid logging raw signature)
-                LOGGER.info(() ->
-                        String.format("SIGNATURE_CREATED [ID=%s, MSP=%s, Timestamp=%s]",
-                                id, mspId, timestamp));
+                LOGGER.info("SIGNATURE_CREATED [ID={}, MSP={}, Timestamp={}]",
+                                id, mspId, timestamp);
             }
 
             return signatureValue;
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE,
-                    "Failed to sign document for ID {0}: {1}", new Object[]{id, e.getMessage()});
+            LOGGER.error(
+                    "Failed to sign document for ID {}: {}", id, e.getMessage());
             throw new SludiException(ErrorCodes.SIGNATURE_CREATION_FAILED, e.getMessage(), e);
         }
     }

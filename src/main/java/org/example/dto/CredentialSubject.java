@@ -19,6 +19,7 @@ public class CredentialSubject {
     private String citizenship;
     private String gender;
     private String nationality;
+    private String bloodGroup;
     private BiometricHashesDto biometricData;
     private AddressDto address;
 }
