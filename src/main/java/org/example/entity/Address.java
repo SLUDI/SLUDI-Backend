@@ -19,14 +19,12 @@ public class Address {
     private String postalCode;
     private String divisionalSecretariat;
     private String gramaNiladhariDivision;
-    private String state;
-    private String country;
+    private String province;
 
     public Address(String street, String city, String state, String postalCode) {
         this.street = street;
         this.city = city;
-        this.state = state;
+        this.province = state;
         this.postalCode = postalCode;
-        this.country = "Sri Lanka";
     }
 }

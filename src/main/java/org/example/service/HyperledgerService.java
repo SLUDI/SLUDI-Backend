@@ -3,12 +3,11 @@ package org.example.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
-import org.example.entity.DIDDocument;
+import org.example.entity.ProofData;
 import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
-import org.example.repository.DIDDocumentRepository;
 import org.example.repository.VerifiableCredentialRepository;
 import org.hyperledger.fabric.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 @Service
@@ -44,61 +41,32 @@ public class HyperledgerService {
     private String issuerDid;
 
     @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
     private VerifiableCredentialRepository credentialRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Register a new citizen on the blockchain
+     * create a new DID on the blockchain
      */
-    public HyperledgerTransactionResult registerCitizen(CitizenRegistrationDto registration) {
+    public DIDDocumentDto createDID(
+            String didId,
+            String createTime,
+            ProofData proof) {
         try {
-            LOGGER.info("Registering citizen with ID: " + registration.getUserId());
+            LOGGER.info("Registering citizen with DID: " + didId);
 
-            // Create citizen registration object for the chaincode
-            CitizenRegistrationChaincode chaincodeRegistration = CitizenRegistrationChaincode.builder()
-                    .userId(registration.getUserId())
-                    .fullName(registration.getFullName())
-                    .dateOfBirth(registration.getDateOfBirth())
-                    .nic(registration.getNic())
-                    .fingerprintHash(registration.getFingerprintHash())
-                    .faceImageHash(registration.getFaceImageHash())
-                    .build();
-
-            // Convert to JSON for chaincode
-            String registrationJson = objectMapper.writeValueAsString(chaincodeRegistration);
+            String proofJson = objectMapper.writeValueAsString(proof);
 
             // Submit transaction to blockchain
-            byte[] result = contract.submitTransaction("RegisterCitizen", registrationJson);
+            byte[] result = contract.submitTransaction("CreateDID", didId, createTime, proofJson);
 
             // Parse the result
             String resultString = new String(result);
-            DIDDocument didDocument = objectMapper.readValue(resultString, DIDDocument.class);
-
-            if (didDocument.getPublicKey() != null) {
-                didDocument.getPublicKey().forEach(pk -> pk.setDidDocument(didDocument));
-            }
-
-            if (didDocument.getServices() != null) {
-                didDocument.getServices().forEach(s -> s.setDidDocument(didDocument));
-            }
-
-            // Save the DID document to the database
-            didDocumentRepository.save(didDocument);
+            DIDDocumentDto didDocument = objectMapper.readValue(resultString, DIDDocumentDto.class);
 
             LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
 
-            return HyperledgerTransactionResult.builder()
-                    .transactionId(didDocument.getBlockchainTxId())
-                    .blockNumber(didDocument.getBlockNumber())
-                    .status("SUCCESS")
-                    .message("Citizen registered successfully")
-                    .timestamp(Instant.now())
-                    .didId(didDocument.getId())
-                    .build();
+            return didDocument;
 
         } catch (Exception e) {
             LOGGER.severe("Failed to register citizen: " + e.getMessage());
@@ -107,39 +75,31 @@ public class HyperledgerService {
     }
 
     /**
-     * Issue a verifiable credential to a citizen
+     * Issue a verifiable credential
      */
-    public void issueCredentialNationalID(NationalIDCredentialIssuanceRequestDto request) {
+    public VCBlockChainResult issueCredential(CredentialIssuanceRequestDto request) {
         try {
+            LOGGER.info("Issue credential for DID: " + request.getSubjectDID());
+
+            String supportingDocsJson = objectMapper.writeValueAsString(request.getSupportingDocuments());
+            String proofJson = objectMapper.writeValueAsString(request.getProofData());
+
             byte[] result = contract.submitTransaction(
-                    "IssueCredentialNationalID",
+                    "IssueCredential",
                     request.getSubjectDID(),
+                    request.getIssuerDID(),
                     request.getCredentialType(),
-                    request.getFullName(),
-                    request.getNic(),
-                    request.getDateOfBirth(),
-                    request.getCitizenship(),
-                    request.getGender(),
-                    request.getNationality(),
-                    request.getFingerprintHash(),
-                    request.getFaceImageHash(),
-                    request.getAddress().getStreet(),
-                    request.getAddress().getCity(),
-                    request.getAddress().getState(),
-                    request.getAddress().getPostalCode(),
-                    request.getAddress().getCountry(),
-                    request.getAddress().getDistrict(),
-                    request.getAddress().getDivisionalSecretariat(),
-                    request.getAddress().getGramaNiladhariDivision()
+                    supportingDocsJson,
+                    request.getCredentialSubjectHash(),
+                    proofJson
             );
 
             String resultString = new String(result);
-            VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
-
-            // Save the issued credential to the database
-            credentialRepository.save(credential);
+            VCBlockChainResult credential = objectMapper.readValue(resultString, VCBlockChainResult.class);
 
             LOGGER.info("Successfully issued credential: " + credential.getId());
+
+            return credential;
 
         } catch (Exception e) {
             LOGGER.severe("Failed to issue credential: " + e.getMessage());
@@ -150,13 +110,13 @@ public class HyperledgerService {
     /**
      * Read DID document from blockchain
      */
-    public DIDDocument getDIDDocument(String didId) {
+    public DIDDocumentDto getDIDDocument(String didId) {
         try {
             LOGGER.info("Reading DID document: " + didId);
 
             byte[] result = contract.evaluateTransaction("ReadDID", didId);
             String didJson = new String(result);
-            DIDDocument didDocument = objectMapper.readValue(didJson, DIDDocument.class);
+            DIDDocumentDto didDocument = objectMapper.readValue(didJson, DIDDocumentDto.class);
 
             LOGGER.info("Successfully retrieved DID document: " + didDocument.getId());
             return didDocument;
@@ -170,13 +130,13 @@ public class HyperledgerService {
     /**
      * Read Identity Credential from blockchain
      */
-    public VerifiableCredential readCredential(String credentialId) {
+    public VCBlockChainResult readCredential(String credentialId) {
         try {
             LOGGER.info("Reading identity credential: " + credentialId);
 
             byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
             String credentialJson = new String(result);
-            VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
+            VCBlockChainResult credential = objectMapper.readValue(credentialJson, VCBlockChainResult.class);
 
             LOGGER.info("Successfully retrieved credential: " + credential.getId());
             return credential;
@@ -188,71 +148,35 @@ public class HyperledgerService {
     }
 
     /**
-     * Verify a citizen's identity using biometric data
+     * Get all credentials for a specific DID
      */
-    public String verifyCitizen(String didId, String verifierDid, String biometricType,
-                                String biometricHash, String challenge) {
+    public List<VerifiableCredential> getCredentialsByDID(String subjectDID) {
         try {
-            LOGGER.info("Verifying citizen with DID: " + didId);
+            LOGGER.info("Getting credentials for DID: " + subjectDID);
 
-            // For biometric verification, we need both fingerprint and face image hashes
-            String fingerprintHash = "";
-            String faceImageHash = "";
+            byte[] result = contract.evaluateTransaction("GetCredentialsByDID", subjectDID);
+            String credentialsJson = new String(result, StandardCharsets.UTF_8);
 
-            if ("fingerprint".equals(biometricType)) {
-                fingerprintHash = biometricHash;
-                faceImageHash = challenge; // Using challenge as secondary biometric
-            } else if ("face".equals(biometricType)) {
-                faceImageHash = biometricHash;
-                fingerprintHash = challenge; // Using challenge as secondary biometric
-            } else {
-                // Both provided
-                fingerprintHash = biometricHash;
-                faceImageHash = challenge;
+            if (credentialsJson.trim().isEmpty() || credentialsJson.equals("null")) {
+                return new ArrayList<>();
             }
 
-            byte[] result = contract.submitTransaction(
-                    "VerifyCitizen",
-                    didId,
-                    verifierDid,
-                    biometricType,
-                    fingerprintHash,
-                    faceImageHash
+            List<VerifiableCredential> credentials = objectMapper.readValue(
+                    credentialsJson,
+                    new TypeReference<List<VerifiableCredential>>() {}
             );
 
-            String verificationResult = new String(result);
-            LOGGER.info("Verification result for DID " + didId + ": " + verificationResult);
+            if (credentials == null) {
+                return new ArrayList<>();
+            }
 
-            return verificationResult;
+            return credentials;
 
+        } catch (JsonProcessingException e) {
+            throw new SludiException(ErrorCodes.JSON_PARSING_FAILED, e);
         } catch (Exception e) {
-            LOGGER.severe("Failed to verify citizen: " + e.getMessage());
-            throw new SludiException(ErrorCodes.BIOMETRIC_VERIFICATION_FAILED,
-                    "Failed to verify citizen on blockchain", e);
-        }
-    }
-
-    /**
-     * Verify credential authenticity
-     */
-    public boolean verifyCredential(String credentialId, String expectedSubjectDid) {
-        try {
-            LOGGER.info("Verifying credential: " + credentialId);
-
-            byte[] result = contract.evaluateTransaction("ReadIdentityCredential", credentialId);
-            String credentialJson = new String(result);
-            VerifiableCredential credential = objectMapper.readValue(credentialJson, VerifiableCredential.class);
-
-            boolean isValid = "active".equals(credential.getStatus()) &&
-                    credential.getCredentialSubject().getId().equals(expectedSubjectDid) &&
-                    isCredentialNotExpired(credential.getExpirationDate());
-
-            LOGGER.info("Credential verification result: " + isValid);
-            return isValid;
-
-        } catch (Exception e) {
-            LOGGER.warning("Failed to verify credential: " + e.getMessage());
-            return false;
+            LOGGER.severe("Failed to get credentials: " + e.getMessage());
+            throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED, e);
         }
     }
 
@@ -273,12 +197,7 @@ public class HyperledgerService {
             );
 
             String resultString = new String(result);
-            DIDDocument updatedDid = objectMapper.readValue(resultString, DIDDocument.class);
-
-            Optional<DIDDocument> didDocumentOptional = didDocumentRepository.findById(updatedDid.getId());
-            DIDDocument didDocument = didDocumentOptional.get();
-            didDocument.setPublicKey(updatedDid.getPublicKey());
-            didDocumentRepository.save(didDocument);
+            DIDDocumentDto updatedDid = objectMapper.readValue(resultString, DIDDocumentDto.class);
 
             LOGGER.info("Successfully updated DID: " + updatedDid.getId());
 
@@ -317,81 +236,6 @@ public class HyperledgerService {
         } catch (Exception e) {
             LOGGER.warning("Failed to check DID existence: " + e.getMessage());
             return false;
-        }
-    }
-
-    /**
-     * Get all credentials for a specific DID
-     */
-    public List<VerifiableCredential> getCredentialsByDID(String subjectDID) {
-        try {
-            LOGGER.info("Getting credentials for DID: " + subjectDID);
-
-            byte[] result = contract.evaluateTransaction("GetCredentialsByDID", subjectDID);
-            String credentialsJson = new String(result, StandardCharsets.UTF_8);
-
-            if (credentialsJson.trim().isEmpty() || credentialsJson.equals("null")) {
-                return new ArrayList<>();
-            }
-
-            List<VerifiableCredential> credentials = objectMapper.readValue(
-                    credentialsJson,
-                    new TypeReference<List<VerifiableCredential>>() {}
-            );
-
-            if (credentials == null) {
-                return new ArrayList<>();
-            }
-
-            return credentials;
-
-        } catch (JsonProcessingException e) {
-            throw new SludiException(ErrorCodes.JSON_PARSING_FAILED, e);
-        } catch (Exception e) {
-            LOGGER.severe("Failed to get credentials: " + e.getMessage());
-            throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED, e);
-        }
-    }
-
-    /**
-     * Revoke a credential
-     */
-    public HyperledgerTransactionResult revokeCredential(String credentialId, String reason) {
-        try {
-            LOGGER.info("Revoking credential: " + credentialId);
-
-            byte[] result = contract.submitTransaction("RevokeCredential", credentialId, reason);
-
-            String resultString = new String(result);
-            VerifiableCredential credential = objectMapper.readValue(resultString, VerifiableCredential.class);
-
-            // Update the credential status to revoked
-            VerifiableCredential existingCredential = credentialRepository.findById(credentialId)
-                    .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
-
-            existingCredential.setStatus("revoked");
-            existingCredential.setRevokedBy(credential.getRevokedBy());
-            existingCredential.setRevocationReason(credential.getRevocationReason());
-            existingCredential.setRevokedAt(credential.getRevokedAt());
-            existingCredential.setRevocationTxId(credential.getRevocationTxId());
-            existingCredential.setRevocationBlockNumber(credential.getRevocationBlockNumber());
-
-            credentialRepository.save(existingCredential);
-
-            LOGGER.info("Successfully revoked credential: " + credentialId);
-
-            return HyperledgerTransactionResult.builder()
-                    .transactionId(credential.getRevocationTxId())
-                    .blockNumber(credential.getRevocationBlockNumber())
-                    .status("SUCCESS")
-                    .message("Successfully revoked credential")
-                    .timestamp(Instant.now())
-                    .credentialId(credentialId)
-                    .build();
-
-        } catch (Exception e) {
-            LOGGER.severe("Failed to revoke credential: " + e.getMessage());
-            throw new SludiException(ErrorCodes.CREDENTIAL_REVOCATION_FAILED, e);
         }
     }
 
@@ -459,16 +303,16 @@ public class HyperledgerService {
     /**
      * Get all DIDs from blockchain (admin function)
      */
-    public List<DIDDocument> getAllDIDs() {
+    public List<DIDDocumentDto> getAllDIDs() {
         try {
             LOGGER.info("Getting all DIDs from blockchain");
 
             byte[] result = contract.evaluateTransaction("GetAllDIDs");
             String didsJson = new String(result);
 
-            List<DIDDocument> dids = objectMapper.readValue(
+            List<DIDDocumentDto> dids = objectMapper.readValue(
                     didsJson,
-                    new TypeReference<List<DIDDocument>>() {}
+                    new TypeReference<List<DIDDocumentDto>>() {}
             );
 
             LOGGER.info("Found " + dids.size() + " DIDs on blockchain");
@@ -503,23 +347,6 @@ public class HyperledgerService {
             throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED,
                     "Failed to retrieve credentials from blockchain", e);
         }
-    }
-
-    /**
-     * Register citizen asynchronously
-     */
-    public CompletableFuture<HyperledgerTransactionResult> registerCitizenAsync(CitizenRegistrationDto registration) {
-        return CompletableFuture.supplyAsync(() -> registerCitizen(registration));
-    }
-
-    /**
-     * Verify citizen asynchronously
-     */
-    public CompletableFuture<String> verifyCitizenAsync(String didId, String verifierDid,
-                                                        String biometricType, String biometricHash,
-                                                        String challenge) {
-        return CompletableFuture.supplyAsync(() ->
-                verifyCitizen(didId, verifierDid, biometricType, biometricHash, challenge));
     }
 
     /**
@@ -573,15 +400,6 @@ public class HyperledgerService {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /**
-     * Batch operations for multiple citizens (for bulk operations)
-     */
-    public List<HyperledgerTransactionResult> batchRegisterCitizens(List<CitizenRegistrationDto> registrations) {
-        return registrations.stream()
-                .map(this::registerCitizen)
-                .toList();
     }
 
     /**

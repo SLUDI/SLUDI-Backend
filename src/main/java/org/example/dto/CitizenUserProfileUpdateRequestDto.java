@@ -8,12 +8,12 @@ import java.util.List;
 
 @Data
 @Builder
-public class UserProfileUpdateRequestDto {
+public class CitizenUserProfileUpdateRequestDto {
     private String email;
     private String phone;
     private AddressDto address;
     private String newPublicKey;
-    private List<MultipartFile> newDocuments;
+    private List<SupportingDocumentRequestDto> newSupportingDocuments;
     MultipartFile profilePhoto;
     private DeviceInfoDto deviceInfo;
 }

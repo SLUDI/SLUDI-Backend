@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -25,17 +26,30 @@ public class CitizenUser {
     @Id
     private UUID id;
 
+    @Column(unique = true, nullable = false)
+    private String citizenCode;
+
     private String fullName;
     private String nic;
+    private String age;
     private String email;
     private String phone;
-    private LocalDate dateOfBirth;
+    private String dateOfBirth;
     private String gender;
     private String nationality;
     private String citizenship;
+    private String bloodGroup;
 
     @Embedded
     private Address address;
+
+    @ElementCollection
+    @CollectionTable(
+            name = "citizen_supporting_documents",
+            joinColumns = @JoinColumn(name = "citizen_user_id")
+    )
+    private List<SupportingDocument> supportingDocuments;
+
 
     @Enumerated(EnumType.STRING)
     private UserStatus status;
@@ -49,12 +63,10 @@ public class CitizenUser {
     private String faceImageIpfsHash;
     private String signatureIpfsHash;
     private String profilePhotoIpfsHash;
-    private String blockchainTxId;
-    private Long didCreationBlockNumber;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime lastLogin;
+    private String createdAt;
+    private String updatedAt;
+    private String lastLogin;
 
     @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Wallet wallet;

@@ -162,9 +162,9 @@ public class WalletService {
             }
 
             // Convert decrypted VCs to DTOs
-            List<VerifiableCredentialDto> vcDtos = decryptedVCs.stream()
-                    .map(this::convertVCToDto)
-                    .collect(Collectors.toList());
+//            List<VerifiableCredentialDto> vcDtos = decryptedVCs.stream()
+//                    .map(this::convertVCToDto)
+//                    .collect(Collectors.toList());
 
             // pdate last accessed timestamp
             wallet.setLastAccessed(LocalDateTime.now());
@@ -175,7 +175,6 @@ public class WalletService {
                     .id(wallet.getId())
                     .citizenUserId(String.valueOf(wallet.getCitizenUser().getId()))
                     .didId(wallet.getDidId())
-                    .decryptedCredentials(vcDtos)
                     .build();
 
         } catch (SludiException e) {
@@ -188,58 +187,58 @@ public class WalletService {
     }
 
 
-    private VerifiableCredentialDto convertVCToDto(VerifiableCredential ivc) {
-        // Convert BiometricHashes to DTO
-        BiometricHashesDto biometricHashesDto = BiometricHashesDto.builder()
-                .fingerprintHash(ivc.getCredentialSubject().getBiometricHashes().getFingerprintHash())
-                .faceImageHash(ivc.getCredentialSubject().getBiometricHashes().getFaceImageHash())
-                .build();
-        // Convert Address to DTO
-        AddressDto addressDto = AddressDto.builder()
-                .street(ivc.getCredentialSubject().getAddress().getStreet())
-                .city(ivc.getCredentialSubject().getAddress().getCity())
-                .state(ivc.getCredentialSubject().getAddress().getState())
-                .postalCode(ivc.getCredentialSubject().getAddress().getPostalCode())
-                .country(ivc.getCredentialSubject().getAddress().getCountry())
-                .district(ivc.getCredentialSubject().getAddress().getDistrict())
-                .divisionalSecretariat(ivc.getCredentialSubject().getAddress().getDivisionalSecretariat())
-                .gramaNiladhariDivision(ivc.getCredentialSubject().getAddress().getGramaNiladhariDivision())
-                .build();
-
-        // Convert CredentialSubject to DTO
-        CredentialSubjectDto credentialSubjectDto = CredentialSubjectDto.builder()
-                .id(ivc.getCredentialSubject().getId())
-                .fullName(ivc.getCredentialSubject().getFullName())
-                .nic(ivc.getCredentialSubject().getNic())
-                .dateOfBirth(ivc.getCredentialSubject().getDateOfBirth())
-                .citizenship(ivc.getCredentialSubject().getCitizenship())
-                .gender(ivc.getCredentialSubject().getGender())
-                .nationality(ivc.getCredentialSubject().getNationality())
-                .biometricData(biometricHashesDto)
-                .address(addressDto)
-                .build();
-
-        // Convert ProofData to DTO
-        ProofDataDto proofDto = ProofDataDto.builder()
-                .proofType(ivc.getProof().getProofType())
-                .created(ivc.getProof().getCreated())
-                .creator(ivc.getProof().getCreator())
-                .signatureValue(ivc.getProof().getSignatureValue())
-                .build();
-
-        // Convert VerifiableCredential to DTO
-       return VerifiableCredentialDto.builder()
-                .id(ivc.getId())
-                .context(ivc.getContext())
-                .credentialTypes(ivc.getCredentialTypes())
-                .issuer(ivc.getIssuer())
-                .issuanceDate(ivc.getIssuanceDate())
-                .expirationDate(ivc.getExpirationDate())
-                .credentialSubject(credentialSubjectDto)
-                .status(ivc.getStatus())
-                .proof(proofDto)
-                .createdAt(ivc.getCreatedAt())
-                .updatedAt(ivc.getUpdatedAt())
-                .build();
-    }
+//    private VerifiableCredentialDto convertVCToDto(VerifiableCredential ivc) {
+//        // Convert BiometricHashes to DTO
+//        BiometricHashesDto biometricHashesDto = BiometricHashesDto.builder()
+//                .fingerprintHash(ivc.getCredentialSubject().getBiometricHashes().getFingerprintHash())
+//                .faceImageHash(ivc.getCredentialSubject().getBiometricHashes().getFaceImageHash())
+//                .build();
+//        // Convert Address to DTO
+//        AddressDto addressDto = AddressDto.builder()
+//                .street(ivc.getCredentialSubject().getAddress().getStreet())
+//                .city(ivc.getCredentialSubject().getAddress().getCity())
+//                .province(ivc.getCredentialSubject().getAddress().getProvince())
+//                .postalCode(ivc.getCredentialSubject().getAddress().getPostalCode())
+//                .country(ivc.getCredentialSubject().getAddress().getCountry())
+//                .district(ivc.getCredentialSubject().getAddress().getDistrict())
+//                .divisionalSecretariat(ivc.getCredentialSubject().getAddress().getDivisionalSecretariat())
+//                .gramaNiladhariDivision(ivc.getCredentialSubject().getAddress().getGramaNiladhariDivision())
+//                .build();
+//
+//        // Convert CredentialSubject to DTO
+//        CredentialSubjectDto credentialSubjectDto = CredentialSubjectDto.builder()
+//                .id(ivc.getCredentialSubject().getId())
+//                .fullName(ivc.getCredentialSubject().getFullName())
+//                .nic(ivc.getCredentialSubject().getNic())
+//                .dateOfBirth(ivc.getCredentialSubject().getDateOfBirth())
+//                .citizenship(ivc.getCredentialSubject().getCitizenship())
+//                .gender(ivc.getCredentialSubject().getGender())
+//                .nationality(ivc.getCredentialSubject().getNationality())
+//                .biometricData(biometricHashesDto)
+//                .address(addressDto)
+//                .build();
+//
+//        // Convert ProofData to DTO
+//        ProofDataDto proofDto = ProofDataDto.builder()
+//                .proofType(ivc.getProof().getProofType())
+//                .created(ivc.getProof().getCreated())
+//                .creator(ivc.getProof().getCreator())
+//                .signatureValue(ivc.getProof().getSignatureValue())
+//                .build();
+//
+//        // Convert VerifiableCredential to DTO
+//       return VerifiableCredentialDto.builder()
+//                .id(ivc.getId())
+//                .context(ivc.getContext())
+//                .credentialTypes(ivc.getCredentialTypes())
+//                .issuer(ivc.getIssuer())
+//                .issuanceDate(ivc.getIssuanceDate())
+//                .expirationDate(ivc.getExpirationDate())
+//                .credentialSubject(credentialSubjectDto)
+//                .status(ivc.getStatus())
+//                .proof(proofDto)
+//                .createdAt(ivc.getCreatedAt())
+//                .updatedAt(ivc.getUpdatedAt())
+//                .build();
+//    }
 }

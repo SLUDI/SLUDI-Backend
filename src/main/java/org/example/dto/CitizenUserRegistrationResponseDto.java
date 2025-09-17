@@ -7,10 +7,9 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class UserRegistrationResponseDto {
+public class CitizenUserRegistrationResponseDto {
     private UUID userId;
-    private String didId;
+    private String citizenCode;
     private String status;
     private String message;
-    private String blockchainTxId;
 }

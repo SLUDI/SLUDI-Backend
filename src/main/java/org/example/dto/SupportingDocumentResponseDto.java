@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BiometricHashesDto {
-    private String fingerprintHash;
-    private String faceImageHash;
+public class SupportingDocumentResponseDto {
+    private String name;
+    private String ipfsCid;
+    private String fileType;
+    private String side;
 }

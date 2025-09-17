@@ -16,6 +16,7 @@ public class ProofData {
     private String proofType;
     private String created;
     private String creator;
+    private String issuerDid;
 
     @Column(name = "proof_signature", length = 2000)
     private String signatureValue;

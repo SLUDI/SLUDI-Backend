@@ -11,14 +11,15 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PersonalInfoDto {
+public class CredentialSubject {
+    private String id; // DID of the subject
     private String fullName;
     private String nic;
-    private String age;
-    private LocalDate dateOfBirth;
+    private String dateOfBirth;
     private String citizenship;
     private String gender;
     private String nationality;
     private String bloodGroup;
+    private BiometricHashesDto biometricData;
     private AddressDto address;
 }

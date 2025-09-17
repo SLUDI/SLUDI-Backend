@@ -12,7 +12,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VerifiableCredentialDto {
+public class VCBlockChainResult {
     private String id;
     private List<String> context;
     private List<String> credentialTypes;
@@ -20,7 +20,7 @@ public class VerifiableCredentialDto {
     private String issuanceDate;
     private String expirationDate;
     private String subjectDID;
-    private CredentialSubject credentialSubject;
+    private String credentialSubjectHash;
 
     @Builder.Default
     private List<SupportingDocumentResponseDto> supportingDocuments = new ArrayList<>();
