@@ -3,15 +3,18 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Data
 @Builder
-public class CitizenUserProfileResponseDto {
+public class GetCitizenUserProfileResponseDto {
     private UUID userId;
-    private String didId;
+    private String citizenCode;
     private String fullName;
     private String nic;
+    private String age;
     private String email;
     private String phone;
     private String dateOfBirth;
@@ -20,7 +23,10 @@ public class CitizenUserProfileResponseDto {
     private AddressDto address;
     private String status;
     private String kycStatus;
-    private String profilePhotoHash;
+
+    @Builder.Default
+    private List<GetSupportingDocumentResponseDto> supportingDocumentList = new ArrayList<>();
+
     private String createdAt;
     private String updatedAt;
     private String lastLogin;
