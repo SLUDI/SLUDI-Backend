@@ -41,7 +41,7 @@ services:
 #      - ipfs
 #    environment:
 #      # ==== Database ====
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluidtest
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluditest
 #      SPRING_DATASOURCE_USERNAME: postgres
 #      SPRING_DATASOURCE_PASSWORD: mysecretpassword
 #

@@ -13,5 +13,5 @@ public class AuthenticationResponseDto {
     private String accessToken;
     private String refreshToken;
     private int expiresIn;
-    private CitizenUserProfileResponseDto userProfile;
+    private GetCitizenUserProfileResponseDto userProfile;
 }

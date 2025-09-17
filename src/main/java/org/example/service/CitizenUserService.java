@@ -152,28 +152,111 @@ public class CitizenUserService {
     /**
      * Retrieve user profile information
      */
-    public CitizenUserProfileResponseDto getUserProfile(String did) {
+    public GetCitizenUserProfileResponseDto getUserProfile(GetCitizenUserProfileRequestDto request) {
         try {
-            CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+            CitizenUser user = citizenUserRepository.findById(request.getId())
+                    .orElseThrow(() -> new SludiException(
+                            ErrorCodes.USER_NOT_FOUND,
+                            "User not found with ID: " + request.getId()
+                    ));
 
-            if(user == null) {
-                throw new SludiException(ErrorCodes.USER_NOT_FOUND);
-            }
+            DeviceInfoDto deviceInfoDto = DeviceInfoDto.builder()
+                    .deviceId(request.getDeviceId())
+                    .os(request.getOs())
+                    .deviceType(request.getDeviceType())
+                    .ipAddress(request.getIpAddress())
+                    .location(request.getLocation())
+                    .build();
 
             // Log access attempt
-            logUserActivity(user.getId(), "PROFILE_ACCESS", "Profile accessed by: " + did, null);
+            logUserActivity(user.getId(), "PROFILE_ACCESS", "Profile accessed by user", deviceInfoDto);
 
             return createUserProfileResponse(user);
 
+        } catch (SludiException e) {
+            throw e;
         } catch (Exception e) {
-            throw new SludiException(ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE, e.getMessage(), e);
+            throw new SludiException(
+                    ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE,
+                    "Failed to retrieve user profile for ID: " + request.getId(),
+                    e
+            );
+        }
+    }
+
+    public List<GetCitizenUserProfileResponseDto> getAllUserProfiles() {
+        LOGGER.info("Fetching all citizen user profiles");
+
+        try {
+            List<CitizenUser> users = citizenUserRepository.findAll();
+
+            if (users.isEmpty()) {
+                LOGGER.warn("No citizen users found in the system");
+                return Collections.emptyList();
+            }
+
+            List<GetCitizenUserProfileResponseDto> responseList = users.stream()
+                    .map(this::createUserProfileResponse)
+                    .collect(Collectors.toList());
+
+            LOGGER.info("Successfully retrieved {} citizen user profiles", responseList.size());
+
+            return responseList;
+
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error while fetching all citizen user profiles", e);
+            throw new SludiException(
+                    ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE,
+                    "Failed to retrieve all citizen user profiles",
+                    e
+            );
         }
     }
 
     /**
+     * Retrieve user document information
+     */
+    public List<GetSupportingDocumentResponseDto> getSupportingDocument(UUID id) {
+        LOGGER.info("Fetching supporting documents for CitizenUser ID: {}", id);
+
+        try {
+            CitizenUser user = citizenUserRepository.findById(id)
+                    .orElseThrow(() -> {
+                        LOGGER.warn("CitizenUser not found for ID: {}", id);
+                        return new SludiException(
+                                ErrorCodes.USER_NOT_FOUND,
+                                "User not found with ID: " + id
+                        );
+                    });
+
+            List<SupportingDocument> supportingDocuments = user.getSupportingDocuments();
+
+            if (supportingDocuments == null || supportingDocuments.isEmpty()) {
+                LOGGER.info("No supporting documents found for CitizenUser ID: {}", id);
+                return Collections.emptyList();
+            }
+
+            List<GetSupportingDocumentResponseDto> responseList = retrievesUserDocument(supportingDocuments);
+
+            LOGGER.info("Successfully retrieved {} supporting document(s) for CitizenUser ID: {}",
+                    responseList.size(), id);
+
+            return responseList;
+
+        } catch (SludiException e) {
+            throw e;
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error while fetching supporting documents for CitizenUser ID: {}", id, e);
+            throw new SludiException(ErrorCodes.IPFS_RETRIEVAL_FAILED,
+                    "Error retrieving supporting documents for user " + id, e);
+        }
+    }
+
+
+    /**
      * Update user profile information
      */
-    public CitizenUserProfileResponseDto updateUserProfile(String did, CitizenUserProfileUpdateRequestDto request) {
+    public GetCitizenUserProfileResponseDto updateUserProfile(String did, CitizenUserProfileUpdateRequestDto request) {
         try {
             CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
 
@@ -300,6 +383,35 @@ public class CitizenUserService {
         return supportingDocumentResponseDtos;
     }
 
+    private List<GetSupportingDocumentResponseDto> retrievesUserDocument(List<SupportingDocument> supportingDocumentsList) {
+        List<GetSupportingDocumentResponseDto> responseList = new ArrayList<>();
+
+        for (SupportingDocument doc : supportingDocumentsList) {
+            try {
+                LOGGER.debug("Retrieving file from IPFS for CID: {}", doc.getIpfsCid());
+
+                byte[] fileContent = ipfsIntegration.retrieveFile(doc.getIpfsCid());
+
+                GetSupportingDocumentResponseDto responseDto = GetSupportingDocumentResponseDto.builder()
+                        .name(doc.getName())
+                        .file(Base64.getEncoder().encodeToString(fileContent))
+                        .fileType(doc.getFileType())
+                        .side(doc.getSide())
+                        .build();
+
+                responseList.add(responseDto);
+
+            } catch (Exception ex) {
+                LOGGER.error("Failed to retrieve file from IPFS for CID: {} (Document: {})",
+                        doc.getIpfsCid(), doc.getName(), ex);
+
+                throw new SludiException(ErrorCodes.IPFS_RETRIEVAL_FAILED,
+                        "Failed to retrieve supporting document: " + doc.getName(), ex);
+            }
+        }
+        return responseList;
+    }
+
     /**
      * Records metadata about uploaded IPFS content in DB.
      */
@@ -324,26 +436,46 @@ public class CitizenUserService {
         LOGGER.info("IPFS content recorded for user {}. Hash: {}", userId, ipfsHash);
     }
 
-    private CitizenUserProfileResponseDto createUserProfileResponse(CitizenUser user) {
+    private GetCitizenUserProfileResponseDto createUserProfileResponse(CitizenUser user) {
+        try {
+            // Retrieve supporting documents
+            List<GetSupportingDocumentResponseDto> responseList = retrievesUserDocument(user.getSupportingDocuments())
+                    .stream()
+                    .map(doc -> GetSupportingDocumentResponseDto.builder()
+                            .name(doc.getName())
+                            .file(doc.getFile())
+                            .fileType(doc.getFileType())
+                            .side(doc.getSide())
+                            .build())
+                    .collect(Collectors.toList());
 
-        return CitizenUserProfileResponseDto.builder()
-                .userId(user.getId())
-                .didId(user.getDidId())
-                .fullName(user.getFullName())
-                .nic(user.getNic())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .dateOfBirth(user.getDateOfBirth())
-                .gender(user.getGender())
-                .nationality(user.getNationality())
-                .address(convertJsonToAddress(user.getAddress()))
-                .status(user.getStatus().toString())
-                .kycStatus(user.getKycStatus().toString())
-                .profilePhotoHash(user.getProfilePhotoIpfsHash())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .lastLogin(user.getLastLogin())
-                .build();
+            return GetCitizenUserProfileResponseDto.builder()
+                    .userId(user.getId())
+                    .citizenCode(user.getCitizenCode())
+                    .fullName(user.getFullName())
+                    .nic(user.getNic())
+                    .age(user.getAge()) // added age
+                    .email(user.getEmail())
+                    .phone(user.getPhone())
+                    .dateOfBirth(user.getDateOfBirth())
+                    .gender(user.getGender())
+                    .nationality(user.getNationality())
+                    .address(user.getAddress() != null ? convertJsonToAddress(user.getAddress()) : null)
+                    .status(user.getStatus() != null ? user.getStatus().toString() : null)
+                    .kycStatus(user.getKycStatus() != null ? user.getKycStatus().toString() : null)
+                    .supportingDocumentList(responseList)
+                    .createdAt(user.getCreatedAt())
+                    .updatedAt(user.getUpdatedAt())
+                    .lastLogin(user.getLastLogin())
+                    .build();
+        } catch (Exception e) {
+            LOGGER.error("Failed to create user profile response for ID: {}", user.getId(), e);
+            throw new SludiException(
+                    ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE,
+                    "Failed to build user profile response for ID: " + user.getId(),
+                    e
+            );
+        }
     }
 
     private AddressDto convertJsonToAddress(Address address) {

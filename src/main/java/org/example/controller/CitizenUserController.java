@@ -19,15 +19,17 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/citizen-user")
 @CrossOrigin(origins = "*")
 public class CitizenUserController {
 
-    private static final Logger LOGGER = Logger.getLogger(CitizenUserController.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(CitizenUserController.class.getName());
 
     @Autowired
     private CitizenUserService citizenUserService;
@@ -67,7 +69,7 @@ public class CitizenUserController {
             @RequestParam(value = "documentSides") List<String> documentSides) {
 
         try {
-            LOGGER.info("Received user registration NIC: " + nic);
+            LOGGER.info("Received user registration NIC {}", nic);
 
             AddressDto addressDto = AddressDto.builder()
                     .street(street)
@@ -147,7 +149,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.log(Level.SEVERE, "User registration failed: " + ex.getMessage(), ex);
+            LOGGER.error("User registration failed {}", ex.getMessage(), ex);
 
             ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
                     ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
@@ -160,7 +162,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.log(Level.SEVERE, "Unexpected error during registration: " + ex.getMessage(), ex);
+            LOGGER.error("Unexpected error during registration {}", ex.getMessage(), ex);
 
             ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
                     ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
@@ -171,6 +173,158 @@ public class CitizenUserController {
                             .build();
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        }
+    }
+
+    /**
+     * Retrieve user profile information
+     * GET /api/citizen-user/profile
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponseDto<GetCitizenUserProfileResponseDto>> getUserProfile(
+            @RequestParam("id") UUID id,
+            @RequestParam("deviceId") String deviceId,
+            @RequestParam("deviceType") String deviceType,
+            @RequestParam("os") String os,
+            @RequestParam("ipAddress") String ipAddress,
+            @RequestParam("location") String location) {
+        try {
+
+            GetCitizenUserProfileRequestDto request = GetCitizenUserProfileRequestDto.builder()
+                    .id(id)
+                    .deviceId(deviceId)
+                    .deviceType(deviceType)
+                    .os(os)
+                    .ipAddress(ipAddress)
+                    .location(location)
+                    .build();
+
+            GetCitizenUserProfileResponseDto response = citizenUserService.getUserProfile(request);
+
+            return ResponseEntity.ok(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
+                    .success(true)
+                    .message("Profile retrieved successfully")
+                    .data(response)
+                    .timestamp(Instant.now())
+                    .build());
+
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
+                            .success(false)
+                            .message("Failed to retrieve profile")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Retrieve all users profiles information
+     * GET /api/citizen-user/profiles
+     */
+    @GetMapping("/profiles")
+    public ResponseEntity<ApiResponseDto<List<GetCitizenUserProfileResponseDto>>> getAllUserProfiles() {
+        LOGGER.info("Received request to fetch all citizen user profiles");
+
+        try {
+            List<GetCitizenUserProfileResponseDto> profiles = citizenUserService.getAllUserProfiles();
+
+            ApiResponseDto<List<GetCitizenUserProfileResponseDto>> apiResponse =
+                    ApiResponseDto.<List<GetCitizenUserProfileResponseDto>>builder()
+                            .success(true)
+                            .message("Citizen user profiles retrieved successfully")
+                            .data(profiles)
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException ex) {
+            LOGGER.error("Error while fetching all citizen user profiles: {}", ex.getMessage(), ex);
+
+            ApiResponseDto<List<GetCitizenUserProfileResponseDto>> apiResponse =
+                    ApiResponseDto.<List<GetCitizenUserProfileResponseDto>>builder()
+                            .success(false)
+                            .message(ex.getMessage())
+                            .errorCode(ex.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
+
+        } catch (Exception ex) {
+            LOGGER.error("Unexpected error while fetching all citizen user profiles", ex);
+
+            ApiResponseDto<List<GetCitizenUserProfileResponseDto>> apiResponse =
+                    ApiResponseDto.<List<GetCitizenUserProfileResponseDto>>builder()
+                            .success(false)
+                            .message("Internal server error")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        }
+    }
+
+    /**
+     * Fetch all supporting documents for a given CitizenUser
+     */
+    @GetMapping("/{id}/supporting-documents")
+    public ResponseEntity<ApiResponseDto<List<GetSupportingDocumentResponseDto>>> getSupportingDocuments(
+            @PathVariable("id") UUID id) {
+
+        LOGGER.info("Received request to fetch supporting documents for CitizenUser ID: {}", id);
+
+        try {
+            List<GetSupportingDocumentResponseDto> documents = citizenUserService.getSupportingDocument(id);
+
+            ApiResponseDto<List<GetSupportingDocumentResponseDto>> apiResponse =
+                    ApiResponseDto.<List<GetSupportingDocumentResponseDto>>builder()
+                            .success(true)
+                            .message("Supporting documents retrieved successfully")
+                            .data(documents)
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException ex) {
+            LOGGER.error("Error while retrieving supporting documents for CitizenUser ID: {} | ErrorCode: {} | Message: {}",
+                    id, ex.getErrorCode(), ex.getMessage(), ex);
+
+            ApiResponseDto<List<GetSupportingDocumentResponseDto>> errorResponse =
+                    ApiResponseDto.<List<GetSupportingDocumentResponseDto>>builder()
+                            .success(false)
+                            .message(ex.getMessage())
+                            .errorCode(ex.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception ex) {
+            LOGGER.error("Unexpected error retrieving supporting documents for CitizenUser ID: {}", id, ex);
+
+            ApiResponseDto<List<GetSupportingDocumentResponseDto>> errorResponse =
+                    ApiResponseDto.<List<GetSupportingDocumentResponseDto>>builder()
+                            .success(false)
+                            .message("Internal server error")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
@@ -217,60 +371,20 @@ public class CitizenUserController {
     }
 
     /**
-     * Retrieve user profile information
-     * GET /api/did/{did}/profile
-     */
-    @GetMapping("/{did}/profile")
-    public ResponseEntity<ApiResponseDto<CitizenUserProfileResponseDto>> getUserProfile(
-            @PathVariable String did) {
-
-        try {
-            String id = "did:sludi:" + did;
-
-            CitizenUserProfileResponseDto response = citizenUserService.getUserProfile(id);
-
-            return ResponseEntity.ok(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
-                    .success(true)
-                    .message("Profile retrieved successfully")
-                    .data(response)
-                    .timestamp(Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
-                            .success(false)
-                            .message("Failed to retrieve profile")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
      * Update user profile information
      * PUT /api/did/{did}/profile
      */
     @PutMapping("/{did}/profile")
-    public ResponseEntity<ApiResponseDto<CitizenUserProfileResponseDto>> updateUserProfile(
+    public ResponseEntity<ApiResponseDto<GetCitizenUserProfileResponseDto>> updateUserProfile(
             @PathVariable String did,
             @Valid @RequestBody CitizenUserProfileUpdateRequestDto request) {
 
         try {
             String id = "did:sludi:" + did;
 
-            CitizenUserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
+            GetCitizenUserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
 
-            return ResponseEntity.ok(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
+            return ResponseEntity.ok(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
                     .success(true)
                     .message("Profile updated successfully")
                     .data(response)
@@ -279,7 +393,7 @@ public class CitizenUserController {
 
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message(e.getMessage())
                             .errorCode(e.getErrorCode())
@@ -288,7 +402,7 @@ public class CitizenUserController {
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<CitizenUserProfileResponseDto>builder()
+                    .body(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
                             .success(false)
                             .message("Failed to update profile")
                             .errorCode("INTERNAL_ERROR")
