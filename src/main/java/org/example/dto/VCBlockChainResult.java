@@ -23,7 +23,7 @@ public class VCBlockChainResult {
     private String credentialSubjectHash;
 
     @Builder.Default
-    private List<SupportingDocumentDto> supportingDocuments = new ArrayList<>();
+    private List<SupportingDocumentResponseDto> supportingDocuments = new ArrayList<>();
 
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;

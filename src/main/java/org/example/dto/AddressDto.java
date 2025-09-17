@@ -16,6 +16,5 @@ public class AddressDto {
     private String postalCode;
     private String divisionalSecretariat;
     private String gramaNiladhariDivision;
-    private String state;
-    private String country;
+    private String province;
 }

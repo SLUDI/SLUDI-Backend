@@ -9,6 +9,7 @@ import org.example.integration.IPFSIntegration;
 import org.example.repository.AuthenticationLogRepository;
 import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
+import org.example.utils.CitizenCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,43 +47,79 @@ public class CitizenUserService {
      * Register a new user with complete identity setup
      */
     public CitizenUserRegistrationResponseDto registerCitizenUser(CitizenUserRegistrationRequestDto request) {
+        LOGGER.info("Starting citizen user registration process for NIC: {}, Email: {}",
+                request.getPersonalInfo().getNic(), request.getContactInfo().getEmail());
+
         try {
             // Validate input data
             validateRegistrationRequest(request);
+            LOGGER.debug("Registration request validation passed for NIC: {}", request.getPersonalInfo().getNic());
 
-            // Check if user already exists
+            // Check for duplicates
             if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
-                LOGGER.info("Checking for existing user with NIC: {}", request.getPersonalInfo().getNic());
+                LOGGER.warn("User already exists with NIC: {}", request.getPersonalInfo().getNic());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
             }
 
             if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
+                LOGGER.warn("User already exists with Email: {}", request.getContactInfo().getEmail());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
             }
 
-            // Create user entity (status: pending)
-            CitizenUser user = createUserEntity(request);
-            user.setCreatedAt(LocalDateTime.now().toString());
-            user = citizenUserRepository.save(user);
+            // Generate citizen code
+            String citizenCode = CitizenCodeGenerator.generateCitizenCode();
+            LOGGER.debug("Generated citizen code: {}", citizenCode);
 
+            // Create entity
+            CitizenUser user = createUserEntity(request);
+            user.setCitizenCode(citizenCode);
+            user.setCreatedAt(LocalDateTime.now().toString());
             user.setUpdatedAt(LocalDateTime.now().toString());
 
-            user = citizenUserRepository.save(user);
+            // Handle document uploads
+            if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {
+                LOGGER.info("Uploading {} supporting documents for NIC: {}",
+                        request.getSupportingDocuments().size(), request.getPersonalInfo().getNic());
 
-            // Log the registration activity
+                List<SupportingDocumentResponseDto> documentHashes =
+                        storeUserDocuments(user.getId(), request.getSupportingDocuments());
+
+                List<SupportingDocument> supportingDocuments = documentHashes.stream()
+                        .map(doc -> SupportingDocument.builder()
+                                .name(doc.getName())
+                                .ipfsCid(doc.getIpfsCid())
+                                .fileType(doc.getFileType())
+                                .side(doc.getSide())
+                                .build())
+                        .collect(Collectors.toList());
+
+                user.setSupportingDocuments(supportingDocuments);
+            }
+
+            // Save entity
+            user = citizenUserRepository.save(user);
+            LOGGER.info("Citizen user registered successfully with ID: {}, Code: {}", user.getId(), user.getCitizenCode());
+
+            // Log activity
             logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
 
-            // Return success response
+            // Build response
             return CitizenUserRegistrationResponseDto.builder()
                     .userId(user.getId())
+                    .citizenCode(user.getCitizenCode())
                     .status(user.getStatus().toString())
                     .message("User registered successfully")
                     .build();
 
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, e);
+        } catch (SludiException ex) {
+            LOGGER.error("Registration failed due to known error: {}", ex.getMessage(), ex);
+            throw ex;
+        } catch (Exception ex) {
+            LOGGER.error("Unexpected error during registration for NIC: {}", request.getPersonalInfo().getNic(), ex);
+            throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, ex);
         }
     }
+
 
     /**
      * Uploads a profile photo to IPFS and links it to a CitizenUser by DID.
@@ -153,13 +192,6 @@ public class CitizenUserService {
             // Update profile information
             updateUserFields(user, request);
 
-            // Handle new documents upload if provided
-            if (request.getNewDocuments() != null && !request.getNewDocuments().isEmpty()) {
-                Map<String, String> documentHashes = storeUserDocuments(user.getId(), request.getNewDocuments());
-                // Update user with document references (stored as JSON in address_json field for flexibility)
-                updateUserDocumentReferences(user, documentHashes);
-            }
-
             user.setUpdatedAt(LocalDateTime.now().toString());
             user = citizenUserRepository.save(user);
 
@@ -198,8 +230,7 @@ public class CitizenUserService {
                 .postalCode(addressDto.getPostalCode())
                 .divisionalSecretariat(addressDto.getDivisionalSecretariat())
                 .gramaNiladhariDivision(addressDto.getGramaNiladhariDivision())
-                .state(addressDto.getState())
-                .country(addressDto.getCountry())
+                .province(addressDto.getProvince())
                 .build();
 
         return CitizenUser.builder()
@@ -245,6 +276,28 @@ public class CitizenUserService {
                 throw new RuntimeException("Failed to store profile photo in IPFS", e);
             }
         });
+    }
+
+    private List<SupportingDocumentResponseDto> storeUserDocuments(UUID userId, List<SupportingDocumentRequestDto> documents) {
+        List<SupportingDocumentResponseDto> supportingDocumentResponseDtos = new ArrayList<>();
+        for (SupportingDocumentRequestDto doc : documents) {
+            try {
+                String path = String.format("documents/users/%s/%s", userId, doc.getName());
+                String hash = ipfsIntegration.storeFile(path, doc.getFile().getBytes());
+
+                SupportingDocumentResponseDto supportingDocumentResponseDto = SupportingDocumentResponseDto.builder()
+                        .name(doc.getName())
+                        .ipfsCid(hash)
+                        .fileType(doc.getType())
+                        .side(doc.getSide())
+                        .build();
+                supportingDocumentResponseDtos.add(supportingDocumentResponseDto);
+                recordIPFSContent(userId, hash, "document", "user_document", doc.getType());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to store document: " + doc.getFile(), e);
+            }
+        }
+        return supportingDocumentResponseDtos;
     }
 
     /**
@@ -299,9 +352,8 @@ public class CitizenUserService {
                 return AddressDto.builder()
                         .street("")
                         .city("")
-                        .state("")
+                        .province("")
                         .postalCode("")
-                        .country("")
                         .district("")
                         .divisionalSecretariat("")
                         .gramaNiladhariDivision("")
@@ -311,9 +363,8 @@ public class CitizenUserService {
             return AddressDto.builder()
                     .street(address.getStreet())
                     .city(address.getCity())
-                    .state(address.getState())
+                    .province(address.getProvince())
                     .postalCode(address.getPostalCode())
-                    .country(address.getCountry())
                     .district(address.getDistrict())
                     .divisionalSecretariat(address.getDivisionalSecretariat())
                     .gramaNiladhariDivision(address.getGramaNiladhariDivision())
@@ -337,30 +388,14 @@ public class CitizenUserService {
             Address newAddress = Address.builder()
                     .street(request.getAddress().getStreet())
                     .city(request.getAddress().getCity())
-                    .state(request.getAddress().getState())
+                    .province(request.getAddress().getProvince())
                     .postalCode(request.getAddress().getPostalCode())
-                    .country("Sri Lanka")
                     .district(request.getAddress().getDistrict())
                     .divisionalSecretariat(request.getAddress().getDivisionalSecretariat())
                     .gramaNiladhariDivision(request.getAddress().getGramaNiladhariDivision())
                     .build();
             user.setAddress(newAddress);
         }
-    }
-
-    private Map<String, String> storeUserDocuments(UUID userId, List<MultipartFile> documents) {
-        Map<String, String> documentHashes = new HashMap<>();
-        for (MultipartFile doc : documents) {
-            try {
-                String path = String.format("documents/users/%s/%s", userId, doc.getOriginalFilename());
-                String hash = ipfsIntegration.storeFile(path, doc.getBytes());
-                documentHashes.put(doc.getOriginalFilename(), hash);
-                recordIPFSContent(userId, hash, "document", "user_document", doc.getContentType());
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to store document: " + doc.getOriginalFilename(), e);
-            }
-        }
-        return documentHashes;
     }
 
     private void updateUserDocumentReferences(CitizenUser user, Map<String, String> documentHashes) {
@@ -377,9 +412,8 @@ public class CitizenUserService {
             user.setAddress(Address.builder()
                     .street(currentAddress.getStreet())
                     .city(currentAddress.getCity())
-                    .state(currentAddress.getState())
+                    .province(currentAddress.getProvince())
                     .postalCode(currentAddress.getPostalCode())
-                    .country(currentAddress.getCountry())
                     .district(currentAddress.getDistrict())
                     .divisionalSecretariat(currentAddress.getDivisionalSecretariat())
                     .gramaNiladhariDivision(currentAddress.getGramaNiladhariDivision())

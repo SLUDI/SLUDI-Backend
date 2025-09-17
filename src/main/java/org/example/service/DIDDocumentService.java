@@ -244,37 +244,6 @@ public class DIDDocumentService {
         return BiometricVerificationResult.success();
     }
 
-    private CitizenUser createUserEntity(CitizenUserRegistrationRequestDto request) {
-        AddressDto addressDto = request.getPersonalInfo().getAddress();
-        Address address = Address.builder()
-                .street(addressDto.getStreet())
-                .city(addressDto.getCity())
-                .district(addressDto.getDistrict())
-                .postalCode(addressDto.getPostalCode())
-                .divisionalSecretariat(addressDto.getDivisionalSecretariat())
-                .gramaNiladhariDivision(addressDto.getGramaNiladhariDivision())
-                .state(addressDto.getState())
-                .country(addressDto.getCountry())
-                .build();
-
-        return CitizenUser.builder()
-                .id(UUID.randomUUID())
-                .fullName(request.getPersonalInfo().getFullName())
-                .nic(request.getPersonalInfo().getNic())
-                .email(request.getContactInfo().getEmail())
-                .phone(request.getContactInfo().getPhone())
-                .dateOfBirth(request.getPersonalInfo().getDateOfBirth().toString())
-                .gender(request.getPersonalInfo().getGender())
-                .nationality(request.getPersonalInfo().getNationality())
-                .citizenship(request.getPersonalInfo().getCitizenship())
-                .bloodGroup(request.getPersonalInfo().getBloodGroup())
-                .address(address)
-                .status(CitizenUser.UserStatus.PENDING)
-                .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
-                .createdAt(LocalDateTime.now().toString())
-                .updatedAt(LocalDateTime.now().toString())
-                .build();
-    }
 
     private CompletableFuture<BiometricIPFSHashes> storeBiometricDataAsync(UUID userId, BiometricDataDto biometric) {
         return CompletableFuture.supplyAsync(() -> {

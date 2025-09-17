@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ContactInfoDto {
-    private String email;
-    private String phone;
+public class SupportingDocumentResponseDto {
+    private String name;
+    private String ipfsCid;
+    private String fileType;
+    private String side;
 }

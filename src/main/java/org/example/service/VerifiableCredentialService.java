@@ -69,7 +69,7 @@ public class VerifiableCredentialService {
             String credentialSubjectJson = objectMapper.writeValueAsString(credentialSubject);
             String credentialSubjectHash = cryptographyService.encryptData(credentialSubjectJson);
 
-            List<SupportingDocumentDto> supportingDocuments = mapSupportingDocuments(user, request);
+            List<SupportingDocumentResponseDto> supportingDocuments = mapSupportingDocuments(user, request);
 
             // Create Proof of Data
             ProofData proofData = digitalSignatureService.createProofData(
@@ -215,8 +215,7 @@ public class VerifiableCredentialService {
                 .postalCode(user.getAddress().getPostalCode())
                 .divisionalSecretariat(user.getAddress().getDivisionalSecretariat())
                 .gramaNiladhariDivision(user.getAddress().getGramaNiladhariDivision())
-                .state(user.getAddress().getState())
-                .country(user.getAddress().getCountry())
+                .province(user.getAddress().getProvince())
                 .build();
     }
 
@@ -233,13 +232,13 @@ public class VerifiableCredentialService {
                 .build();
     }
 
-    private List<SupportingDocumentDto> mapSupportingDocuments(CitizenUser user, IssueVCRequestDto request) {
-        List<SupportingDocumentDto> supportingDocuments = new ArrayList<>();
+    private List<SupportingDocumentResponseDto> mapSupportingDocuments(CitizenUser user, IssueVCRequestDto request) {
+        List<SupportingDocumentResponseDto> supportingDocuments = new ArrayList<>();
 
         if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {
-            for (SupportingDocument doc : request.getSupportingDocuments()) {
+            for (SupportingDocumentRequestDto doc : request.getSupportingDocuments()) {
                 String hash = storeFileToIPFS(user.getId(), request.getCredentialType(), doc);
-                supportingDocuments.add(SupportingDocumentDto.builder()
+                supportingDocuments.add(SupportingDocumentResponseDto.builder()
                         .name(doc.getName())
                         .fileType(doc.getType())
                         .ipfsCid(hash)
@@ -254,7 +253,7 @@ public class VerifiableCredentialService {
     /**
      * Uploads a document to IPFS and returns the CID/hash
      */
-    private String storeFileToIPFS(UUID userId, String credentialType, SupportingDocument doc) {
+    private String storeFileToIPFS(UUID userId, String credentialType, SupportingDocumentRequestDto doc) {
         try {
             String path = String.format("%s/%s/%s", userId, credentialType, doc.getName());
             byte[] fileBytes = doc.getFile().getBytes();

@@ -49,14 +49,14 @@ public class VerifiableCredentialController {
 
             // Attach uploaded files to DTO
             if (files != null && !files.isEmpty()) {
-                List<SupportingDocument> docs = new ArrayList<>();
+                List<SupportingDocumentRequestDto> docs = new ArrayList<>();
                 for (int i = 0; i < files.size(); i++) {
                     MultipartFile file = files.get(i);
                     String docType = (documentTypes != null && documentTypes.size() > i)
                             ? documentTypes.get(i)
                             : "UNKNOWN";
 
-                    docs.add(SupportingDocument.builder()
+                    docs.add(SupportingDocumentRequestDto.builder()
                             .name(file.getOriginalFilename())
                             .type(docType) // e.g., NIC, Birth Certificate
                             .file(file)

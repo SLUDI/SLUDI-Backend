@@ -9,6 +9,7 @@ import java.util.UUID;
 @Builder
 public class CitizenUserRegistrationResponseDto {
     private UUID userId;
+    private String citizenCode;
     private String status;
     private String message;
 }

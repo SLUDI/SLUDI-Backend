@@ -10,5 +10,5 @@ import java.util.List;
 public class IssueVCRequestDto {
     private String did;
     private String credentialType;
-    private List<SupportingDocument> supportingDocuments;
+    private List<SupportingDocumentRequestDto> supportingDocuments;
 }

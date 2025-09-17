@@ -197,7 +197,7 @@ public class WalletService {
 //        AddressDto addressDto = AddressDto.builder()
 //                .street(ivc.getCredentialSubject().getAddress().getStreet())
 //                .city(ivc.getCredentialSubject().getAddress().getCity())
-//                .state(ivc.getCredentialSubject().getAddress().getState())
+//                .province(ivc.getCredentialSubject().getAddress().getProvince())
 //                .postalCode(ivc.getCredentialSubject().getAddress().getPostalCode())
 //                .country(ivc.getCredentialSubject().getAddress().getCountry())
 //                .district(ivc.getCredentialSubject().getAddress().getDistrict())

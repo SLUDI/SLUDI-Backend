@@ -23,7 +23,7 @@ public class VerifiableCredentialDto {
     private CredentialSubject credentialSubject;
 
     @Builder.Default
-    private List<SupportingDocumentDto> supportingDocuments = new ArrayList<>();
+    private List<SupportingDocumentResponseDto> supportingDocuments = new ArrayList<>();
 
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;

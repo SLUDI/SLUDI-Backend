@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -25,8 +26,12 @@ public class CitizenUser {
     @Id
     private UUID id;
 
+    @Column(unique = true, nullable = false)
+    private String citizenCode;
+
     private String fullName;
     private String nic;
+    private String age;
     private String email;
     private String phone;
     private String dateOfBirth;
@@ -37,6 +42,14 @@ public class CitizenUser {
 
     @Embedded
     private Address address;
+
+    @ElementCollection
+    @CollectionTable(
+            name = "citizen_supporting_documents",
+            joinColumns = @JoinColumn(name = "citizen_user_id")
+    )
+    private List<SupportingDocument> supportingDocuments;
+
 
     @Enumerated(EnumType.STRING)
     private UserStatus status;

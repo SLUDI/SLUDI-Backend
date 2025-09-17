@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,70 +32,143 @@ public class CitizenUserController {
     @Autowired
     private CitizenUserService citizenUserService;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * Register new user and create DID
      * POST /api/citizen-user/register
      */
     @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<CitizenUserRegistrationResponseDto>> registerUser(
-            @Valid @RequestParam CitizenUserRegistrationRequestDto request,
-            @Valid @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
-            @Valid @RequestParam(value = "documentTypes") List<String> documentTypes) {
-
-        LOGGER.info("Received user registration NIC: " + request.getPersonalInfo().getNic());
+            @Valid @RequestParam("fullName") String fullName,
+            @Valid @RequestParam("nic") String nic,
+            @Valid @RequestParam("age") String age,
+            @Valid @RequestParam("dateOfBirth") LocalDate dateOfBirth,
+            @Valid @RequestParam("citizenship") String citizenship,
+            @Valid @RequestParam("gender") String gender,
+            @Valid @RequestParam("nationality") String nationality,
+            @Valid @RequestParam("bloodGroup") String bloodGroup,
+            @Valid @RequestParam("email") String email,
+            @Valid @RequestParam("phone") String phone,
+            @Valid @RequestParam("street") String street,
+            @Valid @RequestParam("city") String city,
+            @Valid @RequestParam("district") String district,
+            @Valid @RequestParam("postalCode") String postalCode,
+            @Valid @RequestParam("divisionalSecretariat") String divisionalSecretariat,
+            @Valid @RequestParam("gramaNiladhariDivision") String gramaNiladhariDivision,
+            @Valid @RequestParam("province") String province,
+            @Valid @RequestParam("deviceId") String deviceId,
+            @Valid @RequestParam("deviceType") String deviceType,
+            @Valid @RequestParam("os") String os,
+            @Valid @RequestParam("ipAddress") String ipAddress,
+            @Valid @RequestParam("location") String location,
+            @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
+            @RequestParam(value = "documentTypes") List<String> documentTypes,
+            @RequestParam(value = "documentSides") List<String> documentSides) {
 
         try {
+            LOGGER.info("Received user registration NIC: " + nic);
 
-            // Attach uploaded files to DTO
+            AddressDto addressDto = AddressDto.builder()
+                    .street(street)
+                    .city(city)
+                    .district(district)
+                    .postalCode(postalCode)
+                    .divisionalSecretariat(divisionalSecretariat)
+                    .gramaNiladhariDivision(gramaNiladhariDivision)
+                    .province(province)
+                    .build();
+
+            PersonalInfoDto personalInfoDto = PersonalInfoDto.builder()
+                    .fullName(fullName)
+                    .nic(nic)
+                    .age(age)
+                    .dateOfBirth(dateOfBirth)
+                    .citizenship(citizenship)
+                    .gender(gender)
+                    .nationality(nationality)
+                    .bloodGroup(bloodGroup)
+                    .address(addressDto)
+                    .build();
+
+            ContactInfoDto contactInfoDto = ContactInfoDto.builder()
+                    .email(email)
+                    .phone(phone)
+                    .build();
+
+            DeviceInfoDto deviceInfoDto = DeviceInfoDto.builder()
+                    .deviceId(deviceId)
+                    .deviceType(deviceType)
+                    .os(os)
+                    .ipAddress(ipAddress)
+                    .location(location)
+                    .build();
+
+            List<SupportingDocumentRequestDto> docs = new ArrayList<>();
+
             if (files != null && !files.isEmpty()) {
-                List<SupportingDocument> docs = new ArrayList<>();
                 for (int i = 0; i < files.size(); i++) {
                     MultipartFile file = files.get(i);
+
                     String docType = (documentTypes != null && documentTypes.size() > i)
                             ? documentTypes.get(i)
                             : "UNKNOWN";
 
-                    docs.add(SupportingDocument.builder()
+                    String docSide = (documentSides != null && documentSides.size() > i)
+                            ? documentSides.get(i)
+                            : "UNKNOWN";
+
+                    docs.add(SupportingDocumentRequestDto.builder()
                             .name(file.getOriginalFilename())
-                            .type(docType) // e.g., NIC, Birth Certificate
+                            .type(docType)    // NIC, Birth Certificate
+                            .side(docSide)    // FRONT, BACK
                             .file(file)
                             .build());
                 }
-                request.setSupportingDocuments(docs);
             }
+
+            CitizenUserRegistrationRequestDto request = CitizenUserRegistrationRequestDto.builder()
+                    .personalInfo(personalInfoDto)
+                    .contactInfo(contactInfoDto)
+                    .supportingDocuments(docs)
+                    .deviceInfo(deviceInfoDto)
+                    .build();
 
             CitizenUserRegistrationResponseDto response = citizenUserService.registerCitizenUser(request);
 
-            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
-                    .success(true)
-                    .message("User registered successfully")
-                    .data(response)
-                    .timestamp(Instant.now())
-                    .build();
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
+                    ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                            .success(true)
+                            .message("User registered successfully")
+                            .data(response)
+                            .timestamp(Instant.now())
+                            .build();
 
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.log(Level.SEVERE,"User registration failed: " + ex.getMessage(), ex);
+            LOGGER.log(Level.SEVERE, "User registration failed: " + ex.getMessage(), ex);
 
-            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
-                    .success(false)
-                    .message(ex.getMessage())
-                    .errorCode(ex.getErrorCode())
-                    .timestamp(Instant.now())
-                    .build();
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
+                    ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                            .success(false)
+                            .message(ex.getMessage())
+                            .errorCode(ex.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build();
 
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, "Unexpected error during registration: " + ex.getMessage(), ex);
 
-            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse = ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
-                    .success(false)
-                    .message("Internal server error")
-                    .errorCode("INTERNAL_ERROR")
-                    .timestamp(Instant.now())
-                    .build();
+            ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
+                    ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
+                            .success(false)
+                            .message("Internal server error")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build();
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
         }
@@ -229,18 +304,31 @@ public class CitizenUserController {
     @PostMapping(value = "/{did}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> uploadDocuments(
             @PathVariable String did,
-            @RequestParam("documents") MultipartFile[] documents,
-            @RequestParam(value = "category", required = false, defaultValue = "general") String category){
+            @Valid @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
+            @Valid @RequestParam(value = "documentTypes") List<String> documentTypes){
 
         try {
             String id = "did:sludi:" + did;
-            // Validate documents
-            for (MultipartFile doc : documents) {
-                validateDocumentFile(doc);
+
+            // Attach uploaded files to DTO
+            List<SupportingDocumentRequestDto> docs = new ArrayList<>();
+            if (files != null && !files.isEmpty()) {
+                for (int i = 0; i < files.size(); i++) {
+                    MultipartFile file = files.get(i);
+                    String docType = (documentTypes != null && documentTypes.size() > i)
+                            ? documentTypes.get(i)
+                            : "UNKNOWN";
+
+                    docs.add(SupportingDocumentRequestDto.builder()
+                            .name(file.getOriginalFilename())
+                            .type(docType) // e.g., NIC, Birth Certificate
+                            .file(file)
+                            .build());
+                }
             }
 
             CitizenUserProfileUpdateRequestDto request = CitizenUserProfileUpdateRequestDto.builder()
-                    .newDocuments(java.util.Arrays.asList(documents))
+                    .newSupportingDocuments(docs)
                     .build();
 
             citizenUserService.updateUserProfile(id, request);
@@ -249,8 +337,7 @@ public class CitizenUserController {
                     .success(true)
                     .message("Documents uploaded successfully")
                     .data(Map.of(
-                            "documentsCount", documents.length,
-                            "category", category,
+                            "documentsCount", docs.size(),
                             "uploadedAt", Instant.now()
                     ))
                     .timestamp(java.time.Instant.now())

@@ -12,6 +12,6 @@ public class CredentialIssuanceRequestDto {
     private String issuerDID;
     private String credentialType;
     private String credentialSubjectHash;
-    private List<SupportingDocumentDto> supportingDocuments;
+    private List<SupportingDocumentResponseDto> supportingDocuments;
     private ProofDataDto proofData;
 }
