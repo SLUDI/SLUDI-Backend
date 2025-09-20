@@ -32,6 +32,9 @@ public class WalletService {
     private OtpService otpService;
 
     @Autowired
+    private MailService mailService;
+
+    @Autowired
     private CryptographyService cryptoService;
 
     @Autowired
@@ -59,7 +62,7 @@ public class WalletService {
         // Generate and send OTP
         OTP otp = otpService.generateOTP(did);
         try {
-            otpService.sendOtpEmail(email, otp.getCode());
+            mailService.sendOtpEmail(email, otp.getCode());
             return "Did verify and Otp send to:" + email;
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.OTP_SEND_FAILED, "Failed to send OTP", e);

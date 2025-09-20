@@ -3,11 +3,6 @@
 build
 out
 
-# Gradle wrapper logs
-gradle-wrapper.jar
-gradlew.bat
-gradlew
-
 # IDE files
 .idea
 *.iml
