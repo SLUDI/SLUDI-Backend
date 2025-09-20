@@ -19,5 +19,7 @@ public class CitizenUserRegistrationRequestDto {
     @Builder.Default
     private List<SupportingDocumentRequestDto> supportingDocuments = new ArrayList<>();
 
+    private SelectedDatesDto selectedDates;
+
     private DeviceInfoDto deviceInfo;
 }

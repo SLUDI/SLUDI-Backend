@@ -40,6 +40,10 @@ services:
 #      - postgres
 #      - ipfs
 #    environment:
+#      # === Application Settings ===
+#      SEVER_PORT: 5000
+#      SPRING_APPLICATION_NAME: sludi
+#
 #      # ==== Database ====
 #      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluditest
 #      SPRING_DATASOURCE_USERNAME: postgres

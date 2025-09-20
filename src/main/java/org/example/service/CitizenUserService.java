@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -40,6 +41,9 @@ public class CitizenUserService {
 
     @Autowired
     private IPFSIntegration ipfsIntegration;
+
+    @Autowired
+    private AppointmentService appointmentService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -99,6 +103,17 @@ public class CitizenUserService {
             // Save entity
             user = citizenUserRepository.save(user);
             LOGGER.info("Citizen user registered successfully with ID: {}, Code: {}", user.getId(), user.getCitizenCode());
+
+            // Save user preferred dates
+            SelectedDatesDto selectedDates = request.getSelectedDates();
+
+            List<LocalDate> dateList = Arrays.asList(
+                    selectedDates.getDate1(),
+                    selectedDates.getDate2(),
+                    selectedDates.getDate3()
+            );
+
+            appointmentService.savePreferredDates(user.getId(), dateList);
 
             // Log activity
             logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
