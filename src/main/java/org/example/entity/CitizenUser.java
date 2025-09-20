@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,6 +69,17 @@ public class CitizenUser {
     private String updatedAt;
     private String lastLogin;
 
+    @Builder.Default
+    @OneToMany(mappedBy = "citizenUser", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PublicKey> publicKeys = new ArrayList<>();
+
     @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Wallet wallet;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "citizenUser", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserPreferredDate> preferredDates = new ArrayList<>();
+
+    @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Appointment appointment;
 }

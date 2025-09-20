@@ -89,6 +89,7 @@ public enum ErrorCodes {
     INVALID_FORMAT_IMAGE("4011", "Invalid image format. Only JPEG, JPG, and PNG are allowed"),
     INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
     INVALID_DID("4013", "No DID found for the provided identifier"),
+    DATE_UNAVAILABLE("4012", "The selected date is not available for booking"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),
