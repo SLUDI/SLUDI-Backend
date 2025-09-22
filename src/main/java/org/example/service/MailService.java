@@ -4,11 +4,14 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 import java.util.Properties;
 
 @Service
@@ -16,6 +19,9 @@ public class MailService {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    @Autowired
+    private TemplateEngine templateEngine;
 
     @Value("${spring.mail.username}")
     private String senderEmail;
@@ -54,39 +60,65 @@ public class MailService {
         return mailSender;
     }
 
-    public void sendOtpEmail(String toEmail, String otp) throws MessagingException {
+    public void sendOtpEmail(String toEmail, String fullName, String otp) throws MessagingException {
         MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
         helper.setFrom(senderEmail);
         helper.setTo(toEmail);
         helper.setSubject("SLUDI - Your OTP Verification Code");
 
-        String htmlContent = generateOtpEmailTemplate(otp);
+        // Thymeleaf context
+        Context context = new Context();
+        context.setVariable("fullName", fullName);
+        context.setVariable("otp", otp);
+
+        // Process template
+        String htmlContent = templateEngine.process("otp", context);
         helper.setText(htmlContent, true);
 
+        // Embed logo + hero image
+        ClassPathResource logo = new ClassPathResource("static/images/sludi-logo.png");
+        ClassPathResource hero = new ClassPathResource("static/images/hero.png");
+        helper.addInline("logoImage", logo);
+        helper.addInline("heroImage", hero);
+
+        // Send mail
         mailSender.send(message);
     }
 
-    private String generateOtpEmailTemplate(String otp) {
-        return """
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
-                    <h1 style="color: #0d6efd;">SLUDI Digital Identity</h1>
-                </div>
-                <div style="padding: 20px;">
-                    <h2>Email Verification</h2>
-                    <p>Please use the following OTP to verify your email address:</p>
-                    <div style="background-color: #e9ecef; padding: 15px; text-align: center; margin: 20px 0;">
-                        <h1 style="color: #0d6efd; letter-spacing: 5px; margin: 0;">%s</h1>
-                    </div>
-                    <p>This OTP will expire in 5 minutes.</p>
-                    <p>If you did not request this verification, please ignore this email.</p>
-                </div>
-                <div style="background-color: #f8f9fa; padding: 20px; text-align: center;">
-                    <p style="color: #6c757d; margin: 0;">© 2025 SLUDI. All rights reserved.</p>
-                </div>
-            </div>
-            """.formatted(otp);
+    public void sendAppointmentEmail(String to,
+                                     String fullName,
+                                     String location,
+                                     String dateTime,
+                                     String referenceNumber) throws MessagingException {
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        // Prepare context for Thymeleaf
+        Context context = new Context();
+        context.setVariable("fullName", fullName);
+        context.setVariable("location", location);
+        context.setVariable("dateTime", dateTime);
+        context.setVariable("referenceNumber", referenceNumber);
+
+        // Process template
+        String htmlContent = templateEngine.process("appointment", context);
+
+        // Email settings
+        helper.setTo(to);
+        helper.setSubject("Digital Identity Appointment Confirmation");
+        helper.setText(htmlContent, true);
+
+        // Embed images
+        ClassPathResource logo = new ClassPathResource("static/images/sludi-logo.png");
+        ClassPathResource hero = new ClassPathResource("static/images/hero.png");
+        helper.addInline("logoImage", logo);
+        helper.addInline("heroImage", hero);
+
+        // Send email
+        mailSender.send(message);
     }
+
 }

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Identity System - Sri Lanka</title>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Open Sans', Arial, sans-serif; background-color: #f5f5f5; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+<!-- Wrapper table for email clients -->
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0; padding: 0;">
+    <tr>
+        <td style="padding: 20px 10px;">
+            <!-- Main container -->
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); width: 100%;">
+
+                <!-- Header Section -->
+                <tr>
+                    <td style="background-size: cover; padding: 30px 20px; min-height: 120px;">
+                        <img th:src="@{cid:heroImage}" alt="Hero" style="width:100%; height:auto;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr>
+                                <td style="vertical-align: top; width: 70%;">
+                                    <h1 style="color: #333; font-size: 26px; font-weight: bold; line-height: 1.2; margin: 0 0 20px 0; font-family: 'Open Sans', Arial, sans-serif;">
+                                        Welcome to Digital Identity System in Sri Lanka
+                                    </h1>
+                                </td>
+                                <td style="vertical-align: top; width: 30%; text-align: right;">
+                                    <div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; display: inline-block; background: #fff; text-align: center; line-height: 80px;">
+                                        <img th:src="@{cid:logoImage}" alt="SLUDI Logo" style="width:80px; height:80px; border-radius:50%;">
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                    <td style="padding: 30px 20px; color: #333; line-height: 1.6;">
+
+                        <!-- Greeting -->
+                        <div style="font-weight: bold; margin-bottom: 20px; font-size: 16px; font-family: 'Open Sans', Arial, sans-serif;">
+                            Dear <span th:text="${fullName}" style="padding: 2px 4px; border-radius: 3px;">Ranasinghe Arachilage Nimal Shantha</span>,
+                        </div>
+
+                        <!-- Main Text -->
+                        <div style="margin-bottom: 25px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                            Thank you for your registration. We are pleased to inform you that your appointment to complete the Digital Identity Creation process has been confirmed.
+                        </div>
+
+                        <!-- Appointment Details -->
+                        <div style="margin-bottom: 25px;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                                <span style="margin-right: 10px; font-size: 16px;">📍</span>
+                                <strong>Location:</strong>&nbsp;<span th:text="${location}" style="padding: 2px 4px; border-radius: 3px;">Divisional Secretariat Office, Galle</span>
+                            </div>
+                            <div style="display: flex; align-items: center; margin-bottom: 10px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                                <span style="margin-right: 10px; font-size: 16px;">🕙</span>
+                                <strong>Date & Time:</strong>&nbsp;<span th:text="${dateTime}" style="padding: 2px 4px; border-radius: 3px;">25th September 10.00 a.m.</span>
+                            </div>
+                            <div style="display: flex; align-items: center; margin-bottom: 0; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                                <span style="margin-right: 10px; font-size: 16px;">📋</span>
+                                <strong>Reference Number:</strong>&nbsp;<span th:text="${referenceNumber}" style="padding: 2px 4px; border-radius: 3px;">CIT-123456</span>
+                            </div>
+                        </div>
+
+                        <!-- Required Documents -->
+                        <div style="margin: 25px 0;">
+                            <div style="font-weight: bold; margin-bottom: 10px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                                Please bring the following documents with you:
+                            </div>
+                            <ul style="margin-left: 20px; padding-left: 0;">
+                                <li style="margin-bottom: 5px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">National Identity Card (NIC)</li>
+                                <li style="margin-bottom: 5px; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">Birth Certificate</li>
+                            </ul>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div style="margin: 25px 0; font-size: 14px; font-family: 'Open Sans', Arial, sans-serif;">
+                            If you have any questions or need to reschedule, please contact us at <strong>support@gov.lk</strong> or call <strong>+94 11 123 4567</strong>.
+                        </div>
+
+                        <!-- Signature -->
+                        <div style="margin-top: 30px;">
+                            <div style="font-size: 14px; margin-bottom: 5px; font-family: 'Open Sans', Arial, sans-serif;">Thank you,</div>
+                            <div style="font-size: 14px; margin-bottom: 5px; font-family: 'Open Sans', Arial, sans-serif;">Department of Citizenship Services</div>
+                        </div>
+
+                        <!-- Social Media Icons -->
+                        <div style="text-align:center; margin:30px 0;">
+                            <a href="https://facebook.com" style="display:inline-block; width:40px; height:40px; border-radius:50%; border:2px solid #ddd; margin:0 8px; text-decoration:none; background-color:#fff;">
+                                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/facebook.svg" alt="Facebook" width="20" height="20" style="display:block; margin:auto; margin-top:9px;">
+                            </a>
+                            <a href="https://linkedin.com" style="display:inline-block; width:40px; height:40px; border-radius:50%; border:2px solid #ddd; margin:0 8px; text-decoration:none; background-color:#fff;">
+                                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/linkedin.svg" alt="LinkedIn" width="20" height="20" style="display:block; margin:auto; margin-top:9px;">
+                            </a>
+                            <a href="https://x.com" style="display:inline-block; width:40px; height:40px; border-radius:50%; border:2px solid #ddd; margin:0 8px; text-decoration:none; background-color:#fff;">
+                                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/x.svg" alt="X" width="20" height="20" style="display:block; margin:auto; margin-top:9px;">
+                            </a>
+                            <a href="https://instagram.com" style="display:inline-block; width:40px; height:40px; border-radius:50%; border:2px solid #ddd; margin:0 8px; text-decoration:none; background-color:#fff;">
+                                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" alt="Instagram" width="20" height="20" style="display:block; margin:auto; margin-top:9px;">
+                            </a>
+                            <a href="https://youtube.com" style="display:inline-block; width:40px; height:40px; border-radius:50%; border:2px solid #ddd; margin:0 8px; text-decoration:none; background-color:#fff;">
+                                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" alt="YouTube" width="20" height="20" style="display:block; margin:auto; margin-top:9px;">
+                            </a>
+                        </div>
+
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="background-color: #FFE2BA; padding: 20px; text-align: center; font-size: 12px; font-family: 'Open Sans', Arial, sans-serif;">
+                        You are receiving this email as part of the Digital Identity Creation process with the Department of Citizenship Services.<br>
+                        Copyright ©2025 Department of Citizenship Services
+                    </td>
+                </tr>
+
+            </table>
+        </td>
+    </tr>
+</table>
+
+<!-- Mobile Responsive Styles -->
+<style>
+    @media only screen and (max-width: 600px) {
+        .email-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        .header h1 {
+            font-size: 22px !important;
+            line-height: 1.3 !important;
+        }
+
+        .logo {
+            width: 60px !important;
+            height: 60px !important;
+            top: 20px !important;
+            right: 20px !important;
+        }
+
+        .content {
+            padding: 20px 15px !important;
+        }
+
+        .detail-item {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            margin-bottom: 15px !important;
+        }
+
+        .detail-icon {
+            margin-bottom: 5px !important;
+        }
+
+        .social-media {
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+        }
+
+        .social-icon {
+            width: 35px !important;
+            height: 35px !important;
+            line-height: 31px !important;
+        }
+    }
+
+    @media only screen and (max-width: 480px) {
+        .header {
+            padding: 20px 15px !important;
+        }
+
+        .header h1 {
+            font-size: 20px !important;
+            margin-bottom: 15px !important;
+        }
+
+        .greeting {
+            font-size: 15px !important;
+        }
+
+        .main-text, .detail-item, .documents-title, .documents-list li, .contact-info {
+            font-size: 13px !important;
+        }
+    }
+</style>
+</body>
+</html>

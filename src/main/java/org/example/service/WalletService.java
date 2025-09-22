@@ -62,7 +62,7 @@ public class WalletService {
         // Generate and send OTP
         OTP otp = otpService.generateOTP(did);
         try {
-            mailService.sendOtpEmail(email, otp.getCode());
+            mailService.sendOtpEmail(email, citizenUser.getFullName(), otp.getCode());
             return "Did verify and Otp send to:" + email;
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.OTP_SEND_FAILED, "Failed to send OTP", e);

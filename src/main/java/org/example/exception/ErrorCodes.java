@@ -37,6 +37,8 @@ public enum ErrorCodes {
     WALLET_RETRIEVAL_FAILED("2019", "Failed to retrieve wallet data"),
     JSON_PARSING_FAILED("2020", "Failed to parse credentials JSON"),
     CONTENT_NOT_FOUND("2021", "IPFS content not found in DB"),
+    MAIL_SENDING_FAILED("2022", "Failed to send appointment confirmation email"),
+    INTERNAL_ERROR("2023", "Unexpected error occurred while confirming appointment"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
