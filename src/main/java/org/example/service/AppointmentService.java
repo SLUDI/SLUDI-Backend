@@ -1,5 +1,6 @@
 package org.example.service;
 
+import jakarta.mail.MessagingException;
 import org.example.dto.AppointmentDto;
 import org.example.entity.Appointment;
 import org.example.entity.CitizenUser;
@@ -26,6 +27,9 @@ public class AppointmentService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AppointmentService.class);
 
     @Autowired
+    private MailService mailService;
+
+    @Autowired
     private CitizenUserRepository citizenUserRepository;
 
     @Autowired
@@ -34,7 +38,7 @@ public class AppointmentService {
     @Autowired
     private AppointmentRepository appointmentRepository;
 
-    private static final int MAX_APPOINTMENTS_PER_DAY = 14; // limit
+    private static final int MAX_APPOINTMENTS_PER_DAY = 5; // limit
 
     /**
      * Save exactly 3 preferred dates for a user.
@@ -94,7 +98,8 @@ public class AppointmentService {
         CitizenUser user = citizenUserRepository.findById(userId)
                 .orElseThrow(() -> {
                     LOGGER.error("User not found with ID: {}", userId);
-                    return new SludiException(ErrorCodes.USER_NOT_FOUND, "User not found with ID: " + userId);
+                    return new SludiException(ErrorCodes.USER_NOT_FOUND,
+                            "User not found with ID: " + userId);
                 });
 
         if (!isDateAvailable(confirmedDate)) {
@@ -102,19 +107,44 @@ public class AppointmentService {
                     "The date " + confirmedDate + " is not available for booking");
         }
 
-        Appointment appointment = Appointment.builder()
-                .confirmedDate(confirmedDate)
-                .status(Appointment.AppointmentStatus.CONFIRMED)
-                .citizenUser(user)
-                .build();
+        try {
+            // Create and save appointment
+            Appointment appointment = Appointment.builder()
+                    .confirmedDate(confirmedDate)
+                    .status(Appointment.AppointmentStatus.CONFIRMED)
+                    .citizenUser(user)
+                    .build();
 
-        Appointment savedAppointment = appointmentRepository.save(appointment);
-        LOGGER.info("Appointment confirmed for user {} on {}", userId, confirmedDate);
+            Appointment savedAppointment = appointmentRepository.save(appointment);
 
-        return AppointmentDto.builder()
-                .id(savedAppointment.getId())
-                .confirmedDate(savedAppointment.getConfirmedDate())
-                .status(savedAppointment.getStatus().toString())
-                .build();
+            // Format date/time properly
+            String dateTime = String.format("%s at 10:00 a.m.", confirmedDate);
+
+            // Send confirmation email
+            mailService.sendAppointmentEmail(
+                    user.getEmail(),
+                    user.getFullName(),
+                    user.getAddress().getDivisionalSecretariat(),
+                    dateTime,
+                    user.getCitizenCode()
+            );
+
+            LOGGER.info("Appointment confirmed for user {} on {}", userId, confirmedDate);
+
+            return AppointmentDto.builder()
+                    .id(savedAppointment.getId())
+                    .confirmedDate(savedAppointment.getConfirmedDate())
+                    .status(savedAppointment.getStatus().toString())
+                    .build();
+
+        } catch (MessagingException e) {
+            LOGGER.error("Failed to send appointment confirmation email for user {}: {}", userId, e.getMessage(), e);
+            throw new SludiException(ErrorCodes.MAIL_SENDING_FAILED,
+                    "Failed to send appointment confirmation email", e);
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error while confirming appointment for user {}: {}", userId, e.getMessage(), e);
+            throw new SludiException(ErrorCodes.INTERNAL_ERROR,
+                    "Unexpected error occurred while confirming appointment", e);
+        }
     }
 }
