@@ -12,7 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Service
 public class DeepfakeDetectionService {
     private final WebClient webClient;
-    private final int MAX_FRAMES = 10;
+    private final int MAX_FRAMES = 2;
 
 
     public DeepfakeDetectionService(@Value("${fastapi.base-url}") String fastApiBaseUrl, WebClient.Builder builder) {
