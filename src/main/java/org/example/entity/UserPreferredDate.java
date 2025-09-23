@@ -20,7 +20,7 @@ public class UserPreferredDate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private LocalDate preferredDate;
+    private String preferredDate;
 
     private boolean available; // system-checked availability
 

@@ -1,19 +1,27 @@
 package org.example.utils;
 
+import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
 import java.time.Year;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Component
+@RequiredArgsConstructor
 public class CitizenCodeGenerator {
 
-    private static final AtomicInteger counter = new AtomicInteger(1);
+    private final EntityManager entityManager;
     private static final String PREFIX = "CIT";
-    private static final Random random = new Random();
 
-    // CIT-2025-00001
-    public static String generateCitizenCode() {
+    public String generateCitizenCode() {
+        // Fetch the next value from Postgres sequence
+        Long nextVal = ((Number) entityManager
+                .createNativeQuery("SELECT nextval('citizen_code_seq')")
+                .getSingleResult()).longValue();
+
         int year = Year.now().getValue();
-        int number = counter.getAndIncrement();
-        return String.format("%s-%d-%05d", PREFIX, year, number);
+        return String.format("%s-%d-%05d", PREFIX, year, nextVal);
     }
 }

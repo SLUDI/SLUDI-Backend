@@ -8,7 +8,8 @@ import lombok.Data;
 public class DidVerificationRequest {
     @NotBlank(message = "DID is required")
     @Pattern(
-            regexp = "^did:sludi:[a-zA-Z0-9]{12,}$",
-            message = "Invalid DID format")
+            regexp = "^[0-9]{12}$",
+            message = "Invalid DID format. Expected exactly 12 digits"
+    )
     private String did;
 }

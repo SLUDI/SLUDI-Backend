@@ -59,7 +59,7 @@ public class AppointmentService {
         for (LocalDate date : dates) {
             boolean available = isDateAvailable(date);
             UserPreferredDate preferredDate = UserPreferredDate.builder()
-                    .preferredDate(date)
+                    .preferredDate(date.toString())
                     .available(available)
                     .citizenUser(user)
                     .build();
@@ -78,7 +78,7 @@ public class AppointmentService {
             throw new SludiException(ErrorCodes.INVALID_INPUT, "Date must not be null");
         }
 
-        long count = appointmentRepository.countByConfirmedDate(date);
+        long count = appointmentRepository.countByConfirmedDate(date.toString());
         boolean available = count < MAX_APPOINTMENTS_PER_DAY;
 
         LOGGER.debug("Checked availability for date {}: {} ({} booked)", date, available, count);
@@ -110,7 +110,7 @@ public class AppointmentService {
         try {
             // Create and save appointment
             Appointment appointment = Appointment.builder()
-                    .confirmedDate(confirmedDate)
+                    .confirmedDate(confirmedDate.toString())
                     .status(Appointment.AppointmentStatus.CONFIRMED)
                     .citizenUser(user)
                     .build();
@@ -133,7 +133,7 @@ public class AppointmentService {
 
             return AppointmentDto.builder()
                     .id(savedAppointment.getId())
-                    .confirmedDate(savedAppointment.getConfirmedDate())
+                    .confirmedDate(LocalDate.parse(savedAppointment.getConfirmedDate()))
                     .status(savedAppointment.getStatus().toString())
                     .build();
 

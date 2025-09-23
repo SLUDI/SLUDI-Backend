@@ -8,5 +8,5 @@ import java.time.LocalDate;
 
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
-    long countByConfirmedDate(LocalDate confirmedDate);
+    long countByConfirmedDate(String confirmedDate);
 }

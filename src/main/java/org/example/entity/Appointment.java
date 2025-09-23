@@ -22,7 +22,7 @@ public class Appointment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private LocalDate confirmedDate;
+    private String confirmedDate;
 
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;
