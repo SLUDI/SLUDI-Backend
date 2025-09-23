@@ -73,7 +73,34 @@ public class DIDDocumentService {
             }
 
             // Convert user entity to JSON string
-            String userData = objectMapper.writeValueAsString(citizenUser);
+            CitizenUserDTO dto = CitizenUserDTO.builder()
+                    .id(citizenUser.getId())
+                    .citizenCode(citizenUser.getCitizenCode())
+                    .fullName(citizenUser.getFullName())
+                    .nic(citizenUser.getNic())
+                    .age(citizenUser.getAge())
+                    .email(citizenUser.getEmail())
+                    .phone(citizenUser.getPhone())
+                    .dateOfBirth(citizenUser.getDateOfBirth())
+                    .gender(citizenUser.getGender())
+                    .nationality(citizenUser.getNationality())
+                    .citizenship(citizenUser.getCitizenship())
+                    .bloodGroup(citizenUser.getBloodGroup())
+                    .address(citizenUser.getAddress())
+                    .supportingDocuments(citizenUser.getSupportingDocuments())
+                    .status(citizenUser.getStatus())
+                    .kycStatus(citizenUser.getKycStatus())
+                    .didId(citizenUser.getDidId())
+                    .publicKey(citizenUser.getPublicKey())
+                    .fingerprintIpfsHash(citizenUser.getFingerprintIpfsHash())
+                    .faceImageIpfsHash(citizenUser.getFaceImageIpfsHash())
+                    .signatureIpfsHash(citizenUser.getSignatureIpfsHash())
+                    .profilePhotoIpfsHash(citizenUser.getProfilePhotoIpfsHash())
+                    .createdAt(citizenUser.getCreatedAt())
+                    .updatedAt(citizenUser.getUpdatedAt())
+                    .lastLogin(citizenUser.getLastLogin())
+                    .build();
+            String userData = objectMapper.writeValueAsString(dto);
 
             // Create DID ID
             LocalDate dob = LocalDate.parse(citizenUser.getDateOfBirth());

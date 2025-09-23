@@ -28,7 +28,8 @@ public class WalletController {
     public ResponseEntity<ApiResponseDto<String>> verifyDid(
             @Valid @RequestBody DidVerificationRequest request) {
         try {
-            String result = walletService.initiateWalletCreation(request.getDid());
+            String did = "did:sludi:" + request.getDid();
+            String result = walletService.initiateWalletCreation(did);
             return ResponseEntity.ok(ApiResponseDto.<String>builder()
                     .success(true)
                     .message("Did verification successfully")

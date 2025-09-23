@@ -45,6 +45,9 @@ public class CitizenUserService {
     @Autowired
     private AppointmentService appointmentService;
 
+    @Autowired
+    private CitizenCodeGenerator citizenCodeGenerator;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -71,7 +74,7 @@ public class CitizenUserService {
             }
 
             // Generate citizen code
-            String citizenCode = CitizenCodeGenerator.generateCitizenCode();
+            String citizenCode = citizenCodeGenerator.generateCitizenCode();
             LOGGER.debug("Generated citizen code: {}", citizenCode);
 
             // Create entity

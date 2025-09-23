@@ -74,7 +74,7 @@ public class MailService {
         context.setVariable("otp", otp);
 
         // Process template
-        String htmlContent = templateEngine.process("otp", context);
+        String htmlContent = templateEngine.process("otp-mail", context);
         helper.setText(htmlContent, true);
 
         // Embed logo + hero image
@@ -104,7 +104,7 @@ public class MailService {
         context.setVariable("referenceNumber", referenceNumber);
 
         // Process template
-        String htmlContent = templateEngine.process("appointment", context);
+        String htmlContent = templateEngine.process("appointment-mail", context);
 
         // Email settings
         helper.setTo(to);

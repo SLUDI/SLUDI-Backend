@@ -7,6 +7,6 @@ import lombok.Data;
 @Builder
 public class DIDCreateRequestDto {
     String nic;
-    private BiometricDataDto biometricData;
+    //private BiometricDataDto biometricData;
     private DeviceInfoDto deviceInfo;
 }
