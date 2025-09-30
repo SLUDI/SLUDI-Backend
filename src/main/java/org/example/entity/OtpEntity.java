@@ -3,7 +3,7 @@ package org.example.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -25,7 +25,11 @@ public class OtpEntity {
     private String otpCode;
 
     @Column(nullable = false)
-    private LocalDateTime expiryTime;
+    private Instant expiryTime;
 
+    @Column(nullable = false)
     private boolean used;
+
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
 }

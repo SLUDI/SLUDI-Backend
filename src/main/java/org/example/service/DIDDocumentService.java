@@ -1,6 +1,7 @@
 package org.example.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.ProofPurpose;
@@ -21,17 +22,17 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.security.MessageDigest;
 import java.util.concurrent.CompletableFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+@Slf4j
 @Service
 @Transactional
 public class DIDDocumentService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DIDDocumentService.class.getName());
-
     @Autowired
     private CitizenUserRepository citizenUserRepository;
+
+    @Autowired
+    private DIDDocumentRepository didDocumentRepository;
 
     @Autowired
     private AuthenticationLogRepository authLogRepository;
@@ -68,8 +69,13 @@ public class DIDDocumentService {
             CitizenUser citizenUser = citizenUserRepository.findByEmailOrNicOrDidId(null, request.getNic(), null);
 
             if (citizenUser == null) {
-                LOGGER.info("User doesn't exists with NIC: {}", request.getNic());
+                log.info("User doesn't exists with NIC: {}", request.getNic());
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND, request.getNic());
+            }
+
+            if (citizenUser.getDidId() != null) {
+                log.error("This user already has DID");
+                throw new SludiException(ErrorCodes.USER_ALREADY_HAS_DID, citizenUser.getDidId());
             }
 
             // Convert user entity to JSON string
@@ -124,6 +130,55 @@ public class DIDDocumentService {
             // Create DID on Hyperledger Fabric
             DIDDocumentDto didResult = hyperledgerService.createDID(didId, timeNow, proofData);
 
+            // Save DID Document
+            DIDDocument didDocument = DIDDocument.builder()
+                    .id(didResult.getId())
+                    .didVersion(didResult.getDidVersion())
+                    .didCreated(didResult.getDidCreated())
+                    .didUpdated(didResult.getDidUpdated())
+                    .services(new ArrayList<>())
+                    .publicKey(new ArrayList<>())
+                    .authentication(didResult.getAuthentication())
+                    .status(didResult.getStatus())
+                    .proof(proofData)
+                    .blockchainTxId(didResult.getBlockchainTxId())
+                    .blockNumber(didResult.getBlockNumber())
+                    .build();
+
+            // Map services
+            List<Services> servicesList = new ArrayList<>();
+            if(didResult.getServices() != null) {
+                for (ServiceDto serviceDto : didResult.getServices()) {
+                    Services service = Services.builder()
+                            .id(serviceDto.getId())
+                            .type(serviceDto.getType())
+                            .serviceEndpoint(serviceDto.getServiceEndpoint())
+                            .didDocument(didDocument)
+                            .build();
+                    servicesList.add(service);
+                }
+            }
+
+            // Map public keys
+            List<PublicKey> publicKeyList = new ArrayList<>();
+            if(didResult.getPublicKeys() != null) {
+                for (PublicKeyDto publicKeyDto : didResult.getPublicKeys()) {
+                    PublicKey publicKey = PublicKey.builder()
+                            .id(publicKeyDto.getId())
+                            .type(publicKeyDto.getType())
+                            .controller(publicKeyDto.getController())
+                            .publicKeyBase58(publicKeyDto.getPublicKeyBase58())
+                            .didDocument(didDocument)
+                            .build();
+                    publicKeyList.add(publicKey);
+                }
+            }
+
+            didDocument.setServices(servicesList);
+            didDocument.setPublicKey(publicKeyList);
+
+            didDocumentRepository.save(didDocument);
+
             citizenUser.setDidId(didResult.getId());
             citizenUser.setStatus(CitizenUser.UserStatus.ACTIVE);
             citizenUser.setUpdatedAt(LocalDateTime.now().toString());
@@ -131,7 +186,7 @@ public class DIDDocumentService {
             citizenUser = citizenUserRepository.save(citizenUser);
 
             // Log the registration activity
-            logUserActivity(citizenUser.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
+            logUserActivity(citizenUser.getId(), "DID_CREATION", "User DID creation successfully", request.getDeviceInfo());
 
             // Return success response
             return DIDCreateResponseDto.builder()
