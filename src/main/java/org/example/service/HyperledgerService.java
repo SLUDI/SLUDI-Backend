@@ -1,6 +1,7 @@
 package org.example.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.AuthenticationLog;
 import org.example.entity.ProofData;
@@ -21,12 +22,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
+@Slf4j
 @Service
 public class HyperledgerService {
-
-    private static final Logger LOGGER = Logger.getLogger(HyperledgerService.class.getName());
 
     @Autowired
     private Contract contract;
@@ -53,7 +52,7 @@ public class HyperledgerService {
             String createTime,
             ProofData proof) {
         try {
-            LOGGER.info("Registering citizen with DID: " + didId);
+            log.info("Registering citizen with DID: {}", didId);
 
             String proofJson = objectMapper.writeValueAsString(proof);
 
@@ -64,12 +63,12 @@ public class HyperledgerService {
             String resultString = new String(result);
             DIDDocumentDto didDocument = objectMapper.readValue(resultString, DIDDocumentDto.class);
 
-            LOGGER.info("Successfully registered citizen with DID: " + didDocument.getId());
+            log.info("Successfully registered citizen with DID: {}", didDocument.getId());
 
             return didDocument;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to register citizen: " + e.getMessage());
+            log.error("Failed to register citizen: {}", e.getMessage());
             throw new SludiException(ErrorCodes.BLOCKCHAIN_REGISTRATION_FAILED, e);
         }
     }
@@ -79,7 +78,7 @@ public class HyperledgerService {
      */
     public VCBlockChainResult issueCredential(CredentialIssuanceRequestDto request) {
         try {
-            LOGGER.info("Issue credential for DID: " + request.getSubjectDID());
+            log.info("Issue credential for DID: {}", request.getSubjectDID());
 
             String supportingDocsJson = objectMapper.writeValueAsString(request.getSupportingDocuments());
             String proofJson = objectMapper.writeValueAsString(request.getProofData());
@@ -97,12 +96,12 @@ public class HyperledgerService {
             String resultString = new String(result);
             VCBlockChainResult credential = objectMapper.readValue(resultString, VCBlockChainResult.class);
 
-            LOGGER.info("Successfully issued credential: " + credential.getId());
+            log.info("Successfully issued credential: {}", credential.getId());
 
             return credential;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to issue credential: " + e.getMessage());
+            log.error("Failed to issue credential: {}", e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_ISSUANCE_FAILED, e);
         }
     }
@@ -112,17 +111,17 @@ public class HyperledgerService {
      */
     public DIDDocumentDto getDIDDocument(String didId) {
         try {
-            LOGGER.info("Reading DID document: " + didId);
+            log.info("Reading DID document: {}", didId);
 
             byte[] result = contract.evaluateTransaction("ReadDID", didId);
             String didJson = new String(result);
             DIDDocumentDto didDocument = objectMapper.readValue(didJson, DIDDocumentDto.class);
 
-            LOGGER.info("Successfully retrieved DID document: " + didDocument.getId());
+            log.info("Successfully retrieved DID document: {}", didDocument.getId());
             return didDocument;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to read DID document: " + e.getMessage());
+            log.error("Failed to read DID document: {}", e.getMessage());
             throw new SludiException(ErrorCodes.DID_NOT_FOUND, e);
         }
     }
@@ -132,17 +131,17 @@ public class HyperledgerService {
      */
     public VCBlockChainResult readCredential(String credentialId) {
         try {
-            LOGGER.info("Reading identity credential: " + credentialId);
+            log.info("Reading identity credential: {}", credentialId);
 
             byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
             String credentialJson = new String(result);
             VCBlockChainResult credential = objectMapper.readValue(credentialJson, VCBlockChainResult.class);
 
-            LOGGER.info("Successfully retrieved credential: " + credential.getId());
+            log.info("Successfully retrieved credential: {}", credential.getId());
             return credential;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to read identity credential: " + e.getMessage());
+            log.error("Failed to read identity credential: {}", e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, e);
         }
     }
@@ -152,7 +151,7 @@ public class HyperledgerService {
      */
     public List<VerifiableCredential> getCredentialsByDID(String subjectDID) {
         try {
-            LOGGER.info("Getting credentials for DID: " + subjectDID);
+            log.info("Getting credentials for DID: {}", subjectDID);
 
             byte[] result = contract.evaluateTransaction("GetCredentialsByDID", subjectDID);
             String credentialsJson = new String(result, StandardCharsets.UTF_8);
@@ -175,7 +174,7 @@ public class HyperledgerService {
         } catch (JsonProcessingException e) {
             throw new SludiException(ErrorCodes.JSON_PARSING_FAILED, e);
         } catch (Exception e) {
-            LOGGER.severe("Failed to get credentials: " + e.getMessage());
+            log.error("Failed to get credentials: {}", e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED, e);
         }
     }
@@ -185,7 +184,7 @@ public class HyperledgerService {
      */
     public void updateDID(String didId, String newPublicKey, String metadata) {
         try {
-            LOGGER.info("Updating DID: " + didId);
+            log.info("Updating DID: {}", didId);
 
             String serviceEndpoint = metadata != null ? metadata : "";
 
@@ -199,10 +198,10 @@ public class HyperledgerService {
             String resultString = new String(result);
             DIDDocumentDto updatedDid = objectMapper.readValue(resultString, DIDDocumentDto.class);
 
-            LOGGER.info("Successfully updated DID: " + updatedDid.getId());
+            log.info("Successfully updated DID: {}", updatedDid.getId());
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to update DID: " + e.getMessage());
+            log.error("Failed to update DID: {}", e.getMessage());
             throw new SludiException(ErrorCodes.DID_UPDATE_FAILED, e);
         }
     }
@@ -212,15 +211,15 @@ public class HyperledgerService {
      */
     public void deactivateDID(String didId) {
         try {
-            LOGGER.info("Deactivating DID: " + didId);
+            log.info("Deactivating DID: {}", didId);
 
             byte[] result = contract.submitTransaction("DeactivateDID", didId);
             String resultMessage = new String(result);
 
-            LOGGER.info("Successfully deactivated DID: " + didId + " - " + resultMessage);
+            log.info("Successfully deactivated DID: {} - {}", didId, resultMessage);
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to deactivate DID: " + e.getMessage());
+            log.error("Failed to deactivate DID: {}", e.getMessage());
             throw new SludiException(ErrorCodes.DID_DEACTIVATION_FAILED, e);
         }
     }
@@ -234,7 +233,7 @@ public class HyperledgerService {
             return Boolean.parseBoolean(new String(result));
 
         } catch (Exception e) {
-            LOGGER.warning("Failed to check DID existence: " + e.getMessage());
+            log.error("Failed to check DID existence: {}", e.getMessage());
             return false;
         }
     }
@@ -244,14 +243,14 @@ public class HyperledgerService {
      */
     public void initializeLedger() {
         try {
-            LOGGER.info("Initializing blockchain ledger");
+            log.info("Initializing blockchain ledger");
 
             contract.submitTransaction("InitLedger");
 
-            LOGGER.info("Successfully initialized blockchain ledger");
+            log.info("Successfully initialized blockchain ledger");
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to initialize ledger: " + e.getMessage());
+            log.error("Failed to initialize ledger: {}", e.getMessage());
             throw new SludiException(ErrorCodes.LEDGER_INITIALIZATION_FAILED, e);
         }
     }
@@ -261,17 +260,17 @@ public class HyperledgerService {
      */
     public SystemStatsDto getSystemStats() {
         try {
-            LOGGER.info("Getting system statistics");
+            log.info("Getting system statistics");
 
             byte[] result = contract.evaluateTransaction("GetSystemStats");
             String statsJson = new String(result);
             SystemStatsDto stats = objectMapper.readValue(statsJson, SystemStatsDto.class);
 
-            LOGGER.info("Successfully retrieved system statistics");
+            log.info("Successfully retrieved system statistics");
             return stats;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to get system statistics: " + e.getMessage());
+            log.error("Failed to get system statistics: {}", e.getMessage());
             throw new SludiException(ErrorCodes.SYSTEM_STATS_FAILED, e);
         }
     }
@@ -281,7 +280,7 @@ public class HyperledgerService {
      */
     public List<AuthenticationLog> getAuthenticationLogs(String userDID) {
         try {
-            LOGGER.info("Getting authentication logs for DID: " + userDID);
+            log.info("Getting authentication logs for DID: {}", userDID);
 
             byte[] result = contract.evaluateTransaction("GetAuthenticationLogs", userDID);
             String logsJson = new String(result);
@@ -291,11 +290,11 @@ public class HyperledgerService {
                     new TypeReference<List<AuthenticationLog>>() {}
             );
 
-            LOGGER.info("Found " + logs.size() + " authentication logs for DID: " + userDID);
+            log.info("Found {} authentication logs for DID: {}", logs.size(), userDID);
             return logs;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to get authentication logs: " + e.getMessage());
+            log.error("Failed to get authentication logs: {}", e.getMessage());
             throw new SludiException(ErrorCodes.AUTH_LOG_RETRIEVAL_FAILED, e);
         }
     }
@@ -305,7 +304,7 @@ public class HyperledgerService {
      */
     public List<DIDDocumentDto> getAllDIDs() {
         try {
-            LOGGER.info("Getting all DIDs from blockchain");
+            log.info("Getting all DIDs from blockchain");
 
             byte[] result = contract.evaluateTransaction("GetAllDIDs");
             String didsJson = new String(result);
@@ -315,11 +314,11 @@ public class HyperledgerService {
                     new TypeReference<List<DIDDocumentDto>>() {}
             );
 
-            LOGGER.info("Found " + dids.size() + " DIDs on blockchain");
+            log.info("Found " + dids.size() + " DIDs on blockchain");
             return dids;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to get all DIDs: " + e.getMessage());
+            log.error("Failed to get all DIDs: {}", e.getMessage());
             throw new SludiException(ErrorCodes.DID_RETRIEVAL_FAILED, e);
         }
     }
@@ -329,7 +328,7 @@ public class HyperledgerService {
      */
     public List<VerifiableCredential> getAllCredentials() {
         try {
-            LOGGER.info("Getting all credentials from blockchain");
+            log.info("Getting all credentials from blockchain");
 
             byte[] result = contract.evaluateTransaction("GetAllCredentials");
             String credentialsJson = new String(result);
@@ -339,11 +338,11 @@ public class HyperledgerService {
                     new TypeReference<List<VerifiableCredential>>() {}
             );
 
-            LOGGER.info("Found " + credentials.size() + " credentials on blockchain");
+            log.info("Found {} credentials on blockchain", credentials.size());
             return credentials;
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to get all credentials: " + e.getMessage());
+            log.error("Failed to get all credentials: {}", e.getMessage());
             throw new SludiException(ErrorCodes.CREDENTIAL_RETRIEVAL_FAILED,
                     "Failed to retrieve credentials from blockchain", e);
         }
@@ -358,7 +357,7 @@ public class HyperledgerService {
             getSystemStats();
             return true;
         } catch (Exception e) {
-            LOGGER.warning("Blockchain health check failed: " + e.getMessage());
+            log.error("Blockchain health check failed: {}", e.getMessage());
             return false;
         }
     }
@@ -381,7 +380,7 @@ public class HyperledgerService {
                     .build();
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to get network info: " + e.getMessage());
+            log.error("Failed to get network info: {}", e.getMessage());
             return BlockchainNetworkInfo.builder()
                     .networkName("SLUDI-Network")
                     .status("UNHEALTHY")
@@ -409,10 +408,10 @@ public class HyperledgerService {
         try {
             if (gateway != null) {
                 gateway.close();
-                LOGGER.info("Gateway connection closed successfully");
+                log.info("Gateway connection closed successfully");
             }
         } catch (Exception e) {
-            LOGGER.warning("Failed to close gateway connection: " + e.getMessage());
+            log.error("Failed to close gateway connection: {}", e.getMessage());
         }
     }
 }

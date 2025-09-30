@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface OtpRepository extends JpaRepository<OtpEntity, UUID> {
     Optional<OtpEntity> findTopByDidAndUsedFalseOrderByExpiryTimeDesc(String did);
+
+    Iterable<OtpEntity> findAllByDidAndUsedFalse(String did);
 }

@@ -1,6 +1,7 @@
 package org.example.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.CitizenUser;
 import org.example.entity.ProofData;
@@ -21,13 +22,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Logger;
 
+@Slf4j
 @Service
 @Transactional
 public class VerifiableCredentialService {
-
-    private static final Logger LOGGER = Logger.getLogger(VerifiableCredentialService.class.getName());
 
     @Autowired
     private VerifiableCredentialRepository verifiableCredentialRepository;
@@ -53,13 +52,12 @@ public class VerifiableCredentialService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public VCIssuedResponseDto issueVC(IssueVCRequestDto request) {
-        LOGGER.info("Issuing identity VC for DID: " + request.getDid()
-                + ", CredentialType: " + request.getCredentialType());
+        log.info("Issuing identity VC for DID: {}, CredentialType: {}", request.getDid(), request.getCredentialType());
 
         try {
             CitizenUser user = userRepository.findByEmailOrNicOrDidId(null, null, request.getDid());
             if (user == null) {
-                LOGGER.warning("User not found for DID: " + request.getDid());
+                log.error("User not found for DID: {}", request.getDid());
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND);
             }
 
@@ -96,7 +94,7 @@ public class VerifiableCredentialService {
                     .proofData(proofDataDto)
                     .build();
 
-            LOGGER.info("Sending credential issuance request to Hyperledger for DID: " + user.getDidId());
+            log.info("Sending credential issuance request to Hyperledger for DID: {}", user.getDidId());
 
             VCBlockChainResult result = hyperledgerService.issueCredential(issuanceRequest);
 
@@ -115,8 +113,7 @@ public class VerifiableCredentialService {
 
             verifiableCredentialRepository.save(vc);
 
-            LOGGER.info("VC issued successfully. CredentialId: " + result.getId()
-                    + ", TxId: " + result.getBlockchainTxId());
+            log.info("VC issued successfully. CredentialId: {}, TxId: {}", result.getId(), result.getBlockchainTxId());
 
             return VCIssuedResponseDto.builder()
                     .credentialId(result.getId())
@@ -127,11 +124,10 @@ public class VerifiableCredentialService {
                     .blockchainTxId(result.getBlockchainTxId())
                     .build();
         } catch (SludiException e) {
-            LOGGER.warning("Business error during VC issuance: " + e.getMessage());
+            log.error("Business error during VC issuance: {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            LOGGER.severe("Unexpected error while issuing VC for DID: " + request.getDid()
-                    + ". Error: " + e.getMessage());
+            log.error("Unexpected error while issuing VC for DID: {}. Error: {}", request.getDid(), e.getMessage());
             throw new SludiException(ErrorCodes.FAILED_TO_ISSUE_IDENTITY_VC, e);
         }
     }
@@ -141,37 +137,34 @@ public class VerifiableCredentialService {
      * This method retrieves the IVC for a user based on their DID ID.
      */
     public VerifiableCredentialDto getVerifiableCredential(String credentialId) {
-        LOGGER.info("Fetching Verifiable Credential for ID: " + credentialId);
+        log.info("Fetching Verifiable Credential for ID: {}", credentialId);
 
         try {
             if (credentialId == null || credentialId.trim().isEmpty()) {
-                LOGGER.warning("Attempt to fetch credential with null/empty ID.");
+                log.error("Attempt to fetch credential with null/empty ID.");
                 throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, "Credential ID cannot be null or empty");
             }
 
-            LOGGER.info("Querying blockchain for credentialId: " + credentialId);
+            log.info("Querying blockchain for credentialId: {}", credentialId);
             VCBlockChainResult vcBlockChainResult = hyperledgerService.readCredential(credentialId);
 
             if (vcBlockChainResult == null) {
-                LOGGER.warning("No credential found on blockchain for ID: " + credentialId);
+                log.error("No credential found on blockchain for ID: {}", credentialId);
                 throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, "No credential found for ID: " + credentialId);
             }
 
-            LOGGER.info("Decrypting credential subject for credentialId: " + credentialId);
+            log.info("Decrypting credential subject for credentialId: {}", credentialId);
             String credentialSubjectJson = cryptographyService.decryptData(vcBlockChainResult.getCredentialSubjectHash());
 
             CredentialSubject credentialSubject;
             try {
                 credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
             } catch (Exception parseEx) {
-                LOGGER.severe("Failed to parse CredentialSubject JSON for credentialId: "
-                        + credentialId + ". Error: " + parseEx.getMessage());
+                log.error("Failed to parse CredentialSubject JSON for credentialId: {}. Error: {}", credentialId, parseEx.getMessage());
                 throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_IDENTITY_VC, "Invalid credential subject format", parseEx);
             }
 
-            LOGGER.info("Successfully retrieved Verifiable Credential for ID: " + credentialId);
-
-
+            log.info("Successfully retrieved Verifiable Credential for ID: {}", credentialId);
 
             return VerifiableCredentialDto.builder()
                     .id(vcBlockChainResult.getId())
@@ -197,12 +190,10 @@ public class VerifiableCredentialService {
                     .build();
 
         } catch (SludiException e) {
-            LOGGER.warning("Business exception while fetching VC for credentialId: "
-                    + credentialId + ". Error: " + e.getMessage());
+            log.error("Business exception while fetching VC for credentialId: {}. Error: {}", credentialId, e.getMessage());
             throw e;
         } catch (Exception e) {
-            LOGGER.severe("Unexpected error while fetching VC for credentialId: "
-                    + credentialId + ". Error: " + e.getMessage());
+            log.error("Unexpected error while fetching VC for credentialId: {}. Error: {}", credentialId, e.getMessage());
             throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_IDENTITY_VC, "Unexpected error retrieving VC", e);
         }
     }
@@ -244,7 +235,7 @@ public class VerifiableCredentialService {
                         .ipfsCid(hash)
                         .build());
             }
-            LOGGER.info("Stored " + supportingDocuments.size() + " supporting documents in IPFS.");
+            log.info("Stored {} supporting documents in IPFS.", supportingDocuments.size());
         }
 
         return supportingDocuments;

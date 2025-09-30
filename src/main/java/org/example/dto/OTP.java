@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @Setter
@@ -13,9 +13,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class OTP {
     private String code;
-    private LocalDateTime expiryTime;
+    private Instant expiryTime;
 
     public boolean isExpired() {
-        return LocalDateTime.now().isAfter(expiryTime);
+        return Instant.now().isAfter(expiryTime);
     }
 }

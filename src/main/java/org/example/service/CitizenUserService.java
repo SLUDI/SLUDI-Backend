@@ -1,6 +1,7 @@
 package org.example.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.exception.ErrorCodes;
@@ -21,14 +22,10 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+@Slf4j
 @Service
 @Transactional
 public class CitizenUserService {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(CitizenUserService.class);
 
     @Autowired
     private CitizenUserRepository citizenUserRepository;
@@ -54,28 +51,28 @@ public class CitizenUserService {
      * Register a new user with complete identity setup
      */
     public CitizenUserRegistrationResponseDto registerCitizenUser(CitizenUserRegistrationRequestDto request) {
-        LOGGER.info("Starting citizen user registration process for NIC: {}, Email: {}",
+        log.info("Starting citizen user registration process for NIC: {}, Email: {}",
                 request.getPersonalInfo().getNic(), request.getContactInfo().getEmail());
 
         try {
             // Validate input data
             validateRegistrationRequest(request);
-            LOGGER.debug("Registration request validation passed for NIC: {}", request.getPersonalInfo().getNic());
+            log.debug("Registration request validation passed for NIC: {}", request.getPersonalInfo().getNic());
 
             // Check for duplicates
             if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
-                LOGGER.warn("User already exists with NIC: {}", request.getPersonalInfo().getNic());
+                log.warn("User already exists with NIC: {}", request.getPersonalInfo().getNic());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
             }
 
             if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
-                LOGGER.warn("User already exists with Email: {}", request.getContactInfo().getEmail());
+                log.warn("User already exists with Email: {}", request.getContactInfo().getEmail());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
             }
 
             // Generate citizen code
             String citizenCode = citizenCodeGenerator.generateCitizenCode();
-            LOGGER.debug("Generated citizen code: {}", citizenCode);
+            log.debug("Generated citizen code: {}", citizenCode);
 
             // Create entity
             CitizenUser user = createUserEntity(request);
@@ -85,7 +82,7 @@ public class CitizenUserService {
 
             // Handle document uploads
             if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {
-                LOGGER.info("Uploading {} supporting documents for NIC: {}",
+                log.info("Uploading {} supporting documents for NIC: {}",
                         request.getSupportingDocuments().size(), request.getPersonalInfo().getNic());
 
                 List<SupportingDocumentResponseDto> documentHashes =
@@ -105,7 +102,7 @@ public class CitizenUserService {
 
             // Save entity
             user = citizenUserRepository.save(user);
-            LOGGER.info("Citizen user registered successfully with ID: {}, Code: {}", user.getId(), user.getCitizenCode());
+            log.info("Citizen user registered successfully with ID: {}, Code: {}", user.getId(), user.getCitizenCode());
 
             // Save user preferred dates
             SelectedDatesDto selectedDates = request.getSelectedDates();
@@ -130,10 +127,10 @@ public class CitizenUserService {
                     .build();
 
         } catch (SludiException ex) {
-            LOGGER.error("Registration failed due to known error: {}", ex.getMessage(), ex);
+            log.error("Registration failed due to known error: {}", ex.getMessage(), ex);
             throw ex;
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error during registration for NIC: {}", request.getPersonalInfo().getNic(), ex);
+            log.error("Unexpected error during registration for NIC: {}", request.getPersonalInfo().getNic(), ex);
             throw new SludiException(ErrorCodes.USER_REGISTRATION_FAILED, ex);
         }
     }
@@ -150,7 +147,7 @@ public class CitizenUserService {
         CitizenUser citizenUser = Optional.ofNullable(
                         citizenUserRepository.findByEmailOrNicOrDidId(null, null, did))
                 .orElseThrow(() -> {
-                    LOGGER.warn("No user found with DID: {}", did);
+                    log.warn("No user found with DID: {}", did);
                     return new IllegalArgumentException("CitizenUser not found for DID: " + did);
                 });
 
@@ -158,11 +155,11 @@ public class CitizenUserService {
                 .thenAccept(hash -> {
                     citizenUser.setProfilePhotoIpfsHash(hash);
                     citizenUserRepository.save(citizenUser);
-                    LOGGER.info("Successfully uploaded profile photo for user {}. IPFS hash: {}",
+                    log.info("Successfully uploaded profile photo for user {}. IPFS hash: {}",
                             citizenUser.getId(), hash);
                 })
                 .exceptionally(ex -> {
-                    LOGGER.error("Async error while uploading profile photo for DID {}: {}", did, ex.getMessage(), ex);
+                    log.error("Async error while uploading profile photo for DID {}: {}", did, ex.getMessage(), ex);
                     return null;
                 });
     }
@@ -203,13 +200,13 @@ public class CitizenUserService {
     }
 
     public List<GetCitizenUserProfileResponseDto> getAllUserProfiles() {
-        LOGGER.info("Fetching all citizen user profiles");
+        log.info("Fetching all citizen user profiles");
 
         try {
             List<CitizenUser> users = citizenUserRepository.findAll();
 
             if (users.isEmpty()) {
-                LOGGER.warn("No citizen users found in the system");
+                log.warn("No citizen users found in the system");
                 return Collections.emptyList();
             }
 
@@ -217,12 +214,12 @@ public class CitizenUserService {
                     .map(this::createUserProfileResponse)
                     .collect(Collectors.toList());
 
-            LOGGER.info("Successfully retrieved {} citizen user profiles", responseList.size());
+            log.info("Successfully retrieved {} citizen user profiles", responseList.size());
 
             return responseList;
 
         } catch (Exception e) {
-            LOGGER.error("Unexpected error while fetching all citizen user profiles", e);
+            log.error("Unexpected error while fetching all citizen user profiles", e);
             throw new SludiException(
                     ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE,
                     "Failed to retrieve all citizen user profiles",
@@ -235,12 +232,12 @@ public class CitizenUserService {
      * Retrieve user document information
      */
     public List<GetSupportingDocumentResponseDto> getSupportingDocument(UUID id) {
-        LOGGER.info("Fetching supporting documents for CitizenUser ID: {}", id);
+        log.info("Fetching supporting documents for CitizenUser ID: {}", id);
 
         try {
             CitizenUser user = citizenUserRepository.findById(id)
                     .orElseThrow(() -> {
-                        LOGGER.warn("CitizenUser not found for ID: {}", id);
+                        log.warn("CitizenUser not found for ID: {}", id);
                         return new SludiException(
                                 ErrorCodes.USER_NOT_FOUND,
                                 "User not found with ID: " + id
@@ -250,13 +247,13 @@ public class CitizenUserService {
             List<SupportingDocument> supportingDocuments = user.getSupportingDocuments();
 
             if (supportingDocuments == null || supportingDocuments.isEmpty()) {
-                LOGGER.info("No supporting documents found for CitizenUser ID: {}", id);
+                log.info("No supporting documents found for CitizenUser ID: {}", id);
                 return Collections.emptyList();
             }
 
             List<GetSupportingDocumentResponseDto> responseList = retrievesUserDocument(supportingDocuments);
 
-            LOGGER.info("Successfully retrieved {} supporting document(s) for CitizenUser ID: {}",
+            log.info("Successfully retrieved {} supporting document(s) for CitizenUser ID: {}",
                     responseList.size(), id);
 
             return responseList;
@@ -264,7 +261,7 @@ public class CitizenUserService {
         } catch (SludiException e) {
             throw e;
         } catch (Exception e) {
-            LOGGER.error("Unexpected error while fetching supporting documents for CitizenUser ID: {}", id, e);
+            log.error("Unexpected error while fetching supporting documents for CitizenUser ID: {}", id, e);
             throw new SludiException(ErrorCodes.IPFS_RETRIEVAL_FAILED,
                     "Error retrieving supporting documents for user " + id, e);
         }
@@ -363,17 +360,17 @@ public class CitizenUserService {
     private CompletableFuture<String> storeProfilePhotoAsync(UUID userId, MultipartFile profilePhoto) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                LOGGER.debug("Storing profile photo in IPFS for user {}", userId);
+                log.debug("Storing profile photo in IPFS for user {}", userId);
 
                 String path = String.format("profile/users/%s/profile_photo.jpg", userId);
                 String hash = ipfsIntegration.storeFile(path, profilePhoto.getBytes());
 
-                LOGGER.debug("Profile photo stored in IPFS for user {}. Hash: {}", userId, hash);
+                log.debug("Profile photo stored in IPFS for user {}. Hash: {}", userId, hash);
 
                 recordIPFSContent(userId, hash, "profile", "photo", "image/jpeg");
                 return hash;
             } catch (Exception e) {
-                LOGGER.error("Failed to store profile photo in IPFS for user {}: {}", userId, e.getMessage(), e);
+                log.error("Failed to store profile photo in IPFS for user {}: {}", userId, e.getMessage(), e);
                 throw new RuntimeException("Failed to store profile photo in IPFS", e);
             }
         });
@@ -406,7 +403,7 @@ public class CitizenUserService {
 
         for (SupportingDocument doc : supportingDocumentsList) {
             try {
-                LOGGER.debug("Retrieving file from IPFS for CID: {}", doc.getIpfsCid());
+                log.debug("Retrieving file from IPFS for CID: {}", doc.getIpfsCid());
 
                 byte[] fileContent = ipfsIntegration.retrieveFile(doc.getIpfsCid());
 
@@ -420,7 +417,7 @@ public class CitizenUserService {
                 responseList.add(responseDto);
 
             } catch (Exception ex) {
-                LOGGER.error("Failed to retrieve file from IPFS for CID: {} (Document: {})",
+                log.error("Failed to retrieve file from IPFS for CID: {} (Document: {})",
                         doc.getIpfsCid(), doc.getName(), ex);
 
                 throw new SludiException(ErrorCodes.IPFS_RETRIEVAL_FAILED,
@@ -434,7 +431,7 @@ public class CitizenUserService {
      * Records metadata about uploaded IPFS content in DB.
      */
     private void recordIPFSContent(UUID userId, String ipfsHash, String category, String subcategory, String mimeType) {
-        LOGGER.debug("Recording IPFS content for user {} with hash {}", userId, ipfsHash);
+        log.debug("Recording IPFS content for user {} with hash {}", userId, ipfsHash);
 
         IPFSContent content = IPFSContent.builder()
                 .id(UUID.randomUUID())
@@ -451,7 +448,7 @@ public class CitizenUserService {
 
         ipfsContentRepository.save(content);
 
-        LOGGER.info("IPFS content recorded for user {}. Hash: {}", userId, ipfsHash);
+        log.info("IPFS content recorded for user {}. Hash: {}", userId, ipfsHash);
     }
 
     private GetCitizenUserProfileResponseDto createUserProfileResponse(CitizenUser user) {
@@ -487,7 +484,7 @@ public class CitizenUserService {
                     .lastLogin(user.getLastLogin())
                     .build();
         } catch (Exception e) {
-            LOGGER.error("Failed to create user profile response for ID: {}", user.getId(), e);
+            log.error("Failed to create user profile response for ID: {}", user.getId(), e);
             throw new SludiException(
                     ErrorCodes.FAILD_TO_RETRIEVE_USER_PROFILE,
                     "Failed to build user profile response for ID: " + user.getId(),

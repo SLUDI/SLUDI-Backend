@@ -39,6 +39,7 @@ public enum ErrorCodes {
     CONTENT_NOT_FOUND("2021", "IPFS content not found in DB"),
     MAIL_SENDING_FAILED("2022", "Failed to send appointment confirmation email"),
     INTERNAL_ERROR("2023", "Unexpected error occurred while confirming appointment"),
+    USER_ALREADY_HAS_DID("2024", "This user already has DID Document"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),

@@ -1,5 +1,6 @@
 package org.example.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.CitizenUser;
 import org.example.entity.VerifiableCredential;
@@ -20,10 +21,9 @@ import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class WalletService {
-
-    private static final Logger LOGGER = Logger.getLogger(WalletService.class.getName());
 
     @Autowired
     private HyperledgerService hyperledgerService;
