@@ -1,6 +1,5 @@
 package org.example.service;
 
-import jakarta.mail.MessagingException;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.AppointmentDto;
 import org.example.entity.Appointment;
@@ -134,11 +133,6 @@ public class AppointmentService {
                     .confirmedDate(LocalDate.parse(savedAppointment.getConfirmedDate()))
                     .status(savedAppointment.getStatus().toString())
                     .build();
-
-        } catch (MessagingException e) {
-            log.error("Failed to send appointment confirmation email for user {}: {}", userId, e.getMessage(), e);
-            throw new SludiException(ErrorCodes.MAIL_SENDING_FAILED,
-                    "Failed to send appointment confirmation email", e);
         } catch (Exception e) {
             log.error("Unexpected error while confirming appointment for user {}: {}", userId, e.getMessage(), e);
             throw new SludiException(ErrorCodes.INTERNAL_ERROR,
