@@ -30,6 +30,7 @@ public class OtpEntity {
     @Column(nullable = false)
     private boolean used;
 
+    @Builder.Default
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 }
