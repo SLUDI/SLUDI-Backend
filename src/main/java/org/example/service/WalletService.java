@@ -76,16 +76,11 @@ public class WalletService {
     /**
      * Create wallet with password
      */
-    public Map<String, String> createWallet(String did, String password) {
+    public Map<String, String> createWallet(String did, String password, String publicKey) {
 
         try {
             // Generate wallet ID
             String walletId = UUID.randomUUID().toString();
-
-            // Generate key pair
-            Map<String, String> keyPair = cryptoService.generateKeyPair();
-            String publicKey = keyPair.get("publicKey");
-            String privateKey = keyPair.get("privateKey");
 
             // Update publicKey in DID
             hyperledgerService.updateDID(did, publicKey, "api/wallet/create");
@@ -133,7 +128,6 @@ public class WalletService {
             //Return key pair to user (public + private)
             Map<String, String> response = new HashMap<>();
             response.put("publicKey", publicKey);
-            response.put("privateKey", privateKey);
             return response;
 
         } catch (Exception e) {

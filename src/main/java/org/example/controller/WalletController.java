@@ -120,7 +120,8 @@ public class WalletController {
     public ResponseEntity<ApiResponseDto<Map<String, String>>> createWallet(
             @Valid @RequestBody WalletRequest request) {
         try {
-            Map<String, String> result = walletService.createWallet(request.getDid(), request.getPassword());
+            String id = "did:sludi:" + request.getDid();
+            Map<String, String> result = walletService.createWallet(id, request.getPassword(), request.getPublicKey());
             return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
                     .success(true)
                     .message("Wallet created successfully")

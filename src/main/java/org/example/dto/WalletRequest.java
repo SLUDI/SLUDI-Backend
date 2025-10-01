@@ -12,4 +12,7 @@ public class WalletRequest {
 
     @NotBlank(message = "Password is required")
     private String password;
+
+    @NotBlank(message = "PublicKey is required")
+    private String publicKey;
 }

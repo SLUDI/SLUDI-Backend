@@ -39,9 +39,6 @@ public class HyperledgerService {
     @Value("${sludi.issuer-did}")
     private String issuerDid;
 
-    @Autowired
-    private VerifiableCredentialRepository credentialRepository;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
