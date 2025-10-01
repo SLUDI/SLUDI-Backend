@@ -2,7 +2,6 @@ package org.example.controller;
 
 import org.example.dto.ApiResponseDto;
 import org.example.dto.AppointmentDto;
-import org.example.entity.Appointment;
 import org.example.exception.SludiException;
 import org.example.service.AppointmentService;
 import org.slf4j.Logger;
