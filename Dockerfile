@@ -1,5 +1,5 @@
 # Stage 1: Build the JAR with Gradle
-FROM gradle:8.11.1-jdk21 AS build
+FROM gradle:9.0.0-jdk21 AS build
 
 # Set working directory
 WORKDIR /app
