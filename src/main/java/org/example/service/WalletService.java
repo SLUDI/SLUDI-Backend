@@ -1,28 +1,24 @@
 package org.example.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
-import org.example.entity.CitizenUser;
-import org.example.entity.VerifiableCredential;
-import org.example.entity.Wallet;
-import org.example.entity.WalletCredential;
+import org.example.entity.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
-import org.example.repository.CitizenUserRepository;
-import org.example.repository.WalletRepository;
+import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@Transactional
 public class WalletService {
 
     @Autowired
@@ -42,6 +38,20 @@ public class WalletService {
 
     @Autowired
     private CitizenUserRepository citizenUserRepository;
+
+    @Autowired
+    private PublicKeyRepository publicKeyRepository;
+
+    @Autowired
+    private DIDDocumentRepository didDocumentRepository;
+
+    @Autowired
+    private WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
+
+    @Autowired
+    private VerifiableCredentialRepository verifiableCredentialRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Initiate wallet creation by validating DID and sending OTP
@@ -76,60 +86,48 @@ public class WalletService {
     /**
      * Create wallet with password
      */
-    public Map<String, String> createWallet(String did, String password, String publicKey) {
-
+    public Map<String, String> createWallet(String did, String password, String publicKeyStr) {
         try {
-            // Generate wallet ID
-            String walletId = UUID.randomUUID().toString();
+            validateWalletCreationInputs(did, password, publicKeyStr);
 
-            // Update publicKey in DID
-            hyperledgerService.updateDID(did, publicKey, "api/wallet/create");
-
-            // Generate
-            byte[] salt = cryptoService.generateSalt();
-            String saltBase64 = Base64.getEncoder().encodeToString(salt);
-
-            // Generate encryption key from password
-            SecretKey masterKey = cryptoService.generateWalletKey(password, salt);
-
-            // Create encrypted wallet credentials
-            WalletCredential credentials = WalletCredential.builder()
-                    .encryptedKey(CryptographyService.encryptKey(masterKey))
-                    .salt(saltBase64)
-                    .iterations(10000)
-                    .build();
-
-            // Get User
-            CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
-
-            // Create wallet entity
-            Wallet wallet = Wallet.builder()
-                    .id(walletId)
-                    .didId(did)
-                    .citizenUser(user)
-                    .credentials(credentials)
-                    .createdAt(LocalDateTime.now())
-                    .lastAccessed(LocalDateTime.now())
-                    .status("ACTIVE")
-                    .build();
-
-            // Get VCs from blockchain
-            List<VerifiableCredential> vcs = hyperledgerService.getCredentialsByDID(wallet.getDidId());
-
-            // Encrypt and store each VC
-            for (VerifiableCredential vc : vcs) {
-                String encryptedVC = CryptographyService.encryptVC(vc, masterKey);
-                wallet.addCredential(encryptedVC);
+            // Check if wallet already exists
+            if (walletRepository.existsByDidId(did)) {
+                throw new SludiException(ErrorCodes.WALLET_EXISTS, "This user already has a wallet");
             }
 
-            // Save wallet
-            walletRepository.save(wallet);
+            // Get DID document
+            DIDDocument didDocument = didDocumentRepository.findById(did)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.INVALID_DID, "No DID found for this ID"));
 
-            //Return key pair to user (public + private)
+            // Get Citizen user
+            CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+            if (user == null) {
+                throw new SludiException(ErrorCodes.USER_NOT_FOUND, "User not found for DID: " + did);
+            }
+
+            // Register public key on blockchain
+            hyperledgerService.updateDID(did, publicKeyStr, "api/wallet/create");
+
+            // Create wallet credentials
+            WalletCredential credentials = createWalletCredentials(password);
+
+            // Save public key in DB
+            savePublicKey(publicKeyStr, did, user, didDocument);
+
+            // Create and save wallet
+            Wallet wallet = createAndSaveWallet(did, user, credentials);
+
+            // Fetch and encrypt VCs
+            storeEncryptedVerifiableCredentials(wallet);
+
+            // Return response
             Map<String, String> response = new HashMap<>();
-            response.put("publicKey", publicKey);
+            response.put("walletId", wallet.getId());
+            response.put("publicKey", publicKeyStr);
             return response;
 
+        } catch (SludiException e) {
+            throw e;
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.WALLET_CREATION_FAILED, e);
         }
@@ -149,19 +147,37 @@ public class WalletService {
             // Reconstruct master key from password + salt
             SecretKey masterKey = cryptoService.generateWalletKey(password, saltBytes);
 
-            // Decrypt VCs stored in wallet
-            List<String> encryptedVCs = wallet.getEncryptedCredentials();
-            List<VerifiableCredential> decryptedVCs = new ArrayList<>();
+            // Get All Wallet VerifiableCredential
+            List<WalletVerifiableCredential> walletVerifiableCredentialList = walletVerifiableCredentialRepository.findAllByWallet(wallet);
 
-            for (String encryptedVC : encryptedVCs) {
-                VerifiableCredential vc = CryptographyService.decryptVC(encryptedVC, masterKey);
-                decryptedVCs.add(vc);
+            // Decrypt VCs in stores wallet
+            List<WalletVerifiableCredentialDto> walletVerifiableCredentialDtos = new ArrayList<>();
+
+            for (WalletVerifiableCredential walletVerifiableCredential : walletVerifiableCredentialList) {
+                String credentialSubjectJson = cryptoService.decryptData(walletVerifiableCredential.getEncryptedCredential());
+                CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
+
+                ProofData proofData = walletVerifiableCredential.getVerifiableCredential().getProof();
+                ProofDataDto proofDataDto = ProofDataDto.builder()
+                        .proofType(proofData.getProofType())
+                        .created(proofData.getCreated())
+                        .creator(proofData.getCreator())
+                        .issuerDid(proofData.getIssuerDid())
+                        .signatureValue(proofData.getSignatureValue())
+                        .build();
+
+                WalletVerifiableCredentialDto walletVerifiableCredentialDto = WalletVerifiableCredentialDto.builder()
+                        .issuanceDate(walletVerifiableCredential.getVerifiableCredential().getIssuanceDate())
+                        .expirationDate(walletVerifiableCredential.getVerifiableCredential().getExpirationDate())
+                        .status(walletVerifiableCredential.getVerifiableCredential().getStatus())
+                        .credentialSubject(credentialSubject)
+                        .proof(proofDataDto)
+                        .blockchainTxId(walletVerifiableCredential.getVerifiableCredential().getBlockchainTxId())
+                        .blockNumber(walletVerifiableCredential.getVerifiableCredential().getBlockNumber())
+                        .build();
+
+                walletVerifiableCredentialDtos.add(walletVerifiableCredentialDto);
             }
-
-            // Convert decrypted VCs to DTOs
-//            List<VerifiableCredentialDto> vcDtos = decryptedVCs.stream()
-//                    .map(this::convertVCToDto)
-//                    .collect(Collectors.toList());
 
             // pdate last accessed timestamp
             wallet.setLastAccessed(LocalDateTime.now());
@@ -171,6 +187,7 @@ public class WalletService {
             return WalletDto.builder()
                     .id(wallet.getId())
                     .citizenUserId(String.valueOf(wallet.getCitizenUser().getId()))
+                    .walletVerifiableCredentials(walletVerifiableCredentialDtos)
                     .didId(wallet.getDidId())
                     .build();
 
@@ -183,59 +200,80 @@ public class WalletService {
         }
     }
 
+    private void validateWalletCreationInputs(String did, String password, String publicKeyStr) {
+        if (did == null || did.isBlank()) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "DID cannot be null or empty");
+        }
+        if (password == null || password.isBlank()) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "Password cannot be null or empty");
+        }
+        if (publicKeyStr == null || publicKeyStr.isBlank()) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "Public key cannot be null or empty");
+        }
+    }
 
-//    private VerifiableCredentialDto convertVCToDto(VerifiableCredential ivc) {
-//        // Convert BiometricHashes to DTO
-//        BiometricHashesDto biometricHashesDto = BiometricHashesDto.builder()
-//                .fingerprintHash(ivc.getCredentialSubject().getBiometricHashes().getFingerprintHash())
-//                .faceImageHash(ivc.getCredentialSubject().getBiometricHashes().getFaceImageHash())
-//                .build();
-//        // Convert Address to DTO
-//        AddressDto addressDto = AddressDto.builder()
-//                .street(ivc.getCredentialSubject().getAddress().getStreet())
-//                .city(ivc.getCredentialSubject().getAddress().getCity())
-//                .province(ivc.getCredentialSubject().getAddress().getProvince())
-//                .postalCode(ivc.getCredentialSubject().getAddress().getPostalCode())
-//                .country(ivc.getCredentialSubject().getAddress().getCountry())
-//                .district(ivc.getCredentialSubject().getAddress().getDistrict())
-//                .divisionalSecretariat(ivc.getCredentialSubject().getAddress().getDivisionalSecretariat())
-//                .gramaNiladhariDivision(ivc.getCredentialSubject().getAddress().getGramaNiladhariDivision())
-//                .build();
-//
-//        // Convert CredentialSubject to DTO
-//        CredentialSubjectDto credentialSubjectDto = CredentialSubjectDto.builder()
-//                .id(ivc.getCredentialSubject().getId())
-//                .fullName(ivc.getCredentialSubject().getFullName())
-//                .nic(ivc.getCredentialSubject().getNic())
-//                .dateOfBirth(ivc.getCredentialSubject().getDateOfBirth())
-//                .citizenship(ivc.getCredentialSubject().getCitizenship())
-//                .gender(ivc.getCredentialSubject().getGender())
-//                .nationality(ivc.getCredentialSubject().getNationality())
-//                .biometricData(biometricHashesDto)
-//                .address(addressDto)
-//                .build();
-//
-//        // Convert ProofData to DTO
-//        ProofDataDto proofDto = ProofDataDto.builder()
-//                .proofType(ivc.getProof().getProofType())
-//                .created(ivc.getProof().getCreated())
-//                .creator(ivc.getProof().getCreator())
-//                .signatureValue(ivc.getProof().getSignatureValue())
-//                .build();
-//
-//        // Convert VerifiableCredential to DTO
-//       return VerifiableCredentialDto.builder()
-//                .id(ivc.getId())
-//                .context(ivc.getContext())
-//                .credentialTypes(ivc.getCredentialTypes())
-//                .issuer(ivc.getIssuer())
-//                .issuanceDate(ivc.getIssuanceDate())
-//                .expirationDate(ivc.getExpirationDate())
-//                .credentialSubject(credentialSubjectDto)
-//                .status(ivc.getStatus())
-//                .proof(proofDto)
-//                .createdAt(ivc.getCreatedAt())
-//                .updatedAt(ivc.getUpdatedAt())
-//                .build();
-//    }
+    private WalletCredential createWalletCredentials(String password) throws Exception {
+        byte[] salt = cryptoService.generateSalt();
+        String saltBase64 = Base64.getEncoder().encodeToString(salt);
+        SecretKey masterKey = cryptoService.generateWalletKey(password, salt);
+
+        return WalletCredential.builder()
+                .encryptedKey(CryptographyService.encryptKey(masterKey))
+                .salt(saltBase64)
+                .iterations(10000)
+                .build();
+    }
+
+    private void savePublicKey(String publicKeyStr, String did, CitizenUser user, DIDDocument didDocument) {
+        PublicKey publicKey = new PublicKey();
+        publicKey.setId(UUID.randomUUID().toString());
+        publicKey.setType("RSA");
+        publicKey.setController(did);
+        publicKey.setPublicKeyStr(publicKeyStr);
+        publicKey.setCitizenUser(user);
+        publicKey.setDidDocument(didDocument);
+
+        publicKeyRepository.save(publicKey);
+    }
+
+    private Wallet createAndSaveWallet(String did, CitizenUser user, WalletCredential credentials) {
+        Wallet wallet = Wallet.builder()
+                .id(UUID.randomUUID().toString())
+                .didId(did)
+                .citizenUser(user)
+                .credentials(credentials)
+                .createdAt(LocalDateTime.now())
+                .lastAccessed(LocalDateTime.now())
+                .status("ACTIVE")
+                .build();
+
+        return walletRepository.save(wallet);
+    }
+
+    private void storeEncryptedVerifiableCredentials(Wallet wallet) throws Exception {
+
+        List<VerifiableCredential> vcs = verifiableCredentialRepository.getAllBySubjectDid(wallet.getDidId());
+
+        if (vcs == null || vcs.isEmpty()) {
+            log.warn("No credentials found for wallet DID: {}. Skipping storage.", wallet.getDidId());
+            wallet.setLastAccessed(LocalDateTime.now());
+            walletRepository.save(wallet);
+            return;
+        }
+
+        for (VerifiableCredential vc : vcs) {
+
+            WalletVerifiableCredential walletVerifiableCredential = WalletVerifiableCredential.builder()
+                    .encryptedCredential(vc.getCredentialSubjectHash())
+                    .verifiableCredential(vc)
+                    .addedAt(LocalDateTime.now())
+                    .wallet(wallet)
+                    .verified(true)
+                    .build();
+
+            walletVerifiableCredentialRepository.save(walletVerifiableCredential);
+        }
+        walletRepository.save(wallet);
+    }
+
 }

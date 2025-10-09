@@ -20,7 +20,7 @@ public class WalletDto {
 
     private String didId;
 
-    private List<VerifiableCredentialDto> decryptedCredentials;
+    private List<WalletVerifiableCredentialDto> walletVerifiableCredentials;
 
     private LocalDateTime createdAt;
     private LocalDateTime lastAccessed;

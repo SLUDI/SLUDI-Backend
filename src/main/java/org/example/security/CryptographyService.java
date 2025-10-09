@@ -410,52 +410,6 @@ public class CryptographyService {
     }
 
     /**
-     * Encrypt VC for wallet storage
-     */
-    public static String encryptVC(VerifiableCredential vc, SecretKey key) throws Exception {
-        // Convert VC to JSON string
-        ObjectMapper objectMapper = new ObjectMapper();
-        String vcJson = objectMapper.writeValueAsString(vc);
-
-        // Initialize AES/GCM cipher
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key);
-
-        // Encrypt
-        byte[] encrypted = cipher.doFinal(vcJson.getBytes());
-
-        // Combine IV and ciphertext
-        byte[] iv = cipher.getIV();
-        byte[] combined = new byte[iv.length + encrypted.length];
-        System.arraycopy(iv, 0, combined, 0, iv.length);
-        System.arraycopy(encrypted, 0, combined, iv.length, encrypted.length);
-
-        // Encode for storage (Base64)
-        return Base64.getEncoder().encodeToString(combined);
-    }
-
-    public static VerifiableCredential decryptVC(String encryptedVC, SecretKey key) throws Exception {
-        byte[] combined = Base64.getDecoder().decode(encryptedVC);
-
-        // Extract IV and ciphertext
-        byte[] iv = new byte[12]; // GCM standard IV size
-        byte[] ciphertext = new byte[combined.length - iv.length];
-        System.arraycopy(combined, 0, iv, 0, iv.length);
-        System.arraycopy(combined, iv.length, ciphertext, 0, ciphertext.length);
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
-        cipher.init(Cipher.DECRYPT_MODE, key, spec);
-
-        byte[] decrypted = cipher.doFinal(ciphertext);
-
-        // Convert JSON back to VC object
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue(new String(decrypted), VerifiableCredential.class);
-    }
-
-
-    /**
      * Encrypt biometric data for IPFS storage
      */
     public byte[] encryptBiometricData(byte[] biometricData) {

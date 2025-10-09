@@ -22,16 +22,16 @@ public class VerifiableCredential {
 
     private String subjectDid;
     private List<String> credentialType;
-
-    private String issuerDid;
     private String issuanceDate;
     private String expirationDate;
 
     private String status;
 
+    @Embedded
+    private ProofData proof;
     private String blockchainTxId;
     private Long blockNumber;
 
-    @Column(name = "credential_sub_hash", length = 2000)
+    @Column(name = "credential_sub_hash", columnDefinition = "TEXT")
     private String credentialSubjectHash;
 }

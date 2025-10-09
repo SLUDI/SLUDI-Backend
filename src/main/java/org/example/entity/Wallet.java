@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Data
@@ -31,20 +29,7 @@ public class Wallet {
     @Embedded
     private WalletCredential credentials;
 
-    @Builder.Default
-    @ElementCollection
-    @CollectionTable(name = "wallet_credentials", joinColumns = @JoinColumn(name = "wallet_id"))
-    @Column(name = "encrypted_vc", columnDefinition = "TEXT")
-    private List<String> encryptedCredentials = new ArrayList<>();
-
     private LocalDateTime createdAt;
     private LocalDateTime lastAccessed;
     private String status;
-
-    public void addCredential(String encryptedVC) {
-        if (this.encryptedCredentials == null) {
-            this.encryptedCredentials = new ArrayList<>();
-        }
-        this.encryptedCredentials.add(encryptedVC);
-    }
 }
