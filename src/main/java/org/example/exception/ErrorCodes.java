@@ -40,6 +40,7 @@ public enum ErrorCodes {
     MAIL_SENDING_FAILED("2022", "Failed to send appointment confirmation email"),
     INTERNAL_ERROR("2023", "Unexpected error occurred while confirming appointment"),
     USER_ALREADY_HAS_DID("2024", "This user already has DID Document"),
+    WALLET_EXISTS("2025", "This user already has wallet"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),

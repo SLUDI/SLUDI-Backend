@@ -9,7 +9,6 @@ import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
-import org.example.repository.VerifiableCredentialRepository;
 import org.hyperledger.fabric.client.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

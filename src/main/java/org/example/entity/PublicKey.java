@@ -22,8 +22,8 @@ public class PublicKey {
     private String type;
     private String controller;
 
-    @Column(name = "public_key_base58", length = 1000)
-    private String publicKeyBase58;
+    @Column(name = "public_keyStr", length = 1000)
+    private String publicKeyStr;
 
     @ManyToOne
     @JoinColumn(name = "did_document_id", nullable = false)
@@ -33,10 +33,10 @@ public class PublicKey {
     @JoinColumn(name = "citizen_user_id", nullable = false)
     private CitizenUser citizenUser;
 
-    public PublicKey(String id, String type, String controller, String publicKeyBase58) {
+    public PublicKey(String id, String type, String controller, String publicKeyStr) {
         this.id = id;
         this.type = type;
         this.controller = controller;
-        this.publicKeyBase58 = publicKeyBase58;
+        this.publicKeyStr = publicKeyStr;
     }
 }

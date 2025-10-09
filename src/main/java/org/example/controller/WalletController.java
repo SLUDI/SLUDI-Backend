@@ -150,12 +150,13 @@ public class WalletController {
     /**
      * Get wallet status
      */
-    @GetMapping("/get/status")
+    @GetMapping("/retrieve")
     public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(
             @RequestParam String did,
             @RequestParam String password) {
         try {
-            WalletDto walletDto = walletService.retrieveWallet(did, password);
+            String id = "did:sludi:" + did;
+            WalletDto walletDto = walletService.retrieveWallet(id, password);
             return ResponseEntity.ok(ApiResponseDto.<WalletDto>builder()
                     .success(true)
                     .message("Wallet retrieved successfully")

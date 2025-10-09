@@ -13,5 +13,5 @@ public class PublicKeyDto {
     private String id;
     private String type;
     private String controller;
-    private String publicKeyBase58;
+    private String publicKeyStr;
 }
