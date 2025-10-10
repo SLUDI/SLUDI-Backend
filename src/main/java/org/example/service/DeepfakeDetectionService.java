@@ -46,7 +46,6 @@ public class DeepfakeDetectionService {
         }
 
         log.info("Deepfake detection successful for file: {}", file.getOriginalFilename());
-        log.info("HF Response Body: {}", responseBody);
 
         // Extract response data
         String label = (String) responseBody.get("label");
