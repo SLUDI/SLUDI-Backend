@@ -59,9 +59,7 @@ public class CitizenUserController {
             @Valid @RequestParam("divisionalSecretariat") String divisionalSecretariat,
             @Valid @RequestParam("gramaNiladhariDivision") String gramaNiladhariDivision,
             @Valid @RequestParam("province") String province,
-            @Valid @RequestParam("date1") LocalDate date1,
-            @Valid @RequestParam("date2") LocalDate date2,
-            @Valid @RequestParam("date3") LocalDate date3,
+            @Valid @RequestParam("selectDate") LocalDate selectDate,
             @Valid @RequestParam("deviceId") String deviceId,
             @Valid @RequestParam("deviceType") String deviceType,
             @Valid @RequestParam("os") String os,
@@ -101,12 +99,6 @@ public class CitizenUserController {
                     .phone(phone)
                     .build();
 
-            SelectedDatesDto selectedDatesDto = SelectedDatesDto.builder()
-                    .date1(date1)
-                    .date2(date2)
-                    .date3(date3)
-                    .build();
-
             DeviceInfoDto deviceInfoDto = DeviceInfoDto.builder()
                     .deviceId(deviceId)
                     .deviceType(deviceType)
@@ -141,7 +133,7 @@ public class CitizenUserController {
             CitizenUserRegistrationRequestDto request = CitizenUserRegistrationRequestDto.builder()
                     .personalInfo(personalInfoDto)
                     .contactInfo(contactInfoDto)
-                    .selectedDates(selectedDatesDto)
+                    .selectedDate(selectDate)
                     .supportingDocuments(docs)
                     .deviceInfo(deviceInfoDto)
                     .build();

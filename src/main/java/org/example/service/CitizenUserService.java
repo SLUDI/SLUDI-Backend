@@ -104,16 +104,11 @@ public class CitizenUserService {
             user = citizenUserRepository.save(user);
             log.info("Citizen user registered successfully with ID: {}, Code: {}", user.getId(), user.getCitizenCode());
 
-            // Save user preferred dates
-            SelectedDatesDto selectedDates = request.getSelectedDates();
+            // Save user preferred date
+            LocalDate selectedDate = request.getSelectedDate();
+            String district = request.getPersonalInfo().getAddress().getDistrict();
 
-            List<LocalDate> dateList = Arrays.asList(
-                    selectedDates.getDate1(),
-                    selectedDates.getDate2(),
-                    selectedDates.getDate3()
-            );
-
-            appointmentService.savePreferredDates(user.getId(), dateList);
+            appointmentService.savePreferredDate(user.getId(), selectedDate, district);
 
             // Log activity
             logUserActivity(user.getId(), "USER_REGISTRATION", "User registered successfully", request.getDeviceInfo());
