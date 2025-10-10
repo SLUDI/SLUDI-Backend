@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,7 +20,7 @@ public class CitizenUserRegistrationRequestDto {
     @Builder.Default
     private List<SupportingDocumentRequestDto> supportingDocuments = new ArrayList<>();
 
-    private SelectedDatesDto selectedDates;
+    private LocalDate selectedDate;
 
     private DeviceInfoDto deviceInfo;
 }

@@ -1,20 +1,20 @@
 package org.example.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.AppointmentAvailabilityResponseDto;
 import org.example.dto.AppointmentDto;
 import org.example.entity.Appointment;
 import org.example.entity.CitizenUser;
-import org.example.entity.UserPreferredDate;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.AppointmentRepository;
 import org.example.repository.CitizenUserRepository;
-import org.example.repository.UserPreferredDateRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,21 +30,18 @@ public class AppointmentService {
     private CitizenUserRepository citizenUserRepository;
 
     @Autowired
-    private UserPreferredDateRepository preferredDateRepository;
-
-    @Autowired
     private AppointmentRepository appointmentRepository;
 
-    private static final int MAX_APPOINTMENTS_PER_DAY = 5; // limit
+    private static final int MAX_SLOTS_PER_DAY = 5; // limit
 
     /**
-     * Save exactly 3 preferred dates for a user.
+     * Save exactly preferred date for a user.
      */
-    public void savePreferredDates(UUID userId, List<LocalDate> dates) {
+    public void savePreferredDate(UUID userId, LocalDate date, String district) {
         log.info("Saving preferred dates for user: {}", userId);
 
-        if (dates == null || dates.size() != 3) {
-            throw new SludiException(ErrorCodes.INVALID_INPUT, "Exactly 3 dates must be provided");
+        if (date == null ) {
+            throw new SludiException(ErrorCodes.INVALID_INPUT, "Date must be provided");
         }
 
         CitizenUser user = citizenUserRepository.findById(userId)
@@ -53,18 +50,16 @@ public class AppointmentService {
                     return new SludiException(ErrorCodes.USER_NOT_FOUND, "User not found with ID: " + userId);
                 });
 
-        for (LocalDate date : dates) {
-            boolean available = isDateAvailable(date);
-            UserPreferredDate preferredDate = UserPreferredDate.builder()
-                    .preferredDate(date.toString())
-                    .available(available)
-                    .citizenUser(user)
-                    .build();
+        Appointment appointment = Appointment.builder()
+                .district(district)
+                .confirmedDate(date.toString())
+                .status(Appointment.AppointmentStatus.PENDING)
+                .citizenUser(user)
+                .build();
 
-            preferredDateRepository.save(preferredDate);
-        }
+        appointmentRepository.save(appointment);
 
-        log.info("Preferred dates saved successfully for user {}", userId);
+        log.info("Preferred date saved successfully for user {}", userId);
     }
 
     /**
@@ -76,10 +71,34 @@ public class AppointmentService {
         }
 
         long count = appointmentRepository.countByConfirmedDate(date.toString());
-        boolean available = count < MAX_APPOINTMENTS_PER_DAY;
+        boolean available = count < MAX_SLOTS_PER_DAY;
 
         log.debug("Checked availability for date {}: {} ({} booked)", date, available, count);
         return available;
+    }
+
+    public List<AppointmentAvailabilityResponseDto> getDistrictAvailability(String district, int daysAhead) {
+        LocalDate today = LocalDate.now();
+        LocalDate endDate = today.plusDays(daysAhead);
+
+        List<AppointmentAvailabilityResponseDto> availabilityList = new ArrayList<>();
+
+        for (LocalDate date = today; !date.isAfter(endDate); date = date.plusDays(1)) {
+            String formattedDate = date.toString(); // e.g., "2025-10-10"
+
+            long bookedCount = appointmentRepository.countByDistrictAndConfirmedDate(district, formattedDate);
+            int availableSlots = (int) (MAX_SLOTS_PER_DAY - bookedCount);
+
+            availabilityList.add(
+                    new AppointmentAvailabilityResponseDto(
+                            formattedDate,
+                            Math.max(availableSlots, 0),
+                            availableSlots <= 0
+                    )
+            );
+        }
+
+        return availabilityList;
     }
 
     /**
