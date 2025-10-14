@@ -1,49 +1,23 @@
 package org.example.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.ipfs.multibase.Base58;
-import org.example.entity.CitizenUser;
-import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
-
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class CryptographyService {
-
-    @Value("${sludi.jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${sludi.jwt.access-token-expiration}")
-    private int accessTokenExpirationSeconds;
-
-    @Value("${sludi.jwt.refresh-token-expiration}")
-    private int refreshTokenExpirationSeconds; // 30 days
 
     @Value("${sludi.encryption.key}")
     private String encryptionKey;
@@ -54,139 +28,7 @@ public class CryptographyService {
     private static final int KEY_LENGTH = 256;
     private static final int ITERATION_COUNT = 65536;
 
-    /**
-     * Generate access token for authenticated user
-     */
-    public String generateAccessToken(CitizenUser user) {
-        try {
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("userId", user.getId().toString());
-            claims.put("didId", user.getDidId());
-            claims.put("email", user.getEmail());
-            claims.put("nic", user.getNic());
-            claims.put("fullName", user.getFullName());
-            claims.put("status", user.getStatus().toString());
-            claims.put("kycStatus", user.getKycStatus().toString());
-            claims.put("tokenType", "access");
 
-            return Jwts.builder()
-                    .setClaims(claims)
-                    .setSubject(user.getId().toString())
-                    .setIssuer("sludi-digital-identity")
-                    .setAudience("sludi-services")
-                    .setIssuedAt(new Date())
-                    .setExpiration(Date.from(Instant.now().plus(accessTokenExpirationSeconds, ChronoUnit.SECONDS)))
-                    .setId(UUID.randomUUID().toString())
-                    .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                    .compact();
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, "Failed to generate access token", e);
-        }
-    }
-
-    /**
-     * Generate refresh token for token renewal
-     */
-    public String generateRefreshToken(CitizenUser user) {
-        try {
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("userId", user.getId().toString());
-            claims.put("didId", user.getDidId());
-            claims.put("tokenType", "refresh");
-
-            return Jwts.builder()
-                    .setClaims(claims)
-                    .setSubject(user.getId().toString())
-                    .setIssuer("sludi-digital-identity")
-                    .setAudience("sludi-services")
-                    .setIssuedAt(new Date())
-                    .setExpiration(Date.from(Instant.now().plus(refreshTokenExpirationSeconds, ChronoUnit.SECONDS)))
-                    .setId(UUID.randomUUID().toString())
-                    .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                    .compact();
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, "Failed to generate refresh token", e);
-        }
-    }
-
-    /**
-     * Validate and parse JWT token
-     */
-    public Claims validateToken(String token) {
-        try {
-            return Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-        } catch (ExpiredJwtException e) {
-            throw new SludiException(ErrorCodes.TOKEN_EXPIRED, "Token has expired");
-        } catch (UnsupportedJwtException e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Unsupported JWT token");
-        } catch (MalformedJwtException e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Malformed JWT token");
-        } catch (SignatureException e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Invalid JWT signature");
-        } catch (IllegalArgumentException e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID, "JWT token compact string is invalid");
-        }
-    }
-
-    /**
-     * Extract user ID from JWT token
-     */
-    public UUID extractUserIdFromToken(String token) {
-        Claims claims = validateToken(token);
-        return UUID.fromString(claims.get("userId", String.class));
-    }
-
-    /**
-     * Extract DID from JWT token
-     */
-    public String extractDidFromToken(String token) {
-        Claims claims = validateToken(token);
-        return claims.get("didId", String.class);
-    }
-
-    /**
-     * Check if token is expired
-     */
-    public boolean isTokenExpired(String token) {
-        try {
-            Claims claims = validateToken(token);
-            return claims.getExpiration().before(new Date());
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    /**
-     * Refresh access token using refresh token
-     */
-    public String refreshAccessToken(String refreshToken, CitizenUser user) {
-        try {
-            Claims claims = validateToken(refreshToken);
-            
-            // Verify it's a refresh token
-            if (!"refresh".equals(claims.get("tokenType"))) {
-                throw new SludiException(ErrorCodes.INVALID_REFRESH_TOKEN, "Invalid token type");
-            }
-
-            // Verify user matches
-            if (!user.getId().toString().equals(claims.getSubject())) {
-                throw new SludiException(ErrorCodes.INVALID_REFRESH_TOKEN, "Token user mismatch");
-            }
-
-            return generateAccessToken(user);
-
-        } catch (SludiException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_REFRESH_FAILED, e);
-        }
-    }
 
     /**
      * Encrypt sensitive data using AES-256-GCM
@@ -285,31 +127,13 @@ public class CryptographyService {
     }
 
     /**
-     * Generate secure random string for various purposes (API keys, secrets, etc.)
+     * Generate secure random string
      */
     public String generateSecureRandomString(int length) {
         SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[length];
         random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    /**
-     * Generate DID-specific signature for blockchain operations
-     */
-    public String generateDidSignature(String data, String privateKey) {
-        try {
-            // In production, this would use actual cryptographic signing with private key
-            // For now, using secure hash as placeholder
-            String timestamp = String.valueOf(Instant.now().toEpochMilli());
-            String signingData = data + timestamp + privateKey;
-            byte[] salt = generateSalt();
-            String saltBase64 = Base64.getEncoder().encodeToString(salt);
-            return generateSecureHash(signingData, saltBase64);
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.SIGNATURE_GENERATION_FAILED, "Failed to generate DID signature", e);
-        }
     }
 
     /**
@@ -326,44 +150,12 @@ public class CryptographyService {
         }
     }
 
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
-    }
-
     private byte[] getEncryptionKeyBytes() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return digest.digest(encryptionKey.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.ENCRYPTION_KEY_ERROR, e);
-        }
-    }
-
-    /**
-     * Generate key pair for DID operations (placeholder for actual implementation)
-     */
-    public Map<String, String> generateKeyPair() {
-        try {
-            // Generate real Ed25519 key pair
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("Ed25519");
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] privateKeyBytes = keyPair.getPrivate().getEncoded();
-            byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
-
-            // Convert to Base58
-            String privateKeyBase58 = Base58.encode(privateKeyBytes);
-            String publicKeyBase58 = Base58.encode(publicKeyBytes);
-
-            Map<String, String> result = new HashMap<>();
-            result.put("privateKey", privateKeyBase58);
-            result.put("publicKey", publicKeyBase58);
-
-            return result;
-
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.KEY_GENERATION_FAILED, e);
         }
     }
 

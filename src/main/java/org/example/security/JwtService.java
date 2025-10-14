@@ -1,88 +1,178 @@
 package org.example.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import java.security.Key;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
-
+import java.util.UUID;
+import io.jsonwebtoken.security.SignatureException;
+import org.example.entity.CitizenUser;
+import org.example.enums.JWTTokenType;
+import org.example.exception.ErrorCodes;
+import org.example.exception.SludiException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
 
 @Service
 public class JwtService {
     @Value("${security.jwt.secret-key}")
-    private String secretKey;
+    private String jwtSecretKey;
 
-    @Value("${security.jwt.expiration-time}")
+    @Value("${security.jwt.access.expiration-time}")
     private long jwtExpiration;
 
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+    @Value("${security.jwt.refresh.expiration-time}")
+    private long refreshTokenExpiration;
+
+    @Value("${sludi.issuer-did}")
+    private String issuerDid;
+
+    /**
+     * Generate access token for authenticated user
+     */
+    public String generateAccessToken(CitizenUser user) {
+        try {
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("userId", user.getId().toString());
+            claims.put("didId", user.getDidId());
+            claims.put("email", user.getEmail());
+            claims.put("nic", user.getNic());
+            claims.put("fullName", user.getFullName());
+            claims.put("status", user.getStatus().toString());
+            claims.put("kycStatus", user.getKycStatus().toString());
+            claims.put("tokenType", JWTTokenType.ACCESS_TOKEN);
+
+            return Jwts.builder()
+                    .setClaims(claims)
+                    .setSubject(user.getId().toString())
+                    .setIssuer(issuerDid)
+                    .setAudience("sludi-api")
+                    .setIssuedAt(new Date())
+                    .setExpiration(Date.from(Instant.now().plus(jwtExpiration, ChronoUnit.MILLIS)))
+                    .setId(UUID.randomUUID().toString())
+                    .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                    .compact();
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, "Failed to generate access token", e);
+        }
     }
 
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+    /**
+     * Validate and parse JWT token
+     */
+    public Claims validateToken(String token) {
+        try {
+            return parseClaims(token);
+        } catch (ExpiredJwtException e) {
+            throw new SludiException(ErrorCodes.TOKEN_EXPIRED, "Token has expired");
+        } catch (UnsupportedJwtException e) {
+            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Unsupported JWT token");
+        } catch (MalformedJwtException e) {
+            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Malformed JWT token");
+        } catch (SignatureException e) {
+            throw new SludiException(ErrorCodes.TOKEN_INVALID, "Invalid JWT signature");
+        } catch (IllegalArgumentException e) {
+            throw new SludiException(ErrorCodes.TOKEN_INVALID, "JWT token compact string is invalid");
+        }
     }
 
-    public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+    /**
+     * Extract user ID from JWT token
+     */
+    public UUID extractUserIdFromToken(String token) {
+        Claims claims = validateToken(token);
+        return UUID.fromString(claims.get("userId", String.class));
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
-        return buildToken(extraClaims, userDetails, jwtExpiration);
+    /**
+     * Extract DID from JWT token
+     */
+    public String extractDidFromToken(String token) {
+        Claims claims = validateToken(token);
+        return claims.get("didId", String.class);
     }
 
-    public long getExpirationTime() {
-        return jwtExpiration;
+    /**
+     * Check if token is expired
+     */
+    public boolean isTokenExpired(String token) {
+        try {
+            Claims claims = validateToken(token);
+            return claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
     }
 
-    private String buildToken(
-            Map<String, Object> extraClaims,
-            UserDetails userDetails,
-            long expiration
-    ) {
-        return Jwts
-                .builder()
-                .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
-                .compact();
+    /**
+     * Generate refresh token for token renewal
+     */
+    public String generateRefreshToken(CitizenUser user) {
+        try {
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("userId", user.getId().toString());
+            claims.put("didId", user.getDidId());
+            claims.put("tokenType", JWTTokenType.REFRESH_TOKEN);
+
+            return Jwts.builder()
+                    .setClaims(claims)
+                    .setSubject(user.getId().toString())
+                    .setIssuer(issuerDid)
+                    .setAudience("sludi-api")
+                    .setIssuedAt(new Date())
+                    .setExpiration(Date.from(Instant.now().plus(refreshTokenExpiration, ChronoUnit.MILLIS)))
+                    .setId(UUID.randomUUID().toString())
+                    .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                    .compact();
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, "Failed to generate refresh token", e);
+        }
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    /**
+     * Refresh access token using refresh token
+     */
+    public String refreshAccessToken(String refreshToken, CitizenUser user) {
+        try {
+            Claims claims = validateToken(refreshToken);
+
+            // Verify it's a refresh token
+            if (!JWTTokenType.REFRESH_TOKEN.name().equals(claims.get("tokenType", String.class))) {
+                throw new SludiException(ErrorCodes.INVALID_REFRESH_TOKEN, "Invalid token type");
+            }
+
+            // Verify user matches
+            if (!user.getId().toString().equals(claims.getSubject())) {
+                throw new SludiException(ErrorCodes.INVALID_REFRESH_TOKEN, "Token user mismatch");
+            }
+
+            return generateAccessToken(user);
+
+        } catch (SludiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.TOKEN_REFRESH_FAILED, e);
+        }
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(jwtSecretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private Claims extractAllClaims(String token) {
-        return Jwts
-                .parserBuilder()
-                .setSigningKey(getSignInKey())
+    private Claims parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-    }
-
-    private Key getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
     }
 }
