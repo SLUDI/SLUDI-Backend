@@ -22,8 +22,11 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class AppointmentController {
 
-    @Autowired
-    private AppointmentService appointmentService;
+    private final AppointmentService appointmentService;
+
+    public AppointmentController(AppointmentService appointmentService) {
+        this.appointmentService = appointmentService;
+    }
 
     /**
      * Check availability of a given date

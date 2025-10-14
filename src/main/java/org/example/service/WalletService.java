@@ -8,7 +8,6 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,37 +20,41 @@ import java.util.*;
 @Transactional
 public class WalletService {
 
-    @Autowired
-    private HyperledgerService hyperledgerService;
-
-    @Autowired
-    private OtpService otpService;
-
-    @Autowired
-    private MailService mailService;
-
-    @Autowired
-    private CryptographyService cryptoService;
-
-    @Autowired
-    private WalletRepository walletRepository;
-
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private PublicKeyRepository publicKeyRepository;
-
-    @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
-    private WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
-
-    @Autowired
-    private VerifiableCredentialRepository verifiableCredentialRepository;
+    private final HyperledgerService hyperledgerService;
+    private final OtpService otpService;
+    private final MailService mailService;
+    private final CryptographyService cryptoService;
+    private final WalletRepository walletRepository;
+    private final CitizenUserRepository citizenUserRepository;
+    private final PublicKeyRepository publicKeyRepository;
+    private final DIDDocumentRepository didDocumentRepository;
+    private final WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
+    private final VerifiableCredentialRepository verifiableCredentialRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public WalletService(
+            HyperledgerService hyperledgerService,
+            OtpService otpService, MailService mailService,
+            CryptographyService cryptoService,
+            WalletRepository walletRepository,
+            CitizenUserRepository citizenUserRepository,
+            PublicKeyRepository publicKeyRepository,
+            DIDDocumentRepository didDocumentRepository,
+            WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
+            VerifiableCredentialRepository verifiableCredentialRepository
+    ) {
+        this.hyperledgerService = hyperledgerService;
+        this.otpService = otpService;
+        this.mailService = mailService;
+        this.cryptoService = cryptoService;
+        this.walletRepository = walletRepository;
+        this.citizenUserRepository = citizenUserRepository;
+        this.publicKeyRepository = publicKeyRepository;
+        this.didDocumentRepository = didDocumentRepository;
+        this.walletVerifiableCredentialRepository = walletVerifiableCredentialRepository;
+        this.verifiableCredentialRepository = verifiableCredentialRepository;
+    }
 
     /**
      * Initiate wallet creation by validating DID and sending OTP

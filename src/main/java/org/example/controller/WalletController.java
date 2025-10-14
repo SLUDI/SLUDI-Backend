@@ -6,7 +6,6 @@ import org.example.dto.*;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.WalletService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +20,11 @@ import java.util.Map;
 @Validated
 public class WalletController {
 
-    @Autowired
-    private WalletService walletService;
+    private final WalletService walletService;
+
+    public WalletController(WalletService walletService) {
+        this.walletService = walletService;
+    }
 
     /**
      * Verify DID and initiate wallet creation

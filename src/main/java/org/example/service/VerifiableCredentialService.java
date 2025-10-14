@@ -14,7 +14,6 @@ import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
 import org.example.repository.VerifiableCredentialRepository;
 import org.example.security.CryptographyService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,28 +27,33 @@ import java.util.UUID;
 @Transactional
 public class VerifiableCredentialService {
 
-    @Autowired
-    private VerifiableCredentialRepository verifiableCredentialRepository;
-
-    @Autowired
-    private CitizenUserRepository userRepository;
-
-    @Autowired
-    private IPFSContentRepository ipfsContentRepository;
-
-    @Autowired
-    private HyperledgerService hyperledgerService;
-
-    @Autowired
-    private CryptographyService cryptographyService;
-
-    @Autowired
-    private DigitalSignatureService digitalSignatureService;
-
-    @Autowired
-    private IPFSIntegration ipfsIntegration;
+    private final HyperledgerService hyperledgerService;
+    private final CryptographyService cryptographyService;
+    private final DigitalSignatureService digitalSignatureService;
+    private final IPFSIntegration ipfsIntegration;
+    private final VerifiableCredentialRepository verifiableCredentialRepository;
+    private final CitizenUserRepository userRepository;
+    private final IPFSContentRepository ipfsContentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public VerifiableCredentialService(
+            HyperledgerService hyperledgerService,
+            CryptographyService cryptographyService,
+            DigitalSignatureService digitalSignatureService,
+            IPFSIntegration ipfsIntegration,
+            VerifiableCredentialRepository verifiableCredentialRepository,
+            CitizenUserRepository userRepository,
+            IPFSContentRepository ipfsContentRepository
+    ) {
+        this.hyperledgerService = hyperledgerService;
+        this.cryptographyService = cryptographyService;
+        this.digitalSignatureService = digitalSignatureService;
+        this.ipfsIntegration = ipfsIntegration;
+        this.verifiableCredentialRepository = verifiableCredentialRepository;
+        this.userRepository = userRepository;
+        this.ipfsContentRepository = ipfsContentRepository;
+    }
 
     public VCIssuedResponseDto issueVC(IssueVCRequestDto request) {
         log.info("Issuing identity VC for DID: {}, CredentialType: {}", request.getDid(), request.getCredentialType());

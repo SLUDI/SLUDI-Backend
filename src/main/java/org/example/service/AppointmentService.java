@@ -23,16 +23,21 @@ import java.util.UUID;
 @Transactional
 public class AppointmentService {
 
-    @Autowired
-    private MailService mailService;
-
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private AppointmentRepository appointmentRepository;
+    private final MailService mailService;
+    private final CitizenUserRepository citizenUserRepository;
+    private final AppointmentRepository appointmentRepository;
 
     private static final int MAX_SLOTS_PER_DAY = 5; // limit
+
+    public AppointmentService(
+            MailService mailService,
+            CitizenUserRepository citizenUserRepository,
+            AppointmentRepository appointmentRepository
+    ) {
+        this.mailService = mailService;
+        this.citizenUserRepository = citizenUserRepository;
+        this.appointmentRepository = appointmentRepository;
+    }
 
     /**
      * Save exactly preferred date for a user.

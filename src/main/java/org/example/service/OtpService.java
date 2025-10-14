@@ -22,11 +22,11 @@ public class OtpService {
 
     private final SecureRandom random = new SecureRandom();
 
-    @Autowired
-    private MailService mailService;
+    private final OtpRepository otpRepository;
 
-    @Autowired
-    private OtpRepository otpRepository;
+    public OtpService(OtpRepository otpRepository) {
+        this.otpRepository = otpRepository;
+    }
 
     /**
      * Generate a 6-digit OTP with an expiry time.

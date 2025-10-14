@@ -1,13 +1,12 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.service.DIDDocumentService;
 import org.example.exception.SludiException;
 import org.example.exception.HttpStatusHandler;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,18 +14,18 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/did")
 @CrossOrigin(origins = "*")
 public class DIDDocumentController {
+    
+    private final DIDDocumentService didDocumentService;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DIDDocumentController.class.getName());
-
-    @Autowired
-    private DIDDocumentService didDocumentService;
+    public DIDDocumentController(DIDDocumentService didDocumentService) {
+        this.didDocumentService = didDocumentService;
+    }
 
     /**
      * Register new user and create DID
@@ -36,7 +35,7 @@ public class DIDDocumentController {
     public ResponseEntity<ApiResponseDto<DIDCreateResponseDto>> createDID(
             @Valid @RequestBody DIDCreateRequestDto request) {
 
-        LOGGER.info("Received user NIC: {} for DID create", request.getNic());
+        log.info("Received user NIC: {} for DID create", request.getNic());
 
         try {
             DIDCreateResponseDto response = didDocumentService.createDID(request);
@@ -51,7 +50,7 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.error("User registration failed: {}", ex.getMessage(), ex);
+            log.error("User registration failed: {}", ex.getMessage(), ex);
 
             ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)
@@ -63,7 +62,7 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error during registration: {}", ex.getMessage(), ex);
+            log.error("Unexpected error during registration: {}", ex.getMessage(), ex);
 
             ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)

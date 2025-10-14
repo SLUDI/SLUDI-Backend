@@ -52,12 +52,15 @@ public class IPFSIntegration {
     @Value("${sludi.ipfs.retry.attempts}")
     private int retryAttempts;
 
-    @Autowired
-    private CryptographyService cryptographyService;
+    private final CryptographyService cryptographyService;
 
     private IPFS ipfs;
     private Map<String, String> hashPathCache;
     private Map<String, Long> fileSizeCache;
+
+    public IPFSIntegration(CryptographyService cryptographyService) {
+        this.cryptographyService = cryptographyService;
+    }
 
     /**
      * Initialize IPFS service

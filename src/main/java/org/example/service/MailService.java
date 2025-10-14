@@ -3,7 +3,6 @@ package org.example.service;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -16,14 +15,19 @@ import org.thymeleaf.context.Context;
 @Service
 public class MailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
-
-    @Autowired
-    private TemplateEngine templateEngine;
+    private final JavaMailSender mailSender;
+    private final TemplateEngine templateEngine;
 
     @Value("${spring.mail.username}")
     private String senderEmail;
+
+    public MailService(
+            JavaMailSender mailSender,
+            TemplateEngine templateEngine
+    ) {
+        this.mailSender = mailSender;
+        this.templateEngine = templateEngine;
+    }
 
     /**
      * Sends an OTP email to the given recipient.

@@ -11,9 +11,7 @@ import org.example.integration.IPFSIntegration;
 import org.example.integration.AIIntegration;
 import org.example.security.CryptographyService;
 import org.example.exception.SludiException;
-
 import org.example.utils.DIDIdGenerator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,34 +26,39 @@ import java.util.concurrent.CompletableFuture;
 @Transactional
 public class DIDDocumentService {
 
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
-    private AuthenticationLogRepository authLogRepository;
-
-    @Autowired
-    private IPFSContentRepository ipfsContentRepository;
-
-    @Autowired
-    private IPFSIntegration ipfsIntegration;
-
-    @Autowired
-    private HyperledgerService hyperledgerService;
-
-    @Autowired
-    private DigitalSignatureService digitalSignatureService;
-
-    @Autowired
-    private AIIntegration aiIntegration;
-
-    @Autowired
-    private CryptographyService cryptographyService;
+    private final IPFSIntegration ipfsIntegration;
+    private final HyperledgerService hyperledgerService;
+    private final DigitalSignatureService digitalSignatureService;
+    private final AIIntegration aiIntegration;
+    private final CryptographyService cryptographyService;
+    private final CitizenUserRepository citizenUserRepository;
+    private final DIDDocumentRepository didDocumentRepository;
+    private final AuthenticationLogRepository authLogRepository;
+    private final IPFSContentRepository ipfsContentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public DIDDocumentService(
+            IPFSIntegration ipfsIntegration,
+            HyperledgerService hyperledgerService,
+            DigitalSignatureService digitalSignatureService,
+            AIIntegration aiIntegration,
+            CryptographyService cryptographyService,
+            CitizenUserRepository citizenUserRepository,
+            DIDDocumentRepository didDocumentRepository,
+            AuthenticationLogRepository authLogRepository,
+            IPFSContentRepository ipfsContentRepository
+    ) {
+        this.ipfsIntegration = ipfsIntegration;
+        this.hyperledgerService = hyperledgerService;
+        this.digitalSignatureService = digitalSignatureService;
+        this.aiIntegration = aiIntegration;
+        this.cryptographyService = cryptographyService;
+        this.citizenUserRepository = citizenUserRepository;
+        this.didDocumentRepository = didDocumentRepository;
+        this.authLogRepository = authLogRepository;
+        this.ipfsContentRepository = ipfsContentRepository;
+    }
 
     /**
      * Create DID Document

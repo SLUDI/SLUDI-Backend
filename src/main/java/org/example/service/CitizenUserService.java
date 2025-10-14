@@ -27,25 +27,30 @@ import java.util.stream.Collectors;
 @Transactional
 public class CitizenUserService {
 
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private AuthenticationLogRepository authLogRepository;
-
-    @Autowired
-    private IPFSContentRepository ipfsContentRepository;
-
-    @Autowired
-    private IPFSIntegration ipfsIntegration;
-
-    @Autowired
-    private AppointmentService appointmentService;
-
-    @Autowired
-    private CitizenCodeGenerator citizenCodeGenerator;
+    private final IPFSIntegration ipfsIntegration;
+    private final AppointmentService appointmentService;
+    private final CitizenCodeGenerator citizenCodeGenerator;
+    private final CitizenUserRepository citizenUserRepository;
+    private final AuthenticationLogRepository authLogRepository;
+    private final IPFSContentRepository ipfsContentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public CitizenUserService(
+            IPFSIntegration ipfsIntegration,
+            AppointmentService appointmentService,
+            CitizenCodeGenerator citizenCodeGenerator,
+            CitizenUserRepository citizenUserRepository,
+            AuthenticationLogRepository authLogRepository,
+            IPFSContentRepository ipfsContentRepository
+    ) {
+        this.ipfsIntegration = ipfsIntegration;
+        this.appointmentService = appointmentService;
+        this.citizenCodeGenerator = citizenCodeGenerator;
+        this.citizenUserRepository = citizenUserRepository;
+        this.authLogRepository = authLogRepository;
+        this.ipfsContentRepository = ipfsContentRepository;
+    }
 
     /**
      * Register a new user with complete identity setup
