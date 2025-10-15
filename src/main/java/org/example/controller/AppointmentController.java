@@ -6,7 +6,6 @@ import org.example.dto.AppointmentAvailabilityResponseDto;
 import org.example.dto.AppointmentDto;
 import org.example.exception.SludiException;
 import org.example.service.AppointmentService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -131,29 +130,25 @@ public class AppointmentController {
      * POST /api/appointments/{userId}/confirm
      */
     @PostMapping("/{userId}/confirm")
-    public ResponseEntity<ApiResponseDto<AppointmentDto>> confirmAppointment(
+    public ResponseEntity<ApiResponseDto<Boolean>> confirmAppointment(
             @PathVariable UUID userId,
-            @RequestParam LocalDate confirmedDate) {
-        log.info("Received request to confirm appointment for userId={} on date={}", userId, confirmedDate);
-
+            @RequestParam boolean documentsValid) {
         try {
-            AppointmentDto appointment = appointmentService.confirmAppointment(userId, confirmedDate);
+            boolean isConformed = appointmentService.confirmAppointment(userId, documentsValid);
 
-            ApiResponseDto<AppointmentDto> response = ApiResponseDto.<AppointmentDto>builder()
+            ApiResponseDto<Boolean> response = ApiResponseDto.<Boolean>builder()
                     .success(true)
                     .message("Appointment confirmed successfully")
-                    .data(appointment)
+                    .data(isConformed)
                     .timestamp(Instant.now())
                     .build();
 
-            log.info("Appointment confirmed for userId={} on date={}", userId, confirmedDate);
             return ResponseEntity.ok(response);
 
         } catch (SludiException ex) {
-            log.error("Business error while confirming appointment for userId={} on date={}: {}",
-                    userId, confirmedDate, ex.getMessage(), ex);
+            log.error("Business error while confirming appointment for userId={}", userId, ex);
 
-            ApiResponseDto<AppointmentDto> response = ApiResponseDto.<AppointmentDto>builder()
+            ApiResponseDto<Boolean> response = ApiResponseDto.<Boolean>builder()
                     .success(false)
                     .message(ex.getMessage())
                     .errorCode(ex.getErrorCode())
@@ -163,9 +158,9 @@ public class AppointmentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
 
         } catch (Exception ex) {
-            log.error("Unexpected error while confirming appointment for userId={} on date={}", userId, confirmedDate, ex);
+            log.error("Unexpected error while confirming appointment for userId={}", userId, ex);
 
-            ApiResponseDto<AppointmentDto> response = ApiResponseDto.<AppointmentDto>builder()
+            ApiResponseDto<Boolean> response = ApiResponseDto.<Boolean>builder()
                     .success(false)
                     .message("Internal server error")
                     .errorCode("INTERNAL_ERROR")

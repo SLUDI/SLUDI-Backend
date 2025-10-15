@@ -3,11 +3,14 @@ package org.example.controller;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
+import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.WalletService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.validation.annotation.Validated;
 
@@ -228,17 +231,20 @@ public class WalletController {
      * Get wallet status
      */
     @GetMapping("/retrieve")
-    public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(
-            @RequestParam String did) {
+    public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(Authentication authentication) {
         try {
-            String id = "did:sludi:" + did;
-            WalletDto walletDto = walletService.retrieveWallet(id);
+            String fullDid = getString(authentication);
+
+            // Retrieve wallet using DID
+            WalletDto walletDto = walletService.retrieveWallet(fullDid);
+
             return ResponseEntity.ok(ApiResponseDto.<WalletDto>builder()
                     .success(true)
                     .message("Wallet retrieved successfully")
                     .data(walletDto)
                     .timestamp(java.time.Instant.now())
                     .build());
+
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
                     .body(ApiResponseDto.<WalletDto>builder()
@@ -257,4 +263,24 @@ public class WalletController {
                             .build());
         }
     }
+
+    private static String getString(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");
+        }
+
+        // Extract the authenticated user's DID
+        String didId;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserDetails userDetails) {
+            didId = userDetails.getUsername(); // because loadUserByUsername(did) in your service
+        } else {
+            didId = principal.toString();
+        }
+
+        // Ensure the DID is in full form
+        return didId.startsWith("did:sludi:") ? didId : "did:sludi:" + didId;
+    }
+
 }

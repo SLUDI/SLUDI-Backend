@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.enums.AppointmentStatus;
 
 @Entity
 @Data
@@ -13,8 +14,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Table(name = "appointments")
 public class Appointment {
-
-    public enum AppointmentStatus { PENDING, CONFIRMED, COMPLETED, CANCELLED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

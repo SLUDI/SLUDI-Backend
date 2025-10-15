@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.ProofPurpose;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.repository.*;
 import org.example.integration.IPFSIntegration;
@@ -183,7 +184,7 @@ public class DIDDocumentService {
             didDocumentRepository.save(didDocument);
 
             citizenUser.setDidId(didResult.getId());
-            citizenUser.setStatus(CitizenUser.UserStatus.ACTIVE);
+            citizenUser.setStatus(UserStatus.ACTIVE);
             citizenUser.setUpdatedAt(LocalDateTime.now().toString());
 
             citizenUser = citizenUserRepository.save(citizenUser);
@@ -262,7 +263,7 @@ public class DIDDocumentService {
             hyperledgerService.deactivateDID(user.getDidId());
 
             // Update user status
-            user.setStatus(CitizenUser.UserStatus.DEACTIVATED);
+            user.setStatus(UserStatus.DEACTIVATED);
             user.setUpdatedAt(LocalDateTime.now().toString());
             citizenUserRepository.save(user);
 
@@ -281,9 +282,9 @@ public class DIDDocumentService {
     public Map<String, Object> getUserStatistics() {
         try {
             long totalUsers = citizenUserRepository.count();
-            long activeUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.ACTIVE);
-            long inactiveUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.INACTIVE);
-            long deactivatedUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.DEACTIVATED);
+            long activeUsers = citizenUserRepository.countByStatus(UserStatus.ACTIVE);
+            long inactiveUsers = citizenUserRepository.countByStatus(UserStatus.INACTIVE);
+            long deactivatedUsers = citizenUserRepository.countByStatus(UserStatus.DEACTIVATED);
 
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalUsers", totalUsers);

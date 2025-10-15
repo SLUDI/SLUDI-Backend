@@ -10,7 +10,7 @@ public enum ErrorCodes {
     BIOMETRIC_MISMATCH("1005", "Biometric data does not match"),
     USER_NOT_REGISTERED("1006", "User is not registered"),
     INVALID_AUTHRTIZATION_HEADER("1007", "Invalid authorization header provided"),
-    UNAUTHORIZED("1008", "Unauthorized access"),
+    UNAUTHORIZED("1008", "Authentication is missing or invalid"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
     FAILED_TO_RETRIEVE_IDENTITY_VC("1010", "Failed to retrieve identity Verifiable Credential"),
     

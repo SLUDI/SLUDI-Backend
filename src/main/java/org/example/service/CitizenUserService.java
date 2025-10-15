@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.KYCStatus;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
@@ -280,7 +282,7 @@ public class CitizenUserService {
             }
 
             // Validate update permissions
-            if (!CitizenUser.UserStatus.ACTIVE.equals(user.getStatus())) {
+            if (!UserStatus.ACTIVE.equals(user.getStatus())) {
                 throw new SludiException(ErrorCodes.CANNOT_UPDATE_INACTIVE_USER);
             }
 
@@ -343,8 +345,8 @@ public class CitizenUserService {
                 .citizenship(request.getPersonalInfo().getCitizenship())
                 .bloodGroup(request.getPersonalInfo().getBloodGroup())
                 .address(address)
-                .status(CitizenUser.UserStatus.PENDING)
-                .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
+                .status(UserStatus.PENDING)
+                .kycStatus(KYCStatus.NOT_STARTED)
                 .createdAt(LocalDateTime.now().toString())
                 .updatedAt(LocalDateTime.now().toString())
                 .build();

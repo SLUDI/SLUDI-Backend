@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.enums.KYCStatus;
+import org.example.enums.UserStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,10 +21,6 @@ import java.util.UUID;
 @Entity
 @Table(name = "citizen_users")
 public class CitizenUser {
-
-    public enum UserStatus { PENDING, ACTIVE, INACTIVE, DEACTIVATED }
-
-    public enum KYCStatus { NOT_STARTED, IN_PROGRESS, VERIFIED, REJECTED }
 
     @Id
     private UUID id;
