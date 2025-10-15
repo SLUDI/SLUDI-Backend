@@ -12,8 +12,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
+import java.security.*;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 @Service
@@ -83,6 +83,38 @@ public class CryptographyService {
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.DECRYPTION_FAILED, "Failed to decrypt data", e);
+        }
+    }
+
+    /**
+     * Verify signature using public key
+     */
+    public boolean verifySignature(String message, String signatureStr, String publicKeyPem) {
+        try {
+            // Clean PEM format (remove header/footer lines)
+            String publicKeyContent = publicKeyPem
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replaceAll("\\s+", "");
+
+            // Decode base64
+            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyContent);
+
+            // Generate PublicKey object
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PublicKey publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(publicKeyBytes));
+
+            // Initialize Signature verification
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initVerify(publicKey);
+            signature.update(message.getBytes(StandardCharsets.UTF_8));
+
+            // Decode and verify
+            byte[] signatureBytes = Base64.getDecoder().decode(signatureStr);
+
+            return signature.verify(signatureBytes);
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.SIGNATURE_FAILED, "Failed to verify signature", e);
         }
     }
 

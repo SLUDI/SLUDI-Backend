@@ -78,7 +78,7 @@ public enum ErrorCodes {
     SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
     PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
     
-    // Validation Errors (4000-4999
+    // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),
     MISSING_REQUIRED_FIELD("4001", "Required field is missing"),
     INVALID_FORMAT("4002", "Invalid document format. Only PDF and image files are allowed"),
@@ -94,6 +94,8 @@ public enum ErrorCodes {
     INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
     INVALID_DID("4013", "No DID found for the provided identifier"),
     DATE_UNAVAILABLE("4012", "The selected date is not available for booking"),
+    INVALID_NONCE("4013", "Invalid NONCE"),
+    SIGNATURE_FAILED("4014", "Signature verification failed"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),

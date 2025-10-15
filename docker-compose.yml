@@ -30,6 +30,20 @@ services:
       - sludi-network
     restart: unless-stopped
 
+  redis:
+    image: redis:latest
+    container_name: redis-container
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--requirepass", "MyStrongRedisPassword", "--appendonly", "yes"]
+    environment:
+      - REDIS_PASSWORD=MyStrongRedisPassword
+    volumes:
+      - ./redis_data:/data
+    networks:
+      - sludi-network
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -40,15 +54,21 @@ services:
     depends_on:
       - postgres
       - ipfs
+      - redis
     environment:
       # === Application Settings ===
-      SEVER_PORT: 5000
+      SERVER_PORT: 5000
       SPRING_APPLICATION_NAME: sludi
 
       # ==== Database ====
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluditest
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: mysecretpassword
+
+      # ==== Redis ====
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: MyStrongRedisPassword
 
       # ==== IPFS ====
       IPFS_API_HOST: ipfs
@@ -68,10 +88,11 @@ services:
       SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/cert.pem
       SLUDI_ORGANIZATION_MSP_ID: Org1MSP
       SLUDI_ISSUER_DID: did:sludi:government789
+
     volumes:
       - /home/tishan/FYP/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.8.102"  # Change to actual Fabric peer IP if not local
+      - "peer0.org1.example.com:192.168.8.102"
     networks:
       - sludi-network
     restart: unless-stopped

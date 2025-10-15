@@ -26,9 +26,6 @@ public class Wallet {
 
     private String didId;
 
-    @Embedded
-    private WalletCredential credentials;
-
     private LocalDateTime createdAt;
     private LocalDateTime lastAccessed;
     private String status;
