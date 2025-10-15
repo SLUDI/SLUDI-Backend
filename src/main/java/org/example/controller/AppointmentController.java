@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/appointments")
+@RequestMapping("/api/appointments")
 @CrossOrigin(origins = "*")
 public class AppointmentController {
 

@@ -10,9 +10,6 @@ public class WalletRequest {
     @NotBlank(message = "DID is required")
     private String did;
 
-    @NotBlank(message = "Password is required")
-    private String password;
-
     @NotBlank(message = "PublicKey is required")
     private String publicKey;
 }

@@ -89,10 +89,13 @@ services:
       SLUDI_ORGANIZATION_MSP_ID: Org1MSP
       SLUDI_ISSUER_DID: did:sludi:government789
 
+      # === Security Configuration ===
+      JWT_SECRET_KEY: 2lYHIETKr8xHDeLmEW5nNuAdSxllkI50+HxD2F2ZBpXXV8Ze0VAMJtJox9YLYxFUTm7Urun6vmGKRr64Avs9jQ==
+
     volumes:
       - /home/tishan/FYP/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.8.102"
+      - "peer0.org1.example.com:192.168.8.104"
     networks:
       - sludi-network
     restart: unless-stopped

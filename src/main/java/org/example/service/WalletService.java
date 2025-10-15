@@ -98,7 +98,7 @@ public class WalletService {
     /**
      * Create wallet with publicKey
      */
-    public Map<String, String> createWallet(String did, String password, String publicKeyStr) {
+    public Map<String, String> createWallet(String did, String publicKeyStr) {
         try {
             validateWalletCreationInputs(did, publicKeyStr);
 

@@ -22,6 +22,29 @@ public class SecurityConfiguration {
     private final AuthenticationProvider authenticationProvider;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    // Allow public endpoints
+    private static final String[] PUBLIC_URLS = {
+            "/auth/**",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/swagger-ui.html",
+            "/swagger-resources/**",
+            "/webjars/**",
+            "/api/wallet/verify-did",
+            "/api/appointments/**",
+            "/api/blockchain/**",
+            "/api/citizen-user/**",
+            "/api/deepfake/**",
+            "/api/did/**",
+            "/api/vc/**",
+            "/api/wallet/**"
+    };
+
+    //  Require authentication for only this endpoint
+    private static final String[] PRIVATE_URL = {
+            "/api/wallet/retrieve"
+    };
+
     public SecurityConfiguration(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             AuthenticationProvider authenticationProvider
@@ -35,8 +58,12 @@ public class SecurityConfiguration {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
-                        .anyRequest().authenticated()
+                        // Permit all public URLs
+                        .requestMatchers(PUBLIC_URLS).permitAll()
+                        // Require auth for everything else
+                        .requestMatchers(PRIVATE_URL).authenticated()
+                        // Deny everything else
+                        .anyRequest().denyAll()
                 )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -50,14 +77,13 @@ public class SecurityConfiguration {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
         configuration.setAllowedOrigins(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
     }
 }
