@@ -7,10 +7,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.enums.KYCStatus;
 import org.example.enums.UserStatus;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,7 +23,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "citizen_users")
-public class CitizenUser {
+public class CitizenUser implements UserDetails {
 
     @Id
     private UUID id;
@@ -80,4 +83,19 @@ public class CitizenUser {
 
     @OneToOne(mappedBy = "citizenUser", cascade = CascadeType.ALL, orphanRemoval = true)
     private Appointment appointment;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of();
+    }
+
+    @Override
+    public String getPassword() {
+        return "";
+    }
+
+    @Override
+    public String getUsername() {
+        return didId;
+    }
 }

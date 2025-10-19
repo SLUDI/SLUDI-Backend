@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -231,6 +233,9 @@ public class WalletController {
      * Get wallet status
      */
     @GetMapping("/retrieve")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(Authentication authentication) {
         try {
             String fullDid = getString(authentication);
