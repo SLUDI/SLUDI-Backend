@@ -12,7 +12,8 @@ public enum ErrorCodes {
     INVALID_AUTHRTIZATION_HEADER("1007", "Invalid authorization header provided"),
     UNAUTHORIZED("1008", "Unauthorized access"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
-    
+
+
     // Data Processing Errors (2000-2999)
     ADDRESS_PARSE_ERROR("2000", "Failed to parse address data"),
     ADDRESS_CONVERSION_ERROR("2001", "Failed to convert address to JSON"),
@@ -27,8 +28,13 @@ public enum ErrorCodes {
     FAILD_TO_RETRIEVE_USER_PROFILE("2010", "Failed to retrieve user profile"),
     USER_DEACTIVATION_FAILED("2011", "User deactivation failed"),
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
-    
-    
+    USER_EXISTS_WITH_USERORGANIZATIONID("2013","User with this user-organization-id exists"),
+    TEMPLATE_NOT_FOUND("2014", "Template not found"),
+    DUPLICATE_ORGANIZATION("2015", "Organization with registration number already exists"),
+    ORGANIZATION_REGISTRATION_FAILED("2016","Organization Registration failed"),
+
+
+
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
     BIOMETRIC_RETRIEVAL_ERROR("3001", "Failed to retrieve biometric data"),
@@ -59,7 +65,7 @@ public enum ErrorCodes {
     SYSTEM_STATS_FAILED("3026", "Failed to retrieve system statistics"),
     AUTH_LOG_RETRIEVAL_FAILED("3027", "Failed to retrieve authentication logs"),
     DID_RETRIEVAL_FAILED("3028", "Failed to retrieve DIDs document from blockchain"),
-    
+
     // Validation Errors (4000-4999
     INVALID_INPUT("4000", "Invalid input provided"),
     MISSING_REQUIRED_FIELD("4001", "Required field is missing"),
