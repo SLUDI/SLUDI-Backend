@@ -77,6 +77,7 @@ public enum ErrorCodes {
     CRYPTO_INITIALIZATION_FAILED("3031", "Failed to initialize unified signature service"),
     SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
     PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
+    DID_DELETION_FAILED("3034", "Failed to delete DID on blockchain"),
     
     // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),

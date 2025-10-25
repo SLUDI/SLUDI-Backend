@@ -226,6 +226,25 @@ public class HyperledgerService {
     }
 
     /**
+     * Delete a DID document from the ledger
+     */
+    public void deleteDID(String didId) {
+        try {
+            log.info("Deleting DID: {}", didId);
+
+            // Call chaincode transaction "DeleteDID"
+            byte[] result = contract.submitTransaction("DeleteDID", didId);
+            String resultMessage = new String(result);
+
+            log.info("Successfully deleted DID: {} - {}", didId, resultMessage);
+
+        } catch (Exception e) {
+            log.error("Failed to delete DID: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.DID_DELETION_FAILED, e);
+        }
+    }
+
+    /**
      * Check if DID exist on blockchain
      */
     public boolean didExists(String didId) {

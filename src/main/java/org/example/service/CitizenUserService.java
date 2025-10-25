@@ -578,7 +578,7 @@ public class CitizenUserService {
     private void logUserActivity(UUID userId, String activityType, String description, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
-                .userId(userId)
+                .userId(String.valueOf(userId)) // Changed this for run the backend
                 .authType(activityType)
                 .result(description)
                 .deviceInfo(deviceInfo != null ? convertDeviceInfoToJson(deviceInfo) : null)

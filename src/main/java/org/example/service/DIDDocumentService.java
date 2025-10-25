@@ -190,7 +190,7 @@ public class DIDDocumentService {
             citizenUser = citizenUserRepository.save(citizenUser);
 
             // Log the registration activity
-            logUserActivity(citizenUser.getId(), "DID_CREATION", "User DID creation successfully", request.getDeviceInfo());
+            logUserActivity(citizenUser.getId().toString(), "DID_CREATION", "User DID creation successfully", request.getDeviceInfo());
 
             // Return success response
             return DIDCreateResponseDto.builder()
@@ -254,7 +254,7 @@ public class DIDDocumentService {
     /**
      * Deactivate user account
      */
-    public String deactivateUser(UUID userId, String reason) {
+    public String deactivateDID(UUID userId, String reason) {
         try {
             CitizenUser user = citizenUserRepository.findById(userId)
                     .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
@@ -268,14 +268,36 @@ public class DIDDocumentService {
             citizenUserRepository.save(user);
 
             // Log deactivation
-            logUserActivity(userId, "USER_DEACTIVATION", "User deactivated: " + reason, null);
-            createAuditTrail(userId, "deactivate", "user", userId.toString(),
-                    Map.of("status", "ACTIVE"), Map.of("status", "DEACTIVATED"), reason);
+            logUserActivity(userId.toString(), "USER_DEACTIVATION", "User deactivated: " + reason, null);
 
             return "User account deactivated successfully";
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.USER_DEACTIVATION_FAILED, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Delete DID document
+     */
+    public String deleteDID(String did) {
+        try {
+            DIDDocument user = didDocumentRepository.findById(did)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Delete DID on blockchain
+            hyperledgerService.deleteDID(did);
+
+            // Delete DID on PostgreSQL
+            didDocumentRepository.deleteById(did);
+
+            // Log deactivation
+            logUserActivity(did, "DID_DELETE", "Delete DID Document: ", null);
+
+            return "DID Document delete successfully";
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.DID_DELETION_FAILED, e.getMessage(), e);
         }
     }
 
@@ -438,7 +460,7 @@ public class DIDDocumentService {
         }
     }
 
-    private void logUserActivity(UUID userId, String activityType, String description, DeviceInfoDto deviceInfo) {
+    private void logUserActivity(String userId, String activityType, String description, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
@@ -452,7 +474,7 @@ public class DIDDocumentService {
         authLogRepository.save(log);
     }
 
-    private void logSuccessfulAuthentication(UUID userId, String userDid, String authMethod, DeviceInfoDto deviceInfo) {
+    private void logSuccessfulAuthentication(String userId, String userDid, String authMethod, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
@@ -497,11 +519,5 @@ public class DIDDocumentService {
         // This could involve checking against a list of approved verifiers
         return verifierDid.startsWith("did:sludi:government") ||
                 verifierDid.startsWith("did:sludi:service");
-    }
-
-    private void createAuditTrail(UUID userId, String actionType, String resourceType, String resourceId,
-                                  Map<String, Object> oldValues, Map<String, Object> newValues, String reason) {
-        // Implementation would create audit trail record
-        // This is a placeholder for the audit functionality
     }
 }

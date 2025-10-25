@@ -121,11 +121,8 @@ public class DIDDocumentController {
             @RequestHeader(value = "Authorization", required = true) String authHeader) {
 
         try {
-            // Only allow self-deactivation or admin deactivation
-            validateDeactivationAuthorization(authHeader, userId);
-
             String reason = requestBody.getOrDefault("reason", "User requested deactivation");
-            String result = didDocumentService.deactivateUser(userId, reason);
+            String result = didDocumentService.deactivateDID(userId, reason);
 
             return ResponseEntity.ok(ApiResponseDto.<String>builder()
                     .success(true)
@@ -148,6 +145,43 @@ public class DIDDocumentController {
                     .body(ApiResponseDto.<String>builder()
                             .success(false)
                             .message("Failed to deactivate user")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Deactivate user account
+     * POST /api/did/delete
+     */
+    @DeleteMapping("/delete/{did}")
+    public ResponseEntity<ApiResponseDto<String>> deactivateUser(@PathVariable String did) {
+
+        try {
+            String result = didDocumentService.deleteDID(did);
+
+            return ResponseEntity.ok(ApiResponseDto.<String>builder()
+                    .success(true)
+                    .message(result)
+                    .data(result)
+                    .timestamp(java.time.Instant.now())
+                    .build());
+
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<String>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(java.time.Instant.now())
+                            .build());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<String>builder()
+                            .success(false)
+                            .message("Failed to delete DID")
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(java.time.Instant.now())
                             .build());
@@ -261,25 +295,6 @@ public class DIDDocumentController {
 
         if (!tokenUserId.equals(userId)) {
             throw new SludiException(ErrorCodes.UNAUTHORIZED);
-        }
-    }
-
-    /**
-     * Validate deactivation authorization
-     * @param authHeader
-     * @param userId
-     */
-    private void validateDeactivationAuthorization(String authHeader, UUID userId) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SludiException(ErrorCodes.INVALID_AUTHRTIZATION_HEADER);
-        }
-
-        String token = authHeader.substring(7);
-        UUID tokenUserId = extractUserIdFromToken(token);
-        String userRole = extractRoleFromToken(token);
-
-        if (!tokenUserId.equals(userId) && !"ADMIN".equals(userRole)) {
-            throw new SludiException(ErrorCodes.UNAUTHORIZED_USER, "Unauthorized to deactivate this user");
         }
     }
 
