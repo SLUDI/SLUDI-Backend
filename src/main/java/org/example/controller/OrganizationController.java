@@ -22,7 +22,6 @@ public class OrganizationController {
 
     /**
      * Create new organization (Super Admin only)
-     * POST /api/v1/organizations
      */
     @PostMapping("/create-organization")
     public ResponseEntity<ApiResponseDto<OrganizationResponse>> createOrganization(
@@ -42,4 +41,25 @@ public class OrganizationController {
                         .build());
 
     }
+
+    /**
+     * Update organization details
+     */
+    @PutMapping("/update-organization/{id}")
+    public ResponseEntity<ApiResponseDto<OrganizationResponse>> updateOrganization(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrganizationRequest request){
+        log.info("Updating organization: {}", request.getName());
+        long superAdminId = 134344656;
+        OrganizationResponse response = organizationService.updateOrganization(id, request, superAdminId);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponseDto.<OrganizationResponse>builder()
+                        .success(true)
+                        .message("Organization updated successfully")
+                        .data(response)
+                        .timestamp(Instant.now())
+                        .build());
+    }
+
 }

@@ -32,7 +32,7 @@ public enum ErrorCodes {
     TEMPLATE_NOT_FOUND("2014", "Template not found"),
     TEMPLATE_EXISTS_WITH_CODE("2015","Template is already exists"),
     DUPLICATE_ORGANIZATION("2016", "Organization with registration number already exists"),
-    ORGANIZATION_REGISTRATION_FAILED("2017","Organization Registration failed"),
+    ORGANIZATION_NOT_FOUND("2017","Organization not found"),
 
 
 

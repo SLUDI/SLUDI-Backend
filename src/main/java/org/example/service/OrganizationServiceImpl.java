@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.CreateOrganizationRequest;
 import org.example.dto.OrganizationResponse;
+import org.example.dto.UpdateOrganizationRequest;
 import org.example.entity.Organization;
 import org.example.entity.PermissionTemplate;
 import org.example.exception.ErrorCodes;
@@ -77,6 +78,41 @@ public class OrganizationServiceImpl implements OrganizationService{
                 organization.getId(), organization.getOrgCode());
 
         return  toOrganizationResponse(organization);
+    }
+
+    @Override
+    public OrganizationResponse updateOrganization (Long organizationId, UpdateOrganizationRequest request, Long updatedBy){
+        log.info("Updating organization ID: {}",organizationId);
+
+        Organization organization = getOrganizationEntity(organizationId);
+
+        if(request.getName() != null){
+            organization.setName(request.getName());
+        }
+        if (request.getContactEmail() != null) {
+            organization.setContactEmail(request.getContactEmail());
+        }
+        if (request.getContactPhone() != null) {
+            organization.setContactPhone(request.getContactPhone());
+        }
+        if (request.getAddress() != null) {
+            organization.setAddress(request.getAddress());
+        }
+        if (request.getCity() != null) {
+            organization.setCity(request.getCity());
+        }
+        if (request.getPostalCode() != null) {
+            organization.setPostalCode(request.getPostalCode());
+        }
+
+        organization = organizationRepository.save(organization);
+
+        return toOrganizationResponse(organization);
+    }
+
+    private Organization getOrganizationEntity(Long organizationId) {
+        return organizationRepository.findById(organizationId)
+                .orElseThrow(()-> new SludiException(ErrorCodes.ORGANIZATION_NOT_FOUND, String.valueOf(organizationId)));
     }
 
     private OrganizationResponse toOrganizationResponse(Organization org) {

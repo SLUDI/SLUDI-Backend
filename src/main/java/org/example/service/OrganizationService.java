@@ -2,6 +2,7 @@ package org.example.service;
 
 import org.example.dto.CreateOrganizationRequest;
 import org.example.dto.OrganizationResponse;
+import org.example.dto.UpdateOrganizationRequest;
 
 public interface OrganizationService {
     /**
@@ -9,5 +10,7 @@ public interface OrganizationService {
      * Initial status: PENDING
      */
     OrganizationResponse createOrganization (CreateOrganizationRequest request, Long superAdminId);
+
+    OrganizationResponse updateOrganization (Long organizationId, UpdateOrganizationRequest request, Long updatedBy);
 
 }
