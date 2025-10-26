@@ -2,7 +2,7 @@ package org.example.controller;
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.catalina.security.SecurityUtil;
+
 import org.example.dto.*;
 import org.example.service.OrganizationService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 @Slf4j
@@ -62,4 +63,31 @@ public class OrganizationController {
                         .build());
     }
 
+
+    @GetMapping("/")
+    public ResponseEntity<ApiResponseDto<List<OrganizationResponse>>> getAllOrganizations(){
+        log.info("Fetching all organizations");
+        List<OrganizationResponse> organizationResponses = organizationService.getAllOrganizations();
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .body(ApiResponseDto.<List<OrganizationResponse>>builder()
+                        .success(true)
+                        .message("Organizations fetched successfully")
+                        .data(organizationResponses)
+                        .timestamp(Instant.now())
+                        .build());
+    }
+
+    @GetMapping("/get-organization/{id}")
+    public ResponseEntity<ApiResponseDto<OrganizationResponse>> getOrganizationById(
+           @PathVariable Long id){
+        log.info("Fetching organization {}",id);
+        OrganizationResponse response = organizationService.getOrganizationById(id);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .body(ApiResponseDto.<OrganizationResponse>builder()
+                        .success(true)
+                        .message("Organization fetched successfully")
+                        .data(response)
+                        .timestamp(Instant.now())
+                        .build());
+    }
 }

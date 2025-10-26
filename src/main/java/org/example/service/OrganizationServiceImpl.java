@@ -15,7 +15,9 @@ import org.example.util.OrgCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -108,6 +110,19 @@ public class OrganizationServiceImpl implements OrganizationService{
         organization = organizationRepository.save(organization);
 
         return toOrganizationResponse(organization);
+    }
+
+    @Override
+    public List<OrganizationResponse> getAllOrganizations(){
+        List<Organization> organizations = organizationRepository.findAll();
+        return organizations.stream()
+                .map(this::toOrganizationResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public OrganizationResponse getOrganizationById(Long id){
+        return toOrganizationResponse(getOrganizationEntity(id));
     }
 
     private Organization getOrganizationEntity(Long organizationId) {
