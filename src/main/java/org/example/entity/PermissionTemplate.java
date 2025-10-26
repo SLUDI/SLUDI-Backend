@@ -18,6 +18,7 @@ public class PermissionTemplate {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "template_id", nullable = false)
     private Long id;
 
     @Column(name = "template_code", unique = true, nullable = false, length = 50)

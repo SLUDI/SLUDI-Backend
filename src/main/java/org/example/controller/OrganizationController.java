@@ -36,7 +36,7 @@ public class OrganizationController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponseDto.<OrganizationResponse>builder()
                         .success(true)
-                        .message("Organization registred successfully")
+                        .message("Organization registered successfully")
                         .data(response)
                         .timestamp(Instant.now())
                         .build());

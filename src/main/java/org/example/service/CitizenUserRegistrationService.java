@@ -355,9 +355,11 @@ public class CitizenUserRegistrationService {
     private BiometricVerificationResult verifyBiometricAuthenticity(BiometricDataDto biometric) {
         // AI deepfake detection for face image
         if (biometric.getFaceImage() != null) {
-            AIDetectionResult faceResult = aiIntegration.detectDeepfake(biometric.getFaceImage(), "face");
-            if (!faceResult.isAuthentic()) {
-                return BiometricVerificationResult.failed("Face image failed deepfake detection");
+            DeepFakeDetectionResult faceResult = aiIntegration.detectDeepfake(biometric.getFaceImage());
+            if (!"Success".equalsIgnoreCase(faceResult.getStatus())) {
+                return BiometricVerificationResult.failed(
+                        "Deepfake detection failed to process face image: " + faceResult.getDetails()
+                );
             }
         }
 

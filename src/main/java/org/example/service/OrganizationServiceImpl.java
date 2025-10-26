@@ -19,6 +19,7 @@ import java.util.logging.Logger;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional
 public class OrganizationServiceImpl implements OrganizationService{
 
     private final PermissionService permissionService;
@@ -29,7 +30,6 @@ public class OrganizationServiceImpl implements OrganizationService{
     * Initial status: PENDING
     * */
     @Override
-    @Transactional
     public OrganizationResponse createOrganization (CreateOrganizationRequest request, Long superAdminId){
         log.info("Creating new organization: {} by super admin: {}",request.getName(),superAdminId);
 

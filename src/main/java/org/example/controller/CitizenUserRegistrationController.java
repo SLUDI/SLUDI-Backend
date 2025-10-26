@@ -91,6 +91,7 @@ public class CitizenUserRegistrationController {
                             .timestamp(java.time.Instant.now())
                             .build());
 
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.<UserProfileResponseDto>builder()

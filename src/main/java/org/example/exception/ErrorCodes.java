@@ -30,8 +30,9 @@ public enum ErrorCodes {
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
     USER_EXISTS_WITH_USERORGANIZATIONID("2013","User with this user-organization-id exists"),
     TEMPLATE_NOT_FOUND("2014", "Template not found"),
-    DUPLICATE_ORGANIZATION("2015", "Organization with registration number already exists"),
-    ORGANIZATION_REGISTRATION_FAILED("2016","Organization Registration failed"),
+    TEMPLATE_EXISTS_WITH_CODE("2015","Template is already exists"),
+    DUPLICATE_ORGANIZATION("2016", "Organization with registration number already exists"),
+    ORGANIZATION_REGISTRATION_FAILED("2017","Organization Registration failed"),
 
 
 
