@@ -1,6 +1,7 @@
 package org.example.service;
 
 import org.example.dto.CreateOrganizationRequest;
+import org.example.dto.CustomPermissionsRequest;
 import org.example.dto.OrganizationResponse;
 import org.example.dto.UpdateOrganizationRequest;
 
@@ -18,5 +19,7 @@ public interface OrganizationService {
     List<OrganizationResponse> getAllOrganizations();
 
     OrganizationResponse getOrganizationById(Long id);
+
+    OrganizationResponse approveOrganization(Long organizationId, Long superAdminId );
 
 }

@@ -90,4 +90,21 @@ public class OrganizationController {
                         .timestamp(Instant.now())
                         .build());
     }
+
+    @PutMapping("/approve/{id}")
+    public ResponseEntity<ApiResponseDto<OrganizationResponse>> approveOrganization(
+            @PathVariable Long id){
+        log.info("Approving organization: {}", id);
+        long superAdminId = 134344656;
+        OrganizationResponse response = organizationService.approveOrganization(id,superAdminId);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponseDto.<OrganizationResponse>builder()
+                        .success(true)
+                        .message("Approved organization successfully")
+                        .data(response)
+                        .timestamp(Instant.now())
+
+                        .build());
+   }
 }
