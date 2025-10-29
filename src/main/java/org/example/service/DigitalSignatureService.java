@@ -8,7 +8,6 @@ import org.example.exception.SludiException;
 import org.hyperledger.fabric.client.identity.Identity;
 import org.hyperledger.fabric.client.identity.Signer;
 import org.hyperledger.fabric.client.identity.X509Identity;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -45,14 +44,16 @@ public class DigitalSignatureService {
     @Value("${sludi.security.signature.audit.enabled:true}")
     private boolean auditEnabled;
 
-    @Autowired
-    private Signer fabricSigner;
-
-    @Autowired
-    private Identity fabricIdentity;
+    final private Signer fabricSigner;
+    final private Identity fabricIdentity;
 
     // Certificate extracted from Fabric identity
     private X509Certificate organizationCertificate;
+
+    public DigitalSignatureService(Signer fabricSigner, Identity fabricIdentity) {
+        this.fabricSigner = fabricSigner;
+        this.fabricIdentity = fabricIdentity;
+    }
 
     /**
      * Initializes service from Fabric Identity.

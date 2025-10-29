@@ -12,7 +12,6 @@ import io.ipfs.api.MerkleNode;
 import io.ipfs.api.NamedStreamable;
 import io.ipfs.multihash.Multihash;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -299,7 +298,7 @@ public class IPFSIntegration {
 
             // Encrypt document if encryption is enabled
             byte[] processedData = encryptionEnabled ?
-                    cryptographyService.encryptData(Base64.getEncoder().encodeToString(documentData))
+                    cryptographyService.encrypt(Base64.getEncoder().encodeToString(documentData))
                             .getBytes(StandardCharsets.UTF_8) : documentData;
 
             // Store document data
@@ -358,7 +357,7 @@ public class IPFSIntegration {
             // Decrypt if data was encrypted
             byte[] originalData;
             if (metadata.isEncrypted()) {
-                String decryptedString = cryptographyService.decryptData(
+                String decryptedString = cryptographyService.decrypt(
                         new String(processedData, StandardCharsets.UTF_8));
                 originalData = Base64.getDecoder().decode(decryptedString);
             } else {

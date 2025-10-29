@@ -3,7 +3,6 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 import org.example.entity.Address;
-import org.example.entity.CitizenUser;
 import org.example.entity.SupportingDocument;
 import org.example.enums.KYCStatus;
 import org.example.enums.UserStatus;

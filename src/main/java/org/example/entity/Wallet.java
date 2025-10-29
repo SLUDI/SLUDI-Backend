@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import jakarta.persistence.*;
+import org.example.enums.WalletStatus;
 
 import java.time.LocalDateTime;
 
@@ -26,7 +27,15 @@ public class Wallet {
 
     private String didId;
 
+    @Column(columnDefinition = "TEXT")
+    private String certificatePem;
+
+    @Column(columnDefinition = "TEXT")
+    private String publicKeyPem;
+
+    private String mspId;
+
     private LocalDateTime createdAt;
     private LocalDateTime lastAccessed;
-    private String status;
+    private WalletStatus status;
 }

@@ -1,8 +1,8 @@
 package org.example.security;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
-import io.jsonwebtoken.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import javax.crypto.Cipher;
@@ -13,75 +13,82 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 
+@Slf4j
 @Service
 public class CryptographyService {
 
-    @Value("${sludi.encryption.key}")
-    private String encryptionKey;
-
     private static final String AES_ALGORITHM = "AES/GCM/NoPadding";
-    private static final int GCM_IV_LENGTH = 12;
-    private static final int GCM_TAG_LENGTH = 16;
-    private static final int KEY_LENGTH = 256;
-    private static final int ITERATION_COUNT = 65536;
+    private static final int GCM_IV_LENGTH = 12; // 12 bytes for GCM IV
+    private static final int GCM_TAG_LENGTH = 16; // 16 bytes = 128 bits authentication tag
 
+    private final byte[] encryptionKey;
 
+    public CryptographyService(@Value("${sludi.encryption.key}") String base64Key) {
+        byte[] keyBytes = Base64.getDecoder().decode(base64Key);
+        if (keyBytes.length != 32) { // 256 bits
+            throw new IllegalArgumentException("Encryption key must be 32 bytes (256 bits) long");
+        }
+        this.encryptionKey = keyBytes;
+    }
 
     /**
-     * Encrypt sensitive data using AES-256-GCM
+     * Encrypt plain text using AES-256-GCM
      */
-    public String encryptData(String plainText) {
+    public String encrypt(String plainText) {
         try {
-            SecretKeySpec secretKey = new SecretKeySpec(getEncryptionKeyBytes(), "AES");
+            SecretKeySpec secretKey = new SecretKeySpec(encryptionKey, "AES");
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
-            
+
             // Generate random IV
             byte[] iv = new byte[GCM_IV_LENGTH];
             new SecureRandom().nextBytes(iv);
-            
-            GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec);
-            
-            byte[] encryptedData = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
-            
-            // Combine IV and encrypted data
-            byte[] encryptedWithIv = new byte[GCM_IV_LENGTH + encryptedData.length];
+
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+
+            byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+
+            // Combine IV + ciphertext
+            byte[] encryptedWithIv = new byte[GCM_IV_LENGTH + encrypted.length];
             System.arraycopy(iv, 0, encryptedWithIv, 0, GCM_IV_LENGTH);
-            System.arraycopy(encryptedData, 0, encryptedWithIv, GCM_IV_LENGTH, encryptedData.length);
-            
+            System.arraycopy(encrypted, 0, encryptedWithIv, GCM_IV_LENGTH, encrypted.length);
+
             return Base64.getEncoder().encodeToString(encryptedWithIv);
 
         } catch (Exception e) {
+            log.error("Encryption failed", e);
             throw new SludiException(ErrorCodes.ENCRYPTION_FAILED, "Failed to encrypt data", e);
         }
     }
 
     /**
-     * Decrypt sensitive data using AES-256-GCM
+     * Decrypt AES-256-GCM encrypted text
      */
-    public String decryptData(String encryptedText) {
+    public String decrypt(String encryptedBase64) {
         try {
-            byte[] encryptedWithIv = Base64.getDecoder().decode(encryptedText);
-            
-            // Extract IV and encrypted data
-            byte[] iv = new byte[GCM_IV_LENGTH];
-            byte[] encryptedData = new byte[encryptedWithIv.length - GCM_IV_LENGTH];
-            
-            System.arraycopy(encryptedWithIv, 0, iv, 0, GCM_IV_LENGTH);
-            System.arraycopy(encryptedWithIv, GCM_IV_LENGTH, encryptedData, 0, encryptedData.length);
-            
-            SecretKeySpec secretKey = new SecretKeySpec(getEncryptionKeyBytes(), "AES");
-            Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
-            GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
-            
-            byte[] decryptedData = cipher.doFinal(encryptedData);
-            return new String(decryptedData, StandardCharsets.UTF_8);
+            byte[] encryptedWithIv = Base64.getDecoder().decode(encryptedBase64);
+            if (encryptedWithIv.length < GCM_IV_LENGTH) {
+                throw new SludiException(ErrorCodes.DECRYPTION_FAILED, "Invalid encrypted data");
+            }
 
+            byte[] iv = Arrays.copyOfRange(encryptedWithIv, 0, GCM_IV_LENGTH);
+            byte[] encryptedData = Arrays.copyOfRange(encryptedWithIv, GCM_IV_LENGTH, encryptedWithIv.length);
+
+            SecretKeySpec secretKey = new SecretKeySpec(encryptionKey, "AES");
+            Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+
+            byte[] decrypted = cipher.doFinal(encryptedData);
+            return new String(decrypted, StandardCharsets.UTF_8);
+
+        } catch (SludiException e) {
+            throw e;
         } catch (Exception e) {
+            log.error("Decryption failed", e);
             throw new SludiException(ErrorCodes.DECRYPTION_FAILED, "Failed to decrypt data", e);
         }
     }
@@ -212,37 +219,6 @@ public class CryptographyService {
         }
     }
 
-    private byte[] getEncryptionKeyBytes() {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return digest.digest(encryptionKey.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.ENCRYPTION_KEY_ERROR, e);
-        }
-    }
-
-    /**
-     * Generate a secure key for wallet encryption
-     */
-    public SecretKey generateWalletKey(String password, byte[] salt) {
-
-        try {
-            PBEKeySpec spec = new PBEKeySpec(
-                    password.toCharArray(),
-                    salt,
-                    ITERATION_COUNT,
-                    KEY_LENGTH
-            );
-
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            byte[] keyBytes = factory.generateSecret(spec).getEncoded();
-
-            return new SecretKeySpec(keyBytes, "AES");
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.KEY_GENERATION_FAILED, e);
-        }
-    }
-
     /**
      * Generate key fingerprint
      */
@@ -269,7 +245,7 @@ public class CryptographyService {
     public byte[] encryptBiometricData(byte[] biometricData) {
         try {
             String base64Data = Base64.getEncoder().encodeToString(biometricData);
-            String encryptedData = encryptData(base64Data);
+            String encryptedData = encrypt(base64Data);
             return encryptedData.getBytes(StandardCharsets.UTF_8);
 
         } catch (Exception e) {
@@ -283,7 +259,7 @@ public class CryptographyService {
     public byte[] decryptBiometricData(byte[] encryptedBiometricData) {
         try {
             String encryptedString = new String(encryptedBiometricData, StandardCharsets.UTF_8);
-            String decryptedBase64 = decryptData(encryptedString);
+            String decryptedBase64 = decrypt(encryptedString);
             return Base64.getDecoder().decode(decryptedBase64);
 
         } catch (Exception e) {

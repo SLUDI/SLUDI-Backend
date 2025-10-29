@@ -12,4 +12,7 @@ public class WalletRequest {
 
     @NotBlank(message = "PublicKey is required")
     private String publicKey;
+
+    @NotBlank(message = "CSR PEM is required")
+    private String csrPem;
 }

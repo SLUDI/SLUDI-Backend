@@ -9,8 +9,8 @@ import org.example.entity.VerifiableCredential;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
-import org.hyperledger.fabric.client.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.hyperledger.fabric.client.Contract;
+import org.hyperledger.fabric.client.Gateway;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

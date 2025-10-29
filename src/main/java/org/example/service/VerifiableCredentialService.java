@@ -69,7 +69,7 @@ public class VerifiableCredentialService {
             CredentialSubject credentialSubject = mapToCredentialSubject(user, addressDto);
 
             String credentialSubjectJson = objectMapper.writeValueAsString(credentialSubject);
-            String credentialSubjectHash = cryptographyService.encryptData(credentialSubjectJson);
+            String credentialSubjectHash = cryptographyService.encrypt(credentialSubjectJson);
 
             List<SupportingDocumentResponseDto> supportingDocuments = mapSupportingDocuments(user, request);
 
@@ -158,7 +158,7 @@ public class VerifiableCredentialService {
             }
 
             log.info("Decrypting credential subject for credentialId: {}", credentialId);
-            String credentialSubjectJson = cryptographyService.decryptData(vcBlockChainResult.getCredentialSubjectHash());
+            String credentialSubjectJson = cryptographyService.decrypt(vcBlockChainResult.getCredentialSubjectHash());
 
             CredentialSubject credentialSubject;
             try {

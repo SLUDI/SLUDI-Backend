@@ -4,16 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.WalletStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.example.security.JwtService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -35,12 +36,15 @@ public class WalletService {
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final StringRedisTemplate redisTemplate;
     private final JwtService jwtService;
-
+    private final FabricCAService fabricCAService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private final String organization;
 
     public WalletService(
             HyperledgerService hyperledgerService,
-            OtpService otpService, MailService mailService,
+            OtpService otpService,
+            MailService mailService,
             CryptographyService cryptoService,
             WalletRepository walletRepository,
             CitizenUserRepository citizenUserRepository,
@@ -49,7 +53,9 @@ public class WalletService {
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
             VerifiableCredentialRepository verifiableCredentialRepository,
             StringRedisTemplate redisTemplate,
-            JwtService jwtService
+            JwtService jwtService,
+            FabricCAService fabricCAService,
+            @Value("${fabric.organization}") String organization
     ) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
@@ -63,6 +69,8 @@ public class WalletService {
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.redisTemplate = redisTemplate;
         this.jwtService = jwtService;
+        this.fabricCAService = fabricCAService;
+        this.organization = organization;
     }
 
     /**
@@ -96,9 +104,9 @@ public class WalletService {
     }
 
     /**
-     * Create wallet with publicKey
+     * Create wallet with public key
      */
-    public Map<String, String> createWallet(String did, String publicKeyStr) {
+    public Map<String, String> createWallet(String did, String publicKeyStr, String csrPem) {
         try {
             validateWalletCreationInputs(did, publicKeyStr);
 
@@ -123,13 +131,19 @@ public class WalletService {
             // Save public key in DB
             savePublicKey(publicKeyStr, did, user, didDocument);
 
-            // Create and save wallet
-            Wallet wallet = createAndSaveWallet(did, user);
+            String certificatePem = fabricCAService.registerAndEnrollWithCsr(did, organization, csrPem);
 
-            // Fetch and encrypt VCs
+            // Encrypt sensitive data before storing
+            String encryptedCert = cryptoService.encrypt(certificatePem);
+            String encryptedPubKey = cryptoService.encrypt(publicKeyStr);
+
+            // Create and save wallet entity
+            Wallet wallet = createAndSaveWallet(did, user, encryptedCert, encryptedPubKey);
+
+            // Optionally store encrypted verifiable credentials (if implemented)
             storeEncryptedVerifiableCredentials(wallet);
 
-            // Return response
+            // Response payload
             Map<String, String> response = new HashMap<>();
             response.put("walletId", wallet.getId());
             response.put("publicKey", publicKeyStr);
@@ -138,6 +152,7 @@ public class WalletService {
         } catch (SludiException e) {
             throw e;
         } catch (Exception e) {
+            log.error("Wallet creation failed for DID: {}", did, e);
             throw new SludiException(ErrorCodes.WALLET_CREATION_FAILED, e);
         }
     }
@@ -217,7 +232,7 @@ public class WalletService {
             List<WalletVerifiableCredentialDto> walletVerifiableCredentialDtos = new ArrayList<>();
 
             for (WalletVerifiableCredential walletVerifiableCredential : walletVerifiableCredentialList) {
-                String credentialSubjectJson = cryptoService.decryptData(walletVerifiableCredential.getEncryptedCredential());
+                String credentialSubjectJson = cryptoService.decrypt(walletVerifiableCredential.getEncryptedCredential());
                 CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
 
                 ProofData proofData = walletVerifiableCredential.getVerifiableCredential().getProof();
@@ -284,14 +299,16 @@ public class WalletService {
         publicKeyRepository.save(publicKey);
     }
 
-    private Wallet createAndSaveWallet(String did, CitizenUser user) {
+    private Wallet createAndSaveWallet(String did, CitizenUser user, String encryptedCert, String encryptedPubKey) {
         Wallet wallet = Wallet.builder()
                 .id(UUID.randomUUID().toString())
-                .didId(did)
                 .citizenUser(user)
+                .didId(did)
+                .certificatePem(encryptedCert)
+                .publicKeyPem(encryptedPubKey)
+                .status(WalletStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .lastAccessed(LocalDateTime.now())
-                .status("ACTIVE")
                 .build();
 
         return walletRepository.save(wallet);
