@@ -3,7 +3,6 @@ package org.example.controller;
 import org.example.dto.ApiResponseDto;
 import org.example.dto.SystemStatsDto;
 import org.example.service.HyperledgerService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,8 +15,11 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class BlockchainController {
 
-    @Autowired
-    private HyperledgerService hyperledgerService;
+    private final HyperledgerService hyperledgerService;
+
+    public BlockchainController(HyperledgerService hyperledgerService) {
+        this.hyperledgerService = hyperledgerService;
+    }
 
     @PostMapping("/init-ledger")
     public ResponseEntity<ApiResponseDto<Map<String, String>>> initializeLedger() {

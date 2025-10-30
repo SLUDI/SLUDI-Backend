@@ -1,14 +1,18 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
+import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.WalletService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.validation.annotation.Validated;
 
@@ -21,8 +25,11 @@ import java.util.Map;
 @Validated
 public class WalletController {
 
-    @Autowired
-    private WalletService walletService;
+    private final WalletService walletService;
+
+    public WalletController(WalletService walletService) {
+        this.walletService = walletService;
+    }
 
     /**
      * Verify DID and initiate wallet creation
@@ -63,7 +70,7 @@ public class WalletController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.<String>builder()
                             .success(false)
-                            .message("Failed to create Wallet")
+                            .message("Failed to verify DID")
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(Instant.now())
                             .build());
@@ -121,7 +128,7 @@ public class WalletController {
             @Valid @RequestBody WalletRequest request) {
         try {
             String id = "did:sludi:" + request.getDid();
-            Map<String, String> result = walletService.createWallet(id, request.getPassword(), request.getPublicKey());
+            Map<String, String> result = walletService.createWallet(id, request.getPublicKey());
             return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
                     .success(true)
                     .message("Wallet created successfully")
@@ -148,21 +155,101 @@ public class WalletController {
     }
 
     /**
+     * Generate and store challenge (nonce)
+     */
+    @PostMapping("/generate-challenge")
+    public ResponseEntity<ApiResponseDto<Map<String, String>>> generateChallenge(
+            @Valid @RequestBody WalletChallengeRequestDto request) {
+
+        String did = "did:sludi:" + request.getDid();
+        log.info("Generating authentication challenge for DID [{}]", did);
+
+        try {
+            String nonce = walletService.generateChallenge(did);
+            Map<String, String> response = Map.of("nonce", nonce);
+
+            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                    .success(true)
+                    .message("Challenge generated successfully")
+                    .data(response)
+                    .timestamp(Instant.now())
+                    .build());
+
+        } catch (Exception e) {
+            log.error("Error generating challenge for DID [{}]: {}", did, e.getMessage(), e);
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<Map<String, String>>builder()
+                            .success(false)
+                            .message("Failed to generate challenge")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Verify challenge signature and issue JWT
+     */
+    @PostMapping("/verify-challenge")
+    public ResponseEntity<ApiResponseDto<Map<String, String>>> verifyChallenge(
+            @Valid @RequestBody WalletVerificationRequestDto request) {
+
+        String did = "did:sludi:" + request.getDid();
+        log.info("Verifying challenge for DID [{}]", did);
+
+        try {
+            Map<String, String> result = walletService.verifyChallenge(did, request.getSignature());
+            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                    .success(true)
+                    .message("Authentication successful")
+                    .data(result)
+                    .timestamp(Instant.now())
+                    .build());
+
+        } catch (SludiException e) {
+            log.warn("Challenge verification failed for [{}]: {}", did, e.getMessage());
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<Map<String, String>>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build());
+
+        } catch (Exception e) {
+            log.error("Unexpected error verifying challenge for DID [{}]: {}", did, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<Map<String, String>>builder()
+                            .success(false)
+                            .message("Failed to verify challenge")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build());
+        }
+    }
+
+    /**
      * Get wallet status
      */
     @GetMapping("/retrieve")
-    public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(
-            @RequestParam String did,
-            @RequestParam String password) {
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(Authentication authentication) {
         try {
-            String id = "did:sludi:" + did;
-            WalletDto walletDto = walletService.retrieveWallet(id, password);
+            String fullDid = getString(authentication);
+
+            // Retrieve wallet using DID
+            WalletDto walletDto = walletService.retrieveWallet(fullDid);
+
             return ResponseEntity.ok(ApiResponseDto.<WalletDto>builder()
                     .success(true)
                     .message("Wallet retrieved successfully")
                     .data(walletDto)
                     .timestamp(java.time.Instant.now())
                     .build());
+
         } catch (SludiException e) {
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
                     .body(ApiResponseDto.<WalletDto>builder()
@@ -181,4 +268,24 @@ public class WalletController {
                             .build());
         }
     }
+
+    private static String getString(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");
+        }
+
+        // Extract the authenticated user's DID
+        String didId;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserDetails userDetails) {
+            didId = userDetails.getUsername(); // because loadUserByUsername(did) in your service
+        } else {
+            didId = principal.toString();
+        }
+
+        // Ensure the DID is in full form
+        return didId.startsWith("did:sludi:") ? didId : "did:sludi:" + didId;
+    }
+
 }

@@ -5,6 +5,8 @@ import lombok.Data;
 import org.example.entity.Address;
 import org.example.entity.CitizenUser;
 import org.example.entity.SupportingDocument;
+import org.example.enums.KYCStatus;
+import org.example.enums.UserStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,8 +28,8 @@ public class CitizenUserDTO {
     private String bloodGroup;
     private Address address;
     private List<SupportingDocument> supportingDocuments;
-    private CitizenUser.UserStatus status;
-    private CitizenUser.KYCStatus kycStatus;
+    private UserStatus status;
+    private KYCStatus kycStatus;
     private String didId;
     private String publicKey;
     private String fingerprintIpfsHash;

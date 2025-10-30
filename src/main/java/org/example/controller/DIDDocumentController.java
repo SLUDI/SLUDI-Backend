@@ -1,13 +1,12 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.service.DIDDocumentService;
 import org.example.exception.SludiException;
 import org.example.exception.HttpStatusHandler;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,18 +14,18 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/did")
 @CrossOrigin(origins = "*")
 public class DIDDocumentController {
+    
+    private final DIDDocumentService didDocumentService;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DIDDocumentController.class.getName());
-
-    @Autowired
-    private DIDDocumentService didDocumentService;
+    public DIDDocumentController(DIDDocumentService didDocumentService) {
+        this.didDocumentService = didDocumentService;
+    }
 
     /**
      * Register new user and create DID
@@ -36,7 +35,7 @@ public class DIDDocumentController {
     public ResponseEntity<ApiResponseDto<DIDCreateResponseDto>> createDID(
             @Valid @RequestBody DIDCreateRequestDto request) {
 
-        LOGGER.info("Received user NIC: {} for DID create", request.getNic());
+        log.info("Received user NIC: {} for DID create", request.getNic());
 
         try {
             DIDCreateResponseDto response = didDocumentService.createDID(request);
@@ -51,7 +50,7 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.error("User registration failed: {}", ex.getMessage(), ex);
+            log.error("User registration failed: {}", ex.getMessage(), ex);
 
             ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)
@@ -63,7 +62,7 @@ public class DIDDocumentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error during registration: {}", ex.getMessage(), ex);
+            log.error("Unexpected error during registration: {}", ex.getMessage(), ex);
 
             ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(false)
@@ -122,11 +121,8 @@ public class DIDDocumentController {
             @RequestHeader(value = "Authorization", required = true) String authHeader) {
 
         try {
-            // Only allow self-deactivation or admin deactivation
-            validateDeactivationAuthorization(authHeader, userId);
-
             String reason = requestBody.getOrDefault("reason", "User requested deactivation");
-            String result = didDocumentService.deactivateUser(userId, reason);
+            String result = didDocumentService.deactivateDID(userId, reason);
 
             return ResponseEntity.ok(ApiResponseDto.<String>builder()
                     .success(true)
@@ -149,6 +145,43 @@ public class DIDDocumentController {
                     .body(ApiResponseDto.<String>builder()
                             .success(false)
                             .message("Failed to deactivate user")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Deactivate user account
+     * POST /api/did/delete
+     */
+    @DeleteMapping("/delete/{did}")
+    public ResponseEntity<ApiResponseDto<String>> deactivateUser(@PathVariable String did) {
+
+        try {
+            String result = didDocumentService.deleteDID(did);
+
+            return ResponseEntity.ok(ApiResponseDto.<String>builder()
+                    .success(true)
+                    .message(result)
+                    .data(result)
+                    .timestamp(java.time.Instant.now())
+                    .build());
+
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<String>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(java.time.Instant.now())
+                            .build());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<String>builder()
+                            .success(false)
+                            .message("Failed to delete DID")
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(java.time.Instant.now())
                             .build());
@@ -262,25 +295,6 @@ public class DIDDocumentController {
 
         if (!tokenUserId.equals(userId)) {
             throw new SludiException(ErrorCodes.UNAUTHORIZED);
-        }
-    }
-
-    /**
-     * Validate deactivation authorization
-     * @param authHeader
-     * @param userId
-     */
-    private void validateDeactivationAuthorization(String authHeader, UUID userId) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SludiException(ErrorCodes.INVALID_AUTHRTIZATION_HEADER);
-        }
-
-        String token = authHeader.substring(7);
-        UUID tokenUserId = extractUserIdFromToken(token);
-        String userRole = extractRoleFromToken(token);
-
-        if (!tokenUserId.equals(userId) && !"ADMIN".equals(userRole)) {
-            throw new SludiException(ErrorCodes.UNAUTHORIZED_USER, "Unauthorized to deactivate this user");
         }
     }
 

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.KYCStatus;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
@@ -27,25 +29,30 @@ import java.util.stream.Collectors;
 @Transactional
 public class CitizenUserService {
 
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private AuthenticationLogRepository authLogRepository;
-
-    @Autowired
-    private IPFSContentRepository ipfsContentRepository;
-
-    @Autowired
-    private IPFSIntegration ipfsIntegration;
-
-    @Autowired
-    private AppointmentService appointmentService;
-
-    @Autowired
-    private CitizenCodeGenerator citizenCodeGenerator;
+    private final IPFSIntegration ipfsIntegration;
+    private final AppointmentService appointmentService;
+    private final CitizenCodeGenerator citizenCodeGenerator;
+    private final CitizenUserRepository citizenUserRepository;
+    private final AuthenticationLogRepository authLogRepository;
+    private final IPFSContentRepository ipfsContentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public CitizenUserService(
+            IPFSIntegration ipfsIntegration,
+            AppointmentService appointmentService,
+            CitizenCodeGenerator citizenCodeGenerator,
+            CitizenUserRepository citizenUserRepository,
+            AuthenticationLogRepository authLogRepository,
+            IPFSContentRepository ipfsContentRepository
+    ) {
+        this.ipfsIntegration = ipfsIntegration;
+        this.appointmentService = appointmentService;
+        this.citizenCodeGenerator = citizenCodeGenerator;
+        this.citizenUserRepository = citizenUserRepository;
+        this.authLogRepository = authLogRepository;
+        this.ipfsContentRepository = ipfsContentRepository;
+    }
 
     /**
      * Register a new user with complete identity setup
@@ -275,7 +282,7 @@ public class CitizenUserService {
             }
 
             // Validate update permissions
-            if (!CitizenUser.UserStatus.ACTIVE.equals(user.getStatus())) {
+            if (!UserStatus.ACTIVE.equals(user.getStatus())) {
                 throw new SludiException(ErrorCodes.CANNOT_UPDATE_INACTIVE_USER);
             }
 
@@ -338,8 +345,8 @@ public class CitizenUserService {
                 .citizenship(request.getPersonalInfo().getCitizenship())
                 .bloodGroup(request.getPersonalInfo().getBloodGroup())
                 .address(address)
-                .status(CitizenUser.UserStatus.PENDING)
-                .kycStatus(CitizenUser.KYCStatus.NOT_STARTED)
+                .status(UserStatus.PENDING)
+                .kycStatus(KYCStatus.NOT_STARTED)
                 .createdAt(LocalDateTime.now().toString())
                 .updatedAt(LocalDateTime.now().toString())
                 .build();
@@ -571,7 +578,7 @@ public class CitizenUserService {
     private void logUserActivity(UUID userId, String activityType, String description, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
-                .userId(userId)
+                .userId(String.valueOf(userId)) // Changed this for run the backend
                 .authType(activityType)
                 .result(description)
                 .deviceInfo(deviceInfo != null ? convertDeviceInfoToJson(deviceInfo) : null)

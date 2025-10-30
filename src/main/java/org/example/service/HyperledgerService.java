@@ -26,11 +26,8 @@ import java.util.List;
 @Service
 public class HyperledgerService {
 
-    @Autowired
-    private Contract contract;
-
-    @Autowired
-    private Gateway gateway;
+    private final Contract contract;
+    private final Gateway gateway;
 
     @Value("${fabric.chaincode-name}")
     private String chaincodeName;
@@ -39,6 +36,14 @@ public class HyperledgerService {
     private String issuerDid;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public HyperledgerService(
+            Contract contract,
+            Gateway gateway
+    ) {
+        this.contract = contract;
+        this.gateway = gateway;
+    }
 
     /**
      * create a new DID on the blockchain
@@ -217,6 +222,25 @@ public class HyperledgerService {
         } catch (Exception e) {
             log.error("Failed to deactivate DID: {}", e.getMessage());
             throw new SludiException(ErrorCodes.DID_DEACTIVATION_FAILED, e);
+        }
+    }
+
+    /**
+     * Delete a DID document from the ledger
+     */
+    public void deleteDID(String didId) {
+        try {
+            log.info("Deleting DID: {}", didId);
+
+            // Call chaincode transaction "DeleteDID"
+            byte[] result = contract.submitTransaction("DeleteDID", didId);
+            String resultMessage = new String(result);
+
+            log.info("Successfully deleted DID: {} - {}", didId, resultMessage);
+
+        } catch (Exception e) {
+            log.error("Failed to delete DID: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.DID_DELETION_FAILED, e);
         }
     }
 

@@ -5,15 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.ProofPurpose;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.repository.*;
 import org.example.integration.IPFSIntegration;
 import org.example.integration.AIIntegration;
 import org.example.security.CryptographyService;
 import org.example.exception.SludiException;
-
 import org.example.utils.DIDIdGenerator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,34 +27,39 @@ import java.util.concurrent.CompletableFuture;
 @Transactional
 public class DIDDocumentService {
 
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
-    private AuthenticationLogRepository authLogRepository;
-
-    @Autowired
-    private IPFSContentRepository ipfsContentRepository;
-
-    @Autowired
-    private IPFSIntegration ipfsIntegration;
-
-    @Autowired
-    private HyperledgerService hyperledgerService;
-
-    @Autowired
-    private DigitalSignatureService digitalSignatureService;
-
-    @Autowired
-    private AIIntegration aiIntegration;
-
-    @Autowired
-    private CryptographyService cryptographyService;
+    private final IPFSIntegration ipfsIntegration;
+    private final HyperledgerService hyperledgerService;
+    private final DigitalSignatureService digitalSignatureService;
+    private final AIIntegration aiIntegration;
+    private final CryptographyService cryptographyService;
+    private final CitizenUserRepository citizenUserRepository;
+    private final DIDDocumentRepository didDocumentRepository;
+    private final AuthenticationLogRepository authLogRepository;
+    private final IPFSContentRepository ipfsContentRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public DIDDocumentService(
+            IPFSIntegration ipfsIntegration,
+            HyperledgerService hyperledgerService,
+            DigitalSignatureService digitalSignatureService,
+            AIIntegration aiIntegration,
+            CryptographyService cryptographyService,
+            CitizenUserRepository citizenUserRepository,
+            DIDDocumentRepository didDocumentRepository,
+            AuthenticationLogRepository authLogRepository,
+            IPFSContentRepository ipfsContentRepository
+    ) {
+        this.ipfsIntegration = ipfsIntegration;
+        this.hyperledgerService = hyperledgerService;
+        this.digitalSignatureService = digitalSignatureService;
+        this.aiIntegration = aiIntegration;
+        this.cryptographyService = cryptographyService;
+        this.citizenUserRepository = citizenUserRepository;
+        this.didDocumentRepository = didDocumentRepository;
+        this.authLogRepository = authLogRepository;
+        this.ipfsContentRepository = ipfsContentRepository;
+    }
 
     /**
      * Create DID Document
@@ -180,13 +184,13 @@ public class DIDDocumentService {
             didDocumentRepository.save(didDocument);
 
             citizenUser.setDidId(didResult.getId());
-            citizenUser.setStatus(CitizenUser.UserStatus.ACTIVE);
+            citizenUser.setStatus(UserStatus.ACTIVE);
             citizenUser.setUpdatedAt(LocalDateTime.now().toString());
 
             citizenUser = citizenUserRepository.save(citizenUser);
 
             // Log the registration activity
-            logUserActivity(citizenUser.getId(), "DID_CREATION", "User DID creation successfully", request.getDeviceInfo());
+            logUserActivity(citizenUser.getId().toString(), "DID_CREATION", "User DID creation successfully", request.getDeviceInfo());
 
             // Return success response
             return DIDCreateResponseDto.builder()
@@ -250,7 +254,7 @@ public class DIDDocumentService {
     /**
      * Deactivate user account
      */
-    public String deactivateUser(UUID userId, String reason) {
+    public String deactivateDID(UUID userId, String reason) {
         try {
             CitizenUser user = citizenUserRepository.findById(userId)
                     .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
@@ -259,14 +263,12 @@ public class DIDDocumentService {
             hyperledgerService.deactivateDID(user.getDidId());
 
             // Update user status
-            user.setStatus(CitizenUser.UserStatus.DEACTIVATED);
+            user.setStatus(UserStatus.DEACTIVATED);
             user.setUpdatedAt(LocalDateTime.now().toString());
             citizenUserRepository.save(user);
 
             // Log deactivation
-            logUserActivity(userId, "USER_DEACTIVATION", "User deactivated: " + reason, null);
-            createAuditTrail(userId, "deactivate", "user", userId.toString(),
-                    Map.of("status", "ACTIVE"), Map.of("status", "DEACTIVATED"), reason);
+            logUserActivity(userId.toString(), "USER_DEACTIVATION", "User deactivated: " + reason, null);
 
             return "User account deactivated successfully";
 
@@ -275,12 +277,36 @@ public class DIDDocumentService {
         }
     }
 
+    /**
+     * Delete DID document
+     */
+    public String deleteDID(String did) {
+        try {
+            DIDDocument user = didDocumentRepository.findById(did)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Delete DID on blockchain
+            hyperledgerService.deleteDID(did);
+
+            // Delete DID on PostgreSQL
+            didDocumentRepository.deleteById(did);
+
+            // Log deactivation
+            logUserActivity(did, "DID_DELETE", "Delete DID Document: ", null);
+
+            return "DID Document delete successfully";
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.DID_DELETION_FAILED, e.getMessage(), e);
+        }
+    }
+
     public Map<String, Object> getUserStatistics() {
         try {
             long totalUsers = citizenUserRepository.count();
-            long activeUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.ACTIVE);
-            long inactiveUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.INACTIVE);
-            long deactivatedUsers = citizenUserRepository.countByStatus(CitizenUser.UserStatus.DEACTIVATED);
+            long activeUsers = citizenUserRepository.countByStatus(UserStatus.ACTIVE);
+            long inactiveUsers = citizenUserRepository.countByStatus(UserStatus.INACTIVE);
+            long deactivatedUsers = citizenUserRepository.countByStatus(UserStatus.DEACTIVATED);
 
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalUsers", totalUsers);
@@ -434,7 +460,7 @@ public class DIDDocumentService {
         }
     }
 
-    private void logUserActivity(UUID userId, String activityType, String description, DeviceInfoDto deviceInfo) {
+    private void logUserActivity(String userId, String activityType, String description, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
@@ -448,7 +474,7 @@ public class DIDDocumentService {
         authLogRepository.save(log);
     }
 
-    private void logSuccessfulAuthentication(UUID userId, String userDid, String authMethod, DeviceInfoDto deviceInfo) {
+    private void logSuccessfulAuthentication(String userId, String userDid, String authMethod, DeviceInfoDto deviceInfo) {
         AuthenticationLog log = AuthenticationLog.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
@@ -493,11 +519,5 @@ public class DIDDocumentService {
         // This could involve checking against a list of approved verifiers
         return verifierDid.startsWith("did:sludi:government") ||
                 verifierDid.startsWith("did:sludi:service");
-    }
-
-    private void createAuditTrail(UUID userId, String actionType, String resourceType, String resourceId,
-                                  Map<String, Object> oldValues, Map<String, Object> newValues, String reason) {
-        // Implementation would create audit trail record
-        // This is a placeholder for the audit functionality
     }
 }

@@ -18,10 +18,13 @@ import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/deepfake")
-@RequiredArgsConstructor
 public class DeepfakeDetectionController {
 
     private final DeepfakeDetectionService deepfakeDetectionService;
+
+    public DeepfakeDetectionController(DeepfakeDetectionService deepfakeDetectionService) {
+        this.deepfakeDetectionService = deepfakeDetectionService;
+    }
 
     @PostMapping(value = "/detect", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> detect(@RequestParam("file") MultipartFile file) {

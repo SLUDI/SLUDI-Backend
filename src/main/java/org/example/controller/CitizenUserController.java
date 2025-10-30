@@ -2,12 +2,12 @@ package org.example.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.CitizenUserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,20 +21,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/citizen-user")
 @CrossOrigin(origins = "*")
 public class CitizenUserController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(CitizenUserController.class.getName());
-
-    @Autowired
-    private CitizenUserService citizenUserService;
+    
+    private final CitizenUserService citizenUserService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public CitizenUserController(CitizenUserService citizenUserService) {
+        this.citizenUserService = citizenUserService;
+    }
 
     /**
      * Register new user and create DID
@@ -70,7 +69,7 @@ public class CitizenUserController {
             @RequestParam(value = "documentSides") List<String> documentSides) {
 
         try {
-            LOGGER.info("Received user registration NIC {}", nic);
+            log.info("Received user registration NIC {}", nic);
 
             AddressDto addressDto = AddressDto.builder()
                     .street(street)
@@ -151,7 +150,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.error("User registration failed {}", ex.getMessage(), ex);
+            log.error("User registration failed {}", ex.getMessage(), ex);
 
             ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
                     ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
@@ -164,7 +163,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error during registration {}", ex.getMessage(), ex);
+            log.error("Unexpected error during registration {}", ex.getMessage(), ex);
 
             ApiResponseDto<CitizenUserRegistrationResponseDto> apiResponse =
                     ApiResponseDto.<CitizenUserRegistrationResponseDto>builder()
@@ -236,7 +235,7 @@ public class CitizenUserController {
      */
     @GetMapping("/profiles")
     public ResponseEntity<ApiResponseDto<List<GetCitizenUserProfileResponseDto>>> getAllUserProfiles() {
-        LOGGER.info("Received request to fetch all citizen user profiles");
+        log.info("Received request to fetch all citizen user profiles");
 
         try {
             List<GetCitizenUserProfileResponseDto> profiles = citizenUserService.getAllUserProfiles();
@@ -252,7 +251,7 @@ public class CitizenUserController {
             return ResponseEntity.ok(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.error("Error while fetching all citizen user profiles: {}", ex.getMessage(), ex);
+            log.error("Error while fetching all citizen user profiles: {}", ex.getMessage(), ex);
 
             ApiResponseDto<List<GetCitizenUserProfileResponseDto>> apiResponse =
                     ApiResponseDto.<List<GetCitizenUserProfileResponseDto>>builder()
@@ -265,7 +264,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(apiResponse);
 
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error while fetching all citizen user profiles", ex);
+            log.error("Unexpected error while fetching all citizen user profiles", ex);
 
             ApiResponseDto<List<GetCitizenUserProfileResponseDto>> apiResponse =
                     ApiResponseDto.<List<GetCitizenUserProfileResponseDto>>builder()
@@ -287,7 +286,7 @@ public class CitizenUserController {
     public ResponseEntity<ApiResponseDto<List<GetSupportingDocumentResponseDto>>> getSupportingDocuments(
             @PathVariable("id") UUID id) {
 
-        LOGGER.info("Received request to fetch supporting documents for CitizenUser ID: {}", id);
+        log.info("Received request to fetch supporting documents for CitizenUser ID: {}", id);
 
         try {
             List<GetSupportingDocumentResponseDto> documents = citizenUserService.getSupportingDocument(id);
@@ -303,7 +302,7 @@ public class CitizenUserController {
             return ResponseEntity.ok(apiResponse);
 
         } catch (SludiException ex) {
-            LOGGER.error("Error while retrieving supporting documents for CitizenUser ID: {} | ErrorCode: {} | Message: {}",
+            log.error("Error while retrieving supporting documents for CitizenUser ID: {} | ErrorCode: {} | Message: {}",
                     id, ex.getErrorCode(), ex.getMessage(), ex);
 
             ApiResponseDto<List<GetSupportingDocumentResponseDto>> errorResponse =
@@ -317,7 +316,7 @@ public class CitizenUserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 
         } catch (Exception ex) {
-            LOGGER.error("Unexpected error retrieving supporting documents for CitizenUser ID: {}", id, ex);
+            log.error("Unexpected error retrieving supporting documents for CitizenUser ID: {}", id, ex);
 
             ApiResponseDto<List<GetSupportingDocumentResponseDto>> errorResponse =
                     ApiResponseDto.<List<GetSupportingDocumentResponseDto>>builder()

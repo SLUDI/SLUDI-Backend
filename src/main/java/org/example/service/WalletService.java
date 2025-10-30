@@ -8,11 +8,13 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.example.security.JwtService;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -21,37 +23,47 @@ import java.util.*;
 @Transactional
 public class WalletService {
 
-    @Autowired
-    private HyperledgerService hyperledgerService;
-
-    @Autowired
-    private OtpService otpService;
-
-    @Autowired
-    private MailService mailService;
-
-    @Autowired
-    private CryptographyService cryptoService;
-
-    @Autowired
-    private WalletRepository walletRepository;
-
-    @Autowired
-    private CitizenUserRepository citizenUserRepository;
-
-    @Autowired
-    private PublicKeyRepository publicKeyRepository;
-
-    @Autowired
-    private DIDDocumentRepository didDocumentRepository;
-
-    @Autowired
-    private WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
-
-    @Autowired
-    private VerifiableCredentialRepository verifiableCredentialRepository;
+    private final HyperledgerService hyperledgerService;
+    private final OtpService otpService;
+    private final MailService mailService;
+    private final CryptographyService cryptoService;
+    private final WalletRepository walletRepository;
+    private final CitizenUserRepository citizenUserRepository;
+    private final PublicKeyRepository publicKeyRepository;
+    private final DIDDocumentRepository didDocumentRepository;
+    private final WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
+    private final VerifiableCredentialRepository verifiableCredentialRepository;
+    private final StringRedisTemplate redisTemplate;
+    private final JwtService jwtService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public WalletService(
+            HyperledgerService hyperledgerService,
+            OtpService otpService, MailService mailService,
+            CryptographyService cryptoService,
+            WalletRepository walletRepository,
+            CitizenUserRepository citizenUserRepository,
+            PublicKeyRepository publicKeyRepository,
+            DIDDocumentRepository didDocumentRepository,
+            WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
+            VerifiableCredentialRepository verifiableCredentialRepository,
+            StringRedisTemplate redisTemplate,
+            JwtService jwtService
+    ) {
+        this.hyperledgerService = hyperledgerService;
+        this.otpService = otpService;
+        this.mailService = mailService;
+        this.cryptoService = cryptoService;
+        this.walletRepository = walletRepository;
+        this.citizenUserRepository = citizenUserRepository;
+        this.publicKeyRepository = publicKeyRepository;
+        this.didDocumentRepository = didDocumentRepository;
+        this.walletVerifiableCredentialRepository = walletVerifiableCredentialRepository;
+        this.verifiableCredentialRepository = verifiableCredentialRepository;
+        this.redisTemplate = redisTemplate;
+        this.jwtService = jwtService;
+    }
 
     /**
      * Initiate wallet creation by validating DID and sending OTP
@@ -84,11 +96,11 @@ public class WalletService {
     }
 
     /**
-     * Create wallet with password
+     * Create wallet with publicKey
      */
-    public Map<String, String> createWallet(String did, String password, String publicKeyStr) {
+    public Map<String, String> createWallet(String did, String publicKeyStr) {
         try {
-            validateWalletCreationInputs(did, password, publicKeyStr);
+            validateWalletCreationInputs(did, publicKeyStr);
 
             // Check if wallet already exists
             if (walletRepository.existsByDidId(did)) {
@@ -108,14 +120,11 @@ public class WalletService {
             // Register public key on blockchain
             hyperledgerService.updateDID(did, publicKeyStr, "api/wallet/create");
 
-            // Create wallet credentials
-            WalletCredential credentials = createWalletCredentials(password);
-
             // Save public key in DB
             savePublicKey(publicKeyStr, did, user, didDocument);
 
             // Create and save wallet
-            Wallet wallet = createAndSaveWallet(did, user, credentials);
+            Wallet wallet = createAndSaveWallet(did, user);
 
             // Fetch and encrypt VCs
             storeEncryptedVerifiableCredentials(wallet);
@@ -133,19 +142,73 @@ public class WalletService {
         }
     }
 
-    public WalletDto retrieveWallet(String did, String password) {
+    /**
+     * Generate challenge (nonce) for wallet login
+     */
+    public String generateChallenge(String did) {
+        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+        if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
+            throw new SludiException(ErrorCodes.INVALID_DID, "DID not found or user inactive");
+        }
+
+        String nonce = UUID.randomUUID().toString();
+
+        // Save nonce in Redis with short TTL (5 minutes)
+        redisTemplate.opsForValue().set("wallet:nonce:" + did, nonce, Duration.ofMinutes(5));
+
+        return nonce;
+    }
+
+    /**
+     * Verify signed challenge from wallet
+     */
+    public Map<String, String> verifyChallenge(String did, String signatureStr) {
+        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+        if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
+            throw new SludiException(ErrorCodes.INVALID_DID, "DID not found or user inactive");
+        }
+
+        String nonceKey = "wallet:nonce:" + did;
+        String nonce = redisTemplate.opsForValue().get(nonceKey);
+        if (nonce == null) {
+            throw new SludiException(ErrorCodes.INVALID_NONCE, "Challenge expired or missing");
+        }
+
+        Wallet wallet = user.getWallet();
+        if (wallet == null) {
+            throw new SludiException(ErrorCodes.WALLET_NOT_FOUND, "Wallet not found for DID");
+        }
+
+        // Verify signature
+        PublicKey publicKey = publicKeyRepository.findByCitizenUser(user);
+        boolean valid = cryptoService.verifySignature(nonce, signatureStr, publicKey.getPublicKeyStr());
+
+        if (!valid) {
+            throw new SludiException(ErrorCodes.SIGNATURE_FAILED, "Signature verification failed");
+        }
+
+        // Remove nonce after successful verification
+        redisTemplate.delete(nonceKey);
+
+        // Issue JWT
+        String token = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        // Return response
+        Map<String, String> response = new HashMap<>();
+        response.put("token", token);
+        response.put("refreshToken", refreshToken);
+        return response;
+    }
+
+    /**
+     * Retrieve wallet with data
+     */
+    public WalletDto retrieveWallet(String did) {
         try {
             // Find wallet by DID
             Wallet wallet = walletRepository.findByDidId(did)
                     .orElseThrow(() -> new SludiException(ErrorCodes.WALLET_NOT_FOUND));
-
-            WalletCredential credentials = wallet.getCredentials();
-
-            // Decode salt properly (Base64) instead of using
-            byte[] saltBytes = Base64.getDecoder().decode(credentials.getSalt());
-
-            // Reconstruct master key from password + salt
-            SecretKey masterKey = cryptoService.generateWalletKey(password, saltBytes);
 
             // Get All Wallet VerifiableCredential
             List<WalletVerifiableCredential> walletVerifiableCredentialList = walletVerifiableCredentialRepository.findAllByWallet(wallet);
@@ -200,28 +263,13 @@ public class WalletService {
         }
     }
 
-    private void validateWalletCreationInputs(String did, String password, String publicKeyStr) {
+    private void validateWalletCreationInputs(String did, String publicKeyStr) {
         if (did == null || did.isBlank()) {
             throw new SludiException(ErrorCodes.INVALID_INPUT, "DID cannot be null or empty");
-        }
-        if (password == null || password.isBlank()) {
-            throw new SludiException(ErrorCodes.INVALID_INPUT, "Password cannot be null or empty");
         }
         if (publicKeyStr == null || publicKeyStr.isBlank()) {
             throw new SludiException(ErrorCodes.INVALID_INPUT, "Public key cannot be null or empty");
         }
-    }
-
-    private WalletCredential createWalletCredentials(String password) throws Exception {
-        byte[] salt = cryptoService.generateSalt();
-        String saltBase64 = Base64.getEncoder().encodeToString(salt);
-        SecretKey masterKey = cryptoService.generateWalletKey(password, salt);
-
-        return WalletCredential.builder()
-                .encryptedKey(CryptographyService.encryptKey(masterKey))
-                .salt(saltBase64)
-                .iterations(10000)
-                .build();
     }
 
     private void savePublicKey(String publicKeyStr, String did, CitizenUser user, DIDDocument didDocument) {
@@ -236,12 +284,11 @@ public class WalletService {
         publicKeyRepository.save(publicKey);
     }
 
-    private Wallet createAndSaveWallet(String did, CitizenUser user, WalletCredential credentials) {
+    private Wallet createAndSaveWallet(String did, CitizenUser user) {
         Wallet wallet = Wallet.builder()
                 .id(UUID.randomUUID().toString())
                 .didId(did)
                 .citizenUser(user)
-                .credentials(credentials)
                 .createdAt(LocalDateTime.now())
                 .lastAccessed(LocalDateTime.now())
                 .status("ACTIVE")

@@ -10,7 +10,7 @@ public enum ErrorCodes {
     BIOMETRIC_MISMATCH("1005", "Biometric data does not match"),
     USER_NOT_REGISTERED("1006", "User is not registered"),
     INVALID_AUTHRTIZATION_HEADER("1007", "Invalid authorization header provided"),
-    UNAUTHORIZED("1008", "Unauthorized access"),
+    UNAUTHORIZED("1008", "Authentication is missing or invalid"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
     FAILED_TO_RETRIEVE_IDENTITY_VC("1010", "Failed to retrieve identity Verifiable Credential"),
     
@@ -77,8 +77,9 @@ public enum ErrorCodes {
     CRYPTO_INITIALIZATION_FAILED("3031", "Failed to initialize unified signature service"),
     SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
     PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
+    DID_DELETION_FAILED("3034", "Failed to delete DID on blockchain"),
     
-    // Validation Errors (4000-4999
+    // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),
     MISSING_REQUIRED_FIELD("4001", "Required field is missing"),
     INVALID_FORMAT("4002", "Invalid document format. Only PDF and image files are allowed"),
@@ -94,6 +95,8 @@ public enum ErrorCodes {
     INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
     INVALID_DID("4013", "No DID found for the provided identifier"),
     DATE_UNAVAILABLE("4012", "The selected date is not available for booking"),
+    INVALID_NONCE("4013", "Invalid NONCE"),
+    SIGNATURE_FAILED("4014", "Signature verification failed"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),

@@ -1,11 +1,11 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.VerifiableCredentialService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,18 +14,18 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/vc")
 @CrossOrigin(origins = "*")
 public class VerifiableCredentialController {
 
-    private static final Logger LOGGER = Logger.getLogger(VerifiableCredentialController.class.getName());
+    private final VerifiableCredentialService verifiableCredentialService;
 
-    @Autowired
-    private VerifiableCredentialService verifiableCredentialService;
+    public VerifiableCredentialController(VerifiableCredentialService verifiableCredentialService) {
+        this.verifiableCredentialService = verifiableCredentialService;
+    }
 
     /**
      * Issue Identity VC
@@ -37,7 +37,7 @@ public class VerifiableCredentialController {
             @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
             @RequestParam(value = "documentTypes", required = false) List<String> documentTypes) {
 
-        LOGGER.info("Received request to issue VC for DID: " + did);
+        log.info("Received request to issue VC for DID: {}", did);
 
         try {
             String id = "did:sludi:" + did;
@@ -95,12 +95,12 @@ public class VerifiableCredentialController {
     public ResponseEntity<ApiResponseDto<VerifiableCredentialDto>> getVCIdentity(
             @PathVariable String credentialId) {
 
-        LOGGER.info("Request received to fetch Identity VC with credentialId: " + credentialId);
+        log.info("Request received to fetch Identity VC with credentialId: {}", credentialId);
 
         try {
             VerifiableCredentialDto credential = verifiableCredentialService.getVerifiableCredential(credentialId);
 
-            LOGGER.info("Successfully retrieved VC for credentialId: " + credentialId);
+            log.info("Successfully retrieved VC for credentialId: {}", credentialId);
 
             return ResponseEntity.ok(ApiResponseDto.<VerifiableCredentialDto>builder()
                     .success(true)
@@ -110,10 +110,8 @@ public class VerifiableCredentialController {
                     .build());
 
         } catch (SludiException e) {
-            LOGGER.log(Level.SEVERE,
-                    String.format("Error retrieving VC with credentialId=%s ErrorCode=%s Message=%s",
-                            credentialId, e.getErrorCode(), e.getMessage()),
-                    e);
+            log.error("Error retrieving VC with credentialId: {} ErrorCode: {} Message: {}",
+                    credentialId, e.getErrorCode(), e.getMessage(), e);
 
             return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
                     .body(ApiResponseDto.<VerifiableCredentialDto>builder()
@@ -124,9 +122,7 @@ public class VerifiableCredentialController {
                             .build());
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE,
-                    String.format("Unexpected error retrieving VC with credentialId=%s", credentialId),
-                    e);
+            log.error("Unexpected error retrieving VC with credentialId: {}", credentialId);
 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.<VerifiableCredentialDto>builder()

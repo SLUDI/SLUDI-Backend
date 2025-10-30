@@ -1,6 +1,7 @@
 package org.example.repository;
 
 import org.example.entity.CitizenUser;
+import org.example.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,5 +22,5 @@ public interface CitizenUserRepository extends JpaRepository<CitizenUser, UUID> 
                                         @Param("didId") String didId);
 
     boolean existsByDidId(String didId);
-    long countByStatus(CitizenUser.UserStatus userStatus);
+    long countByStatus(UserStatus userStatus);
 }
