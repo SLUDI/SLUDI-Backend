@@ -1,5 +1,6 @@
 package org.example.security;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import io.jsonwebtoken.*;
@@ -13,9 +14,10 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.*;
 import java.util.Base64;
 
+@Slf4j
 @Service
 public class CryptographyService {
 
@@ -27,8 +29,6 @@ public class CryptographyService {
     private static final int GCM_TAG_LENGTH = 16;
     private static final int KEY_LENGTH = 256;
     private static final int ITERATION_COUNT = 65536;
-
-
 
     /**
      * Encrypt sensitive data using AES-256-GCM
@@ -89,62 +89,17 @@ public class CryptographyService {
     /**
      * Verify signature using public key
      */
-    public boolean verifySignature(String message, String signatureStr, String publicKeyPem) {
+    public boolean verifySignature(String nonce, String signature, String publicKeyPem) {
         try {
-            // TEMPORARY: Accept HMAC signatures for testing
-            String hmacKey = "wallet-auth-key-2024";
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
-                    hmacKey.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKey);
-            byte[] expectedHmac = mac.doFinal(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            String expectedSignature = java.util.Base64.getEncoder().encodeToString(expectedHmac);
+            // Parse the public key
+            PublicKey publicKey = parsePublicKey(publicKeyPem);
 
-            System.out.println("Expected HMAC signature: " + expectedSignature);
-            System.out.println("Received signature: " + signatureStr);
-            System.out.println("Message: " + message);
-
-            if (signatureStr.equals(expectedSignature)) {
-                System.out.println("✅ HMAC signature accepted for testing");
-                return true;
-            } else {
-                System.out.println("❌ HMAC signature mismatch");
-                System.out.println("Expected: " + expectedSignature);
-                System.out.println("Received: " + signatureStr);
-            }
-
-            // If HMAC fails, try RSA verification
-            try {
-                String publicKeyContent = publicKeyPem
-                        .replace("-----BEGIN PUBLIC KEY-----", "")
-                        .replace("-----END PUBLIC KEY-----", "")
-                        .replaceAll("\\s+", "");
-
-                byte[] publicKeyBytes = java.util.Base64.getDecoder().decode(publicKeyContent);
-                java.security.KeyFactory keyFactory = java.security.KeyFactory.getInstance("RSA");
-                java.security.PublicKey publicKey = keyFactory.generatePublic(
-                        new java.security.spec.X509EncodedKeySpec(publicKeyBytes));
-
-                java.security.Signature signature = java.security.Signature.getInstance("SHA256withRSA");
-                signature.initVerify(publicKey);
-                signature.update(message.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                byte[] signatureBytes = java.util.Base64.getDecoder().decode(signatureStr);
-
-                boolean rsaVerified = signature.verify(signatureBytes);
-                if (rsaVerified) {
-                    System.out.println("✅ RSA signature verified");
-                } else {
-                    System.out.println("❌ RSA signature verification failed");
-                }
-                return rsaVerified;
-            } catch (Exception rsaError) {
-                System.out.println("RSA verification failed: " + rsaError.getMessage());
-                return false;
-            }
+            // Verify the signature
+            return verifyECDSASignature(nonce, signature, publicKey);
 
         } catch (Exception e) {
-            System.out.println("Signature verification error: " + e.getMessage());
-            throw new SludiException(ErrorCodes.SIGNATURE_FAILED, "Failed to verify signature", e);
+            System.err.println("Signature verification failed: " + e.getMessage());
+            return false;
         }
     }
 
@@ -289,5 +244,73 @@ public class CryptographyService {
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.BIOMETRIC_DECRYPTION_FAILED, e);
         }
+    }
+
+    /**
+     * Verify ECDSA signature
+     */
+    private boolean verifyECDSASignature(String message, String signatureBase64, PublicKey publicKey)
+            throws Exception {
+
+        byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
+        byte[] messageBytes = message.getBytes("UTF-8");
+
+        // Hash the message with SHA-256
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(messageBytes);
+
+        // Verify signature
+        Signature signature = Signature.getInstance("SHA256withECDSA");
+        signature.initVerify(publicKey);
+        signature.update(hash);
+
+        return signature.verify(signatureBytes);
+    }
+
+    /**
+     * Parse PEM formatted public key
+     */
+    private PublicKey parsePublicKey(String publicKeyPem) throws Exception {
+        String publicKeyBase64 = publicKeyPem
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] keyBytes = Base64.getDecoder().decode(publicKeyBase64);
+
+        // For EC public key in uncompressed format (0x04 + X + Y)
+        if (keyBytes[0] == 0x04 && keyBytes.length == 65) {
+            return parseUncompressedECPublicKey(keyBytes);
+        }
+
+        // Try standard X.509 format
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        return keyFactory.generatePublic(keySpec);
+    }
+
+    /**
+     * Parse uncompressed EC public key (0x04 || X || Y)
+     */
+    private PublicKey parseUncompressedECPublicKey(byte[] keyBytes) throws Exception {
+        // Extract X and Y coordinates (32 bytes each for P-256)
+        byte[] xBytes = new byte[32];
+        byte[] yBytes = new byte[32];
+        System.arraycopy(keyBytes, 1, xBytes, 0, 32);
+        System.arraycopy(keyBytes, 33, yBytes, 0, 32);
+
+        java.math.BigInteger x = new java.math.BigInteger(1, xBytes);
+        java.math.BigInteger y = new java.math.BigInteger(1, yBytes);
+
+        // Create EC public key from coordinates
+        AlgorithmParameters params = AlgorithmParameters.getInstance("EC");
+        params.init(new ECGenParameterSpec("secp256r1")); // P-256 curve
+        ECParameterSpec ecParams = params.getParameterSpec(ECParameterSpec.class);
+
+        ECPoint point = new ECPoint(x, y);
+        ECPublicKeySpec pubKeySpec = new ECPublicKeySpec(point, ecParams);
+
+        KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        return keyFactory.generatePublic(pubKeySpec);
     }
 }
