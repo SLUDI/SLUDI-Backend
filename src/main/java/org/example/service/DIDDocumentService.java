@@ -13,6 +13,7 @@ import org.example.integration.AIIntegration;
 import org.example.security.CryptographyService;
 import org.example.exception.SludiException;
 import org.example.utils.DIDIdGenerator;
+import org.example.utils.HashUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,7 +71,7 @@ public class DIDDocumentService {
             validateDIDCreateRequest(request);
 
             // Check if user exists
-            CitizenUser citizenUser = citizenUserRepository.findByEmailOrNicOrDidId(null, request.getNic(), null);
+            CitizenUser citizenUser = citizenUserRepository.findByAnyHash(null, HashUtil.sha256(request.getNic()), null);
 
             if (citizenUser == null) {
                 log.info("User doesn't exists with NIC: {}", request.getNic());
@@ -91,7 +92,7 @@ public class DIDDocumentService {
                     .age(citizenUser.getAge())
                     .email(citizenUser.getEmail())
                     .phone(citizenUser.getPhone())
-                    .dateOfBirth(citizenUser.getDateOfBirth())
+                    .dateOfBirth(citizenUser.getDateOfBirth().toString())
                     .gender(citizenUser.getGender())
                     .nationality(citizenUser.getNationality())
                     .citizenship(citizenUser.getCitizenship())
@@ -113,7 +114,7 @@ public class DIDDocumentService {
             String userData = objectMapper.writeValueAsString(dto);
 
             // Create DID ID
-            LocalDate dob = LocalDate.parse(citizenUser.getDateOfBirth());
+            LocalDate dob = citizenUser.getDateOfBirth();
             DIDIdGenerator.Gender gender =
                     citizenUser.getGender().equalsIgnoreCase("FEMALE")
                             ? DIDIdGenerator.Gender.FEMALE
@@ -210,11 +211,11 @@ public class DIDDocumentService {
      * Check if a citizen user exists by NIC, email, or DID ID
      */
     public boolean isCitizenUserExistsByNic(String nic) {
-        return citizenUserRepository.existsByNic(nic);
+        return citizenUserRepository.existsByNicHash(HashUtil.sha256(nic));
     }
 
     public boolean isCitizenUserExistsByEmail(String email) {
-        return citizenUserRepository.existsByEmail(email);
+        return citizenUserRepository.existsByEmailHash(HashUtil.sha256(email));
     }
 
     public boolean isCitizenUserExistsByDidId(String didId) {
@@ -245,7 +246,7 @@ public class DIDDocumentService {
             throw new SludiException(ErrorCodes.DID_NOT_FOUND, "DID ID cannot be null or empty");
         }
 
-        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, didId);
+        CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(didId));
         if(user==null) {
             throw new SludiException(ErrorCodes.USER_NOT_FOUND);
         }
@@ -435,11 +436,11 @@ public class DIDDocumentService {
 
     private CitizenUser findUserByIdentifier(String type, String identifier) {
         if(type=="EMAIL") {
-            return citizenUserRepository.findByEmailOrNicOrDidId(identifier, null, null);
+            return citizenUserRepository.findByAnyHash(HashUtil.sha256(identifier), null, null);
         } else if(type=="NIC") {
-            return citizenUserRepository.findByEmailOrNicOrDidId(null, identifier, null);
+            return citizenUserRepository.findByAnyHash(null, HashUtil.sha256(identifier), null);
         } else if(type=="DID") {
-            return citizenUserRepository.findByEmailOrNicOrDidId(null, null, identifier);
+            return citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(identifier));
         }
         throw new SludiException(ErrorCodes.INVALID_IDENTIFIER_TYPE, "Invalid identifier type: " + type);
     }

@@ -3,6 +3,7 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -14,10 +15,10 @@ public class GetCitizenUserProfileResponseDto {
     private String citizenCode;
     private String fullName;
     private String nic;
-    private String age;
+    private int age;
     private String email;
     private String phone;
-    private String dateOfBirth;
+    private LocalDate dateOfBirth;
     private String gender;
     private String nationality;
     private AddressDto address;

@@ -9,11 +9,11 @@ import org.example.exception.SludiException;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.example.security.JwtService;
+import org.example.utils.HashUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -70,7 +70,7 @@ public class WalletService {
      */
     public String initiateWalletCreation(String did) {
         // Verify DID exist on blockchain
-        CitizenUser citizenUser = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+        CitizenUser citizenUser = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
         if (citizenUser == null || !"ACTIVE".equalsIgnoreCase(String.valueOf(citizenUser.getStatus()))) {
             throw new SludiException(ErrorCodes.INVALID_DID, "DID not found or user is inactive");
         }
@@ -112,7 +112,7 @@ public class WalletService {
                     .orElseThrow(() -> new SludiException(ErrorCodes.INVALID_DID, "No DID found for this ID"));
 
             // Get Citizen user
-            CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+            CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
             if (user == null) {
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND, "User not found for DID: " + did);
             }
@@ -146,7 +146,7 @@ public class WalletService {
      * Generate challenge (nonce) for wallet login
      */
     public String generateChallenge(String did) {
-        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+        CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
         if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
             throw new SludiException(ErrorCodes.INVALID_DID, "DID not found or user inactive");
         }
@@ -163,7 +163,7 @@ public class WalletService {
      * Verify signed challenge from wallet
      */
     public Map<String, String> verifyChallenge(String did, String signatureStr) {
-        CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+        CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
         if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
             throw new SludiException(ErrorCodes.INVALID_DID, "DID not found or user inactive");
         }

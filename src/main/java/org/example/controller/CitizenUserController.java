@@ -43,7 +43,6 @@ public class CitizenUserController {
     public ResponseEntity<ApiResponseDto<CitizenUserRegistrationResponseDto>> registerUser(
             @Valid @RequestParam("fullName") String fullName,
             @Valid @RequestParam("nic") String nic,
-            @Valid @RequestParam("age") String age,
             @Valid @RequestParam("dateOfBirth") LocalDate dateOfBirth,
             @Valid @RequestParam("citizenship") String citizenship,
             @Valid @RequestParam("gender") String gender,
@@ -84,7 +83,6 @@ public class CitizenUserController {
             PersonalInfoDto personalInfoDto = PersonalInfoDto.builder()
                     .fullName(fullName)
                     .nic(nic)
-                    .age(age)
                     .dateOfBirth(dateOfBirth)
                     .citizenship(citizenship)
                     .gender(gender)
