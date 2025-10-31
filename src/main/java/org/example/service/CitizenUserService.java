@@ -13,7 +13,7 @@ import org.example.repository.AuthenticationLogRepository;
 import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
 import org.example.utils.CitizenCodeGenerator;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.example.utils.HashUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -67,12 +67,12 @@ public class CitizenUserService {
             log.debug("Registration request validation passed for NIC: {}", request.getPersonalInfo().getNic());
 
             // Check for duplicates
-            if (citizenUserRepository.existsByNic(request.getPersonalInfo().getNic())) {
+            if (citizenUserRepository.existsByNicHash(HashUtil.sha256(request.getPersonalInfo().getNic()))) {
                 log.warn("User already exists with NIC: {}", request.getPersonalInfo().getNic());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_NIC, request.getPersonalInfo().getNic());
             }
 
-            if (citizenUserRepository.existsByEmail(request.getContactInfo().getEmail())) {
+            if (citizenUserRepository.existsByEmailHash(HashUtil.sha256(request.getContactInfo().getEmail()))) {
                 log.warn("User already exists with Email: {}", request.getContactInfo().getEmail());
                 throw new SludiException(ErrorCodes.USER_EXISTS_WITH_EMAIL, request.getContactInfo().getEmail());
             }
@@ -147,7 +147,7 @@ public class CitizenUserService {
     public void citizenUserProfilePhotoUpload(String did, MultipartFile profilePhoto) {
 
         CitizenUser citizenUser = Optional.ofNullable(
-                        citizenUserRepository.findByEmailOrNicOrDidId(null, null, did))
+                        citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did)))
                 .orElseThrow(() -> {
                     log.warn("No user found with DID: {}", did);
                     return new IllegalArgumentException("CitizenUser not found for DID: " + did);
@@ -275,7 +275,7 @@ public class CitizenUserService {
      */
     public GetCitizenUserProfileResponseDto updateUserProfile(String did, CitizenUserProfileUpdateRequestDto request) {
         try {
-            CitizenUser user = citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+            CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
 
             if(user == null) {
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND);
@@ -339,7 +339,7 @@ public class CitizenUserService {
                 .nic(request.getPersonalInfo().getNic())
                 .email(request.getContactInfo().getEmail())
                 .phone(request.getContactInfo().getPhone())
-                .dateOfBirth(request.getPersonalInfo().getDateOfBirth().toString())
+                .dateOfBirth(request.getPersonalInfo().getDateOfBirth())
                 .gender(request.getPersonalInfo().getGender())
                 .nationality(request.getPersonalInfo().getNationality())
                 .citizenship(request.getPersonalInfo().getCitizenship())
@@ -471,7 +471,7 @@ public class CitizenUserService {
                     .citizenCode(user.getCitizenCode())
                     .fullName(user.getFullName())
                     .nic(user.getNic())
-                    .age(user.getAge()) // added age
+                    .age(user.getAge())
                     .email(user.getEmail())
                     .phone(user.getPhone())
                     .dateOfBirth(user.getDateOfBirth())

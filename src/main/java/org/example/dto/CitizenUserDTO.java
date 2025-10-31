@@ -18,7 +18,7 @@ public class CitizenUserDTO {
     private String citizenCode;
     private String fullName;
     private String nic;
-    private String age;
+    private int age;
     private String email;
     private String phone;
     private String dateOfBirth;

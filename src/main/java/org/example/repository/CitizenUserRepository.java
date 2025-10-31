@@ -11,15 +11,15 @@ import java.util.UUID;
 
 @Repository
 public interface CitizenUserRepository extends JpaRepository<CitizenUser, UUID> {
-    boolean existsByNic(String nic);
-    boolean existsByEmail(String email);
+    boolean existsByNicHash(String nicHash);
+    boolean existsByEmailHash(String emailHash);
     @Query("SELECT c FROM CitizenUser c WHERE " +
-            "(:email IS NOT NULL AND c.email = :email) OR " +
-            "(:nic IS NOT NULL AND c.nic = :nic) OR " +
-            "(:didId IS NOT NULL AND c.didId = :didId)")
-    CitizenUser findByEmailOrNicOrDidId(@Param("email") String email,
-                                        @Param("nic") String nic,
-                                        @Param("didId") String didId);
+            "(:emailHash IS NOT NULL AND c.emailHash = :emailHash) OR " +
+            "(:nicHash IS NOT NULL AND c.nicHash = :nicHash) OR " +
+            "(:didIdHash IS NOT NULL AND c.didIdHash = :didIdHash)")
+    CitizenUser findByAnyHash(@Param("emailHash") String emailHash,
+                              @Param("nicHash") String nicHash,
+                              @Param("didIdHash") String didIdHash);
 
     boolean existsByDidId(String didId);
     long countByStatus(UserStatus userStatus);

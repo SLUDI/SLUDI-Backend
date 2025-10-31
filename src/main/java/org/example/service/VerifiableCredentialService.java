@@ -14,6 +14,7 @@ import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
 import org.example.repository.VerifiableCredentialRepository;
 import org.example.security.CryptographyService;
+import org.example.utils.HashUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +60,7 @@ public class VerifiableCredentialService {
         log.info("Issuing identity VC for DID: {}, CredentialType: {}", request.getDid(), request.getCredentialType());
 
         try {
-            CitizenUser user = userRepository.findByEmailOrNicOrDidId(null, null, request.getDid());
+            CitizenUser user = userRepository.findByAnyHash(null, null, HashUtil.sha256(request.getDid()));
             if (user == null) {
                 log.error("User not found for DID: {}", request.getDid());
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND);
@@ -219,7 +220,7 @@ public class VerifiableCredentialService {
                 .id(user.getDidId())
                 .fullName(user.getFullName())
                 .nic(user.getNic())
-                .dateOfBirth(user.getDateOfBirth())
+                .dateOfBirth(user.getDateOfBirth().toString())
                 .citizenship(user.getCitizenship())
                 .gender(user.getGender())
                 .nationality(user.getNationality())

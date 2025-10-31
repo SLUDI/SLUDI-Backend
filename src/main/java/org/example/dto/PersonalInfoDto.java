@@ -14,7 +14,6 @@ import java.time.LocalDate;
 public class PersonalInfoDto {
     private String fullName;
     private String nic;
-    private String age;
     private LocalDate dateOfBirth;
     private String citizenship;
     private String gender;

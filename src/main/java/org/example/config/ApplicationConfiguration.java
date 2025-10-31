@@ -1,6 +1,7 @@
 package org.example.config;
 
 import org.example.repository.CitizenUserRepository;
+import org.example.utils.HashUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -25,7 +26,7 @@ public class ApplicationConfiguration {
     @Bean
     public UserDetailsService userDetailsService() {
         return did -> (org.springframework.security.core.userdetails.UserDetails)
-                citizenUserRepository.findByEmailOrNicOrDidId(null, null, did);
+                citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
     }
 
     @Bean
