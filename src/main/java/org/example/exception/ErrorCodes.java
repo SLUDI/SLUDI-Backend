@@ -33,6 +33,8 @@ public enum ErrorCodes {
     TEMPLATE_EXISTS_WITH_CODE("2015","Template is already exists"),
     DUPLICATE_ORGANIZATION("2016", "Organization with registration number already exists"),
     ORGANIZATION_NOT_FOUND("2017","Organization not found"),
+    INVALID_PERMISSION("2018","Cannot remove permission that doesn't exist in template"),
+    ORGANIZATION_STATUS_ERROR("2019", "Current organization status does not support for operation"),
 
 
 

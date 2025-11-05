@@ -10,7 +10,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CreatePermissionTemplateResponse {
+public class PermissionTemplateResponse {
 
     private Long id;
     private String templateCode;

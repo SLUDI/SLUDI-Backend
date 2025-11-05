@@ -44,7 +44,7 @@ public class OrganizationController {
     }
 
     /**
-     * Update organization details
+     * Update organization details (Super Admin only)
      */
     @PutMapping("/update-organization/{id}")
     public ResponseEntity<ApiResponseDto<OrganizationResponse>> updateOrganization(
@@ -63,7 +63,9 @@ public class OrganizationController {
                         .build());
     }
 
-
+    /**
+     * Fetch all organizations
+     */
     @GetMapping("/")
     public ResponseEntity<ApiResponseDto<List<OrganizationResponse>>> getAllOrganizations(){
         log.info("Fetching all organizations");
@@ -77,13 +79,17 @@ public class OrganizationController {
                         .build());
     }
 
+    /**
+     *  Fetch organization details by organization id
+     * @param id
+     */
     @GetMapping("/get-organization/{id}")
-    public ResponseEntity<ApiResponseDto<OrganizationResponse>> getOrganizationById(
+    public ResponseEntity<ApiResponseDto<OrganizationDetailResponse>> getOrganizationById(
            @PathVariable Long id){
         log.info("Fetching organization {}",id);
-        OrganizationResponse response = organizationService.getOrganizationById(id);
+        OrganizationDetailResponse response = organizationService.getOrganizationDetails(id);
         return ResponseEntity.status(HttpStatus.FOUND)
-                .body(ApiResponseDto.<OrganizationResponse>builder()
+                .body(ApiResponseDto.<OrganizationDetailResponse>builder()
                         .success(true)
                         .message("Organization fetched successfully")
                         .data(response)
@@ -91,6 +97,11 @@ public class OrganizationController {
                         .build());
     }
 
+
+    /**
+     *  Approve a organization (Super Admin only)
+     * @param id
+     */
     @PutMapping("/approve/{id}")
     public ResponseEntity<ApiResponseDto<OrganizationResponse>> approveOrganization(
             @PathVariable Long id){
@@ -104,7 +115,77 @@ public class OrganizationController {
                         .message("Approved organization successfully")
                         .data(response)
                         .timestamp(Instant.now())
-
                         .build());
    }
+
+    /**
+     * Customize organization permissions (Super Admin only)
+     */
+    @PutMapping("/{id}/permissions")
+    public ResponseEntity<ApiResponseDto<OrganizationDetailResponse>> customizePermissions(
+            @PathVariable Long id,
+            @Valid @RequestBody CustomPermissionsRequest request) {
+
+        log.info("Customizing permissions for organization ID: {}", id);
+        // TODO: Define method for get supper admin id
+        long superAdminId = 134344656;
+        //Long superAdminId = SecurityUtils.getCurrentUserId();
+        OrganizationDetailResponse response = organizationService.customizePermissions(
+                id, request, superAdminId);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponseDto.<OrganizationDetailResponse>builder()
+                        .success(true)
+                        .message("Permissions customized successfully")
+                        .data(response)
+                        .timestamp(Instant.now())
+                        .build());
+    }
+
+    /**
+     * Suspend organization (Super Admin only)
+     */
+    @PutMapping("/{id}/suspend")
+    public ResponseEntity<ApiResponseDto<OrganizationResponse>> suspendOrganization(
+            @PathVariable Long id,
+            @Valid @RequestBody SuspendOrganizationRequest request) {
+
+        log.info("Suspending organization ID: {}", id);
+
+        // TODO: Define method for get supper admin id
+        long superAdminId = 134344656;
+        //Long superAdminId = SecurityUtils.getCurrentUserId();
+        OrganizationResponse response = organizationService.suspendOrganization(
+                id, request.getReason(), superAdminId);
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .body(ApiResponseDto.<OrganizationResponse>builder()
+                                .success(true)
+                                .message("Organization suspended successfully")
+                                .data(response)
+                                .timestamp(Instant.now())
+                                .build());
+    }
+
+    /**
+     * Reactivate suspended organization (Super Admin only)
+     */
+    @PutMapping("/{id}/reactivate")
+    public ResponseEntity<ApiResponseDto<OrganizationResponse>> reactivateOrganization(@PathVariable Long id) {
+
+        log.info("Reactivating organization ID: {}", id);
+
+        // TODO: Define method for get supper admin id
+        long superAdminId = 134344656;
+        //Long superAdminId = SecurityUtils.getCurrentUserId();
+        OrganizationResponse response = organizationService.reactivateOrganization(id, superAdminId);
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponseDto.<OrganizationResponse>builder()
+                        .success(true)
+                        .message("Organization reactivated successfully")
+                        .data(response)
+                        .timestamp(Instant.now())
+                        .build());
+    }
 }

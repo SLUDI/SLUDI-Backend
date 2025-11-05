@@ -1,9 +1,6 @@
 package org.example.service;
 
-import org.example.dto.CreateOrganizationRequest;
-import org.example.dto.CustomPermissionsRequest;
-import org.example.dto.OrganizationResponse;
-import org.example.dto.UpdateOrganizationRequest;
+import org.example.dto.*;
 
 import java.util.List;
 
@@ -22,4 +19,17 @@ public interface OrganizationService {
 
     OrganizationResponse approveOrganization(Long organizationId, Long superAdminId );
 
+    OrganizationDetailResponse customizePermissions(Long organizationId, CustomPermissionsRequest request, Long superAdminId);
+
+    /**
+     * Get organization by ID with full details
+     */
+    OrganizationDetailResponse getOrganizationDetails(Long organizationId);
+
+    OrganizationResponse suspendOrganization(
+            Long organizationId,
+            String reason,
+            Long superAdminId);
+
+    OrganizationResponse reactivateOrganization(Long organizationId, Long superAdminId);
 }

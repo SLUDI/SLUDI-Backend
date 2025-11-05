@@ -8,13 +8,15 @@ import lombok.NoArgsConstructor;
 import org.example.entity.Organization;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class OrganizationResponse {
+public class OrganizationDetailResponse {
+
     private Long id;
     private String orgCode;
     private String name;
@@ -29,13 +31,34 @@ public class OrganizationResponse {
     private String city;
     private String postalCode;
 
+    // Template Information
+    private PermissionTemplateResponse template;
+
+    // Permissions
+    private List<String> effectivePermissions;
+    private CustomPermissionsResponse customPermissions;
+
     // Status
     private Organization.OrganizationStatus status;
 
-    // Template Information (basic)
-    private String templateName;
-    private Long templateId;
-    // Timestamps
+    // Blockchain
+    private String blockchainTxId;
+    private Long blockchainBlockNumber;
+    private LocalDateTime blockchainTimestamp;
+
+    // Audit Trail
+    private Long createdBy;
     private LocalDateTime createdAt;
+    private Long approvedBy;
     private LocalDateTime approvedAt;
+    private Long suspendedBy;
+    private LocalDateTime suspendedAt;
+    private String suspensionReason;
+    private LocalDateTime updatedAt;
+
+    // Statistics
+    private Long totalUsers;
+    private Long activeUsers;
+    private Long totalRoles;
 }
+

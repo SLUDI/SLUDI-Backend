@@ -3,10 +3,7 @@ package org.example.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dto.CreateOrganizationRequest;
-import org.example.dto.CustomPermissionsRequest;
-import org.example.dto.OrganizationResponse;
-import org.example.dto.UpdateOrganizationRequest;
+import org.example.dto.*;
 import org.example.entity.Organization;
 import org.example.entity.PermissionTemplate;
 import org.example.exception.ErrorCodes;
@@ -16,7 +13,9 @@ import org.example.util.OrgCodeGenerator;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -130,6 +129,16 @@ public class OrganizationServiceImpl implements OrganizationService{
     }
 
     @Override
+    public OrganizationDetailResponse getOrganizationDetails(Long organizationId) {
+        Organization organization = organizationRepository.findByIdWithTemplate(organizationId)
+                .orElseThrow(() -> new SludiException(ErrorCodes.ORGANIZATION_NOT_FOUND, String.valueOf(organizationId))
+                  );
+
+        return toOrganizationDetailResponse(organization);
+    }
+
+
+    @Override
     public OrganizationResponse approveOrganization(Long organizationId, Long superAdminId){
         log.info("Approving organization ID: {} by super admin: {}", organizationId, superAdminId);
         Organization organization = getOrganizationEntity(organizationId);
@@ -156,7 +165,112 @@ public class OrganizationServiceImpl implements OrganizationService{
         return toOrganizationResponse(organization);
     }
 
+    @Override
+    public OrganizationDetailResponse customizePermissions(
+            Long organizationId,
+            CustomPermissionsRequest request,
+            Long superAdminId) {
 
+        log.info("Customizing permissions for organization ID: {}", organizationId);
+
+        Organization organization = getOrganizationEntity(organizationId);
+
+        // Validate permission request
+        permissionService.validateCustomPermissionsRequest(request, organization);
+
+        // Get or create custom permissions object
+        Organization.CustomPermissions customPermissions = organization.getCustomPermissions();
+        if (customPermissions == null) {
+            customPermissions = new Organization.CustomPermissions();
+        }
+
+        // Update added permissions
+        if (request.getAdded() != null) {
+            List<String> added = customPermissions.getAdded();
+            if (added == null) {
+                added = new ArrayList<>();
+            }
+            added.addAll(request.getAdded());
+            customPermissions.setAdded(added);
+        }
+
+        // Update removed permissions
+        if (request.getRemoved() != null) {
+            List<String> removed = customPermissions.getRemoved();
+            if (removed == null) {
+                removed = new ArrayList<>();
+            }
+            removed.addAll(request.getRemoved());
+            customPermissions.setRemoved(removed);
+        }
+
+        organization.setCustomPermissions(customPermissions);
+        organization = organizationRepository.save(organization);
+
+        // TODO: Record permission change on blockchain
+        // fabricGatewayService.recordPermissionChange(organization, request);
+
+        // Log audit trail
+        //auditService.logPermissionCustomization(organization, request, superAdminId);
+
+        return toOrganizationDetailResponse(organization);
+    }
+
+    /**
+     * Suspend organization (Super Admin only)
+     */
+    @Override
+    public OrganizationResponse suspendOrganization(
+            Long organizationId,
+            String reason,
+            Long superAdminId) {
+
+        log.info("Suspending organization ID: {} by super admin: {}", organizationId, superAdminId);
+
+        Organization organization = getOrganizationEntity(organizationId);
+
+        if (organization.getStatus() != Organization.OrganizationStatus.ACTIVE) {
+            throw new SludiException( ErrorCodes.ORGANIZATION_STATUS_ERROR, organization.getStatus().toString()  );
+        }
+
+        organization.setStatus(Organization.OrganizationStatus.SUSPENDED);
+        organization.setSuspendedBy(superAdminId);
+        organization.setSuspendedAt(LocalDateTime.now());
+        organization.setSuspensionReason(reason);
+
+        organization = organizationRepository.save(organization);
+
+        //  TODO : Log audit trail
+        //  auditService.logOrganizationSuspension(organization, superAdminId, reason);
+
+        return toOrganizationResponse(organization);
+    }
+
+    /**
+     * Reactivate suspended organization
+     */
+    @Override
+    public OrganizationResponse reactivateOrganization(Long organizationId, Long superAdminId) {
+        log.info("Reactivating organization ID: {}", organizationId);
+
+        Organization organization = getOrganizationEntity(organizationId);
+
+        if (organization.getStatus() != Organization.OrganizationStatus.SUSPENDED) {
+            throw new SludiException( ErrorCodes.ORGANIZATION_STATUS_ERROR, organization.getStatus().toString()  );
+        }
+
+        organization.setStatus(Organization.OrganizationStatus.ACTIVE);
+        organization.setSuspendedBy(null);
+        organization.setSuspendedAt(null);
+        organization.setSuspensionReason(null);
+
+        organization = organizationRepository.save(organization);
+
+        // TODO: Log audit trail
+        //auditService.logOrganizationReactivation(organization, superAdminId);
+
+        return toOrganizationResponse(organization);
+    }
 
     // ==================== Helper Methods ====================
 
@@ -183,6 +297,59 @@ public class OrganizationServiceImpl implements OrganizationService{
                 .templateId(org.getTemplate().getId() != null ? org.getTemplate().getId() : null )
                 .createdAt(org.getCreatedAt())
                 .approvedAt(org.getApprovedAt())
+                .build();
+    }
+
+    private OrganizationDetailResponse toOrganizationDetailResponse(Organization org) {
+        Set<String> effectivePermissions = permissionService.calculateEffectivePermissions(org);
+
+        CustomPermissionsResponse customPerms = null;
+        if (org.getCustomPermissions() != null) {
+            customPerms = CustomPermissionsResponse.builder()
+                    .added(org.getCustomPermissions().getAdded())
+                    .removed(org.getCustomPermissions().getRemoved())
+                    .build();
+        }
+
+        PermissionTemplateResponse templateResponse = null;
+        if (org.getTemplate() != null) {
+            templateResponse = PermissionTemplateResponse.builder()
+                    .id(org.getTemplate().getId())
+                    .templateCode(org.getTemplate().getTemplateCode())
+                    .name(org.getTemplate().getName())
+                    .category(PermissionTemplate.TemplateCategory.valueOf(org.getTemplate().getCategory().name()))
+                    .description(org.getTemplate().getDescription())
+                    .basePermissions(org.getTemplate().getBasePermissions())
+                    .build();
+        }
+
+        return OrganizationDetailResponse.builder()
+                .id(org.getId())
+                .orgCode(org.getOrgCode())
+                .name(org.getName())
+                .registrationNumber(org.getRegistrationNumber())
+                .orgType(org.getOrgType())
+                .sector(org.getSector())
+                .contactEmail(org.getContactEmail())
+                .contactPhone(org.getContactPhone())
+                .address(org.getAddress())
+                .city(org.getCity())
+                .postalCode(org.getPostalCode())
+                .template(templateResponse)
+                .effectivePermissions(new ArrayList<>(effectivePermissions))
+                .customPermissions(customPerms)
+                .status(org.getStatus())
+                .blockchainTxId(org.getBlockchainTxId())
+                .blockchainBlockNumber(org.getBlockchainBlockNumber())
+                .blockchainTimestamp(org.getBlockchainTimestamp())
+                .createdBy(org.getCreatedBy())
+                .createdAt(org.getCreatedAt())
+                .approvedBy(org.getApprovedBy())
+                .approvedAt(org.getApprovedAt())
+                .suspendedBy(org.getSuspendedBy())
+                .suspendedAt(org.getSuspendedAt())
+                .suspensionReason(org.getSuspensionReason())
+                .updatedAt(org.getUpdatedAt())
                 .build();
     }
 }
