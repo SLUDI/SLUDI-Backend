@@ -1,6 +1,5 @@
 package org.example.controller;
 
-import lombok.RequiredArgsConstructor;
 import org.example.dto.ApiResponseDto;
 import org.example.service.DeepfakeDetectionService;
 import org.springframework.core.io.ByteArrayResource;
