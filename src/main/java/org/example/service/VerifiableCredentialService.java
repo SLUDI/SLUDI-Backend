@@ -220,10 +220,12 @@ public class VerifiableCredentialService {
                 .id(user.getDidId())
                 .fullName(user.getFullName())
                 .nic(user.getNic())
+                .age(user.getAge())
                 .dateOfBirth(user.getDateOfBirth().toString())
                 .citizenship(user.getCitizenship())
                 .gender(user.getGender())
                 .nationality(user.getNationality())
+                .bloodGroup(user.getBloodGroup())
                 .address(addressDto)
                 .build();
     }
