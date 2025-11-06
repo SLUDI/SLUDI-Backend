@@ -41,6 +41,13 @@ public enum ErrorCodes {
     INTERNAL_ERROR("2023", "Unexpected error occurred while confirming appointment"),
     USER_ALREADY_HAS_DID("2024", "This user already has DID Document"),
     WALLET_EXISTS("2025", "This user already has wallet"),
+    TEMPLATE_NOT_FOUND("2026", "Template not found"),
+    TEMPLATE_EXISTS_WITH_CODE("2027","Template is already exists"),
+    DUPLICATE_ORGANIZATION("2028", "Organization with registration number already exists"),
+    ORGANIZATION_NOT_FOUND("2029","Organization not found"),
+    INVALID_PERMISSION("2030","Cannot remove permission that doesn't exist in template"),
+    ORGANIZATION_STATUS_ERROR("2031", "Current organization status does not support for operation"),
+    INVALID_STATUS_OPERATION("2032","Only pending status can be approved"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
