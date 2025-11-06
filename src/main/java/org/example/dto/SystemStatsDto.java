@@ -15,5 +15,6 @@ public class SystemStatsDto {
     private Integer totalCredentials;
     private Integer activeCredentials;
     private Integer revokedCredentials;
+    private Long blockHeight;
     private String lastUpdated;
 }

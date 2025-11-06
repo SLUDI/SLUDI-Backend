@@ -3,17 +3,15 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 public class CredentialIssuanceRequestDto {
-    private String credentialId;
     private String subjectDID;
+    private String issuerDID;
     private String credentialType;
-    private String fullName;
-    private String nic;
-    private String dateOfBirth;
-    private String citizenship;
-    private String fingerprintHash;
-    private String faceImageHash;
-    private AddressDto address;
+    private String credentialSubjectHash;
+    private List<SupportingDocumentResponseDto> supportingDocuments;
+    private ProofDataDto proofData;
 }

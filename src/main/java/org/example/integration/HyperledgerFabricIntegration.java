@@ -40,6 +40,12 @@ public class HyperledgerFabricIntegration {
     @Value("${fabric.override-auth}")
     private String overrideAuth;
 
+    @Value("${sludi.organization.certificate-path}")
+    private String adminCertificatePath;
+
+    @Value("${sludi.organization.private-key-path}")
+    private String adminPrivateKeyPath;
+
     @Bean
     public ManagedChannel grpcChannel() throws IOException {
         LOGGER.info("Creating gRPC channel for peer: " + peerEndpoint);
@@ -106,6 +112,18 @@ public class HyperledgerFabricIntegration {
         LOGGER.info("Creating Contract for chaincode: " + chaincodeName + " on channel: " + channelName);
         var network = gateway.getNetwork(channelName);
         return network.getContract(chaincodeName);
+    }
+
+    /**
+     * Find the private key file (ending with _sk) in the keystore directory
+     */
+    private Path getPrivateKeyFile(Path keyDirPath) throws IOException {
+        try (var keyFiles = Files.list(keyDirPath)) {
+            return keyFiles
+                    .filter(path -> path.getFileName().toString().endsWith("_sk"))
+                    .findFirst()
+                    .orElseThrow(() -> new IOException("No private key file (*_sk) found in directory: " + keyDirPath));
+        }
     }
 
     private Path getFirstFilePath(Path dirPath) throws IOException {

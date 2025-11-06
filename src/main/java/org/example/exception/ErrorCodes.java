@@ -10,10 +10,10 @@ public enum ErrorCodes {
     BIOMETRIC_MISMATCH("1005", "Biometric data does not match"),
     USER_NOT_REGISTERED("1006", "User is not registered"),
     INVALID_AUTHRTIZATION_HEADER("1007", "Invalid authorization header provided"),
-    UNAUTHORIZED("1008", "Unauthorized access"),
+    UNAUTHORIZED("1008", "Authentication is missing or invalid"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
-
-
+    FAILED_TO_RETRIEVE_IDENTITY_VC("1010", "Failed to retrieve identity Verifiable Credential"),
+    
     // Data Processing Errors (2000-2999)
     ADDRESS_PARSE_ERROR("2000", "Failed to parse address data"),
     ADDRESS_CONVERSION_ERROR("2001", "Failed to convert address to JSON"),
@@ -28,15 +28,19 @@ public enum ErrorCodes {
     FAILD_TO_RETRIEVE_USER_PROFILE("2010", "Failed to retrieve user profile"),
     USER_DEACTIVATION_FAILED("2011", "User deactivation failed"),
     STATISTICS_RETRIEVAL_FAILED("2012", "Failed to retrieve user statistics"),
-    INVALID_STATUS_OPERATION("2013","Only pending status can be approved"),
-    TEMPLATE_NOT_FOUND("2014", "Template not found"),
-    TEMPLATE_EXISTS_WITH_CODE("2015","Template is already exists"),
-    DUPLICATE_ORGANIZATION("2016", "Organization with registration number already exists"),
-    ORGANIZATION_NOT_FOUND("2017","Organization not found"),
-    INVALID_PERMISSION("2018","Cannot remove permission that doesn't exist in template"),
-    ORGANIZATION_STATUS_ERROR("2019", "Current organization status does not support for operation"),
-
-
+    CREDENTIAL_NOT_FOUND("2013", "Credential not found"),
+    FAILED_TO_RETRIEVE_DID_DOCUMENT("2014", "Failed to retrieve DID document from blockchain"),
+    OTP_SEND_FAILED("2015", "Failed to send OTP email"),
+    WALLET_CREATION_FAILED("2016", "Failed to create wallet"),
+    VC_STORAGE_FAILED("2017", "Failed to store Verifiable Credential"),
+    WALLET_NOT_FOUND("2018", "Wallet not found for the provided DID"),
+    WALLET_RETRIEVAL_FAILED("2019", "Failed to retrieve wallet data"),
+    JSON_PARSING_FAILED("2020", "Failed to parse credentials JSON"),
+    CONTENT_NOT_FOUND("2021", "IPFS content not found in DB"),
+    MAIL_SENDING_FAILED("2022", "Failed to send appointment confirmation email"),
+    INTERNAL_ERROR("2023", "Unexpected error occurred while confirming appointment"),
+    USER_ALREADY_HAS_DID("2024", "This user already has DID Document"),
+    WALLET_EXISTS("2025", "This user already has wallet"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
@@ -68,8 +72,14 @@ public enum ErrorCodes {
     SYSTEM_STATS_FAILED("3026", "Failed to retrieve system statistics"),
     AUTH_LOG_RETRIEVAL_FAILED("3027", "Failed to retrieve authentication logs"),
     DID_RETRIEVAL_FAILED("3028", "Failed to retrieve DIDs document from blockchain"),
-
-    // Validation Errors (4000-4999
+    IDENTITY_VC_NOT_FOUND("3029", "Identity Verifiable Credential not found"),
+    FAILED_TO_ISSUE_IDENTITY_VC("3030", "Failed to issued Identity VC"),
+    CRYPTO_INITIALIZATION_FAILED("3031", "Failed to initialize unified signature service"),
+    SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
+    PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
+    DID_DELETION_FAILED("3034", "Failed to delete DID on blockchain"),
+    
+    // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),
     MISSING_REQUIRED_FIELD("4001", "Required field is missing"),
     INVALID_FORMAT("4002", "Invalid document format. Only PDF and image files are allowed"),
@@ -82,6 +92,11 @@ public enum ErrorCodes {
     EMPTY_IMAGE("4009", "Image data cannot be empty"),
     FILE_TOO_LARGE("4010", "File size exceeds the maximum limit"),
     INVALID_FORMAT_IMAGE("4011", "Invalid image format. Only JPEG, JPG, and PNG are allowed"),
+    INVALID_IDENTIFIER_TYPE("4012", "Invalid identifier type provided not in [EMAIL, NIC, DID]"),
+    INVALID_DID("4013", "No DID found for the provided identifier"),
+    DATE_UNAVAILABLE("4012", "The selected date is not available for booking"),
+    INVALID_NONCE("4013", "Invalid NONCE"),
+    SIGNATURE_FAILED("4014", "Signature verification failed"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),
@@ -97,7 +112,10 @@ public enum ErrorCodes {
     ENCRYPTION_KEY_ERROR("5010", "Failed to process encryption key"),
     KEY_GENERATION_FAILED("5011", "Failed to generate key pair"),
     BIOMETRIC_ENCRYPTION_FAILED("5012", "Biometric data encryption failed"),
-    BIOMETRIC_DECRYPTION_FAILED("5013", "Biometric data decryption failed"),;
+    BIOMETRIC_DECRYPTION_FAILED("5013", "Biometric data decryption failed"),
+    CREDENTIAL_INTEGRITY_VIOLATION("5014", "Credential integrity violation detected"),
+    DID_INTEGRITY_VIOLATION("5015", "DID integrity violation detected"),
+    KEY_FINGERPRINT_GENERATION_FAILED("5016", "Failed to generate key fingerprint"),;
 
     private final String code;
     private final String description;

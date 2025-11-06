@@ -20,7 +20,7 @@ public class SludiException extends RuntimeException {
     }
 
     public SludiException(ErrorCodes errorCode, Throwable cause) {
-        super(errorCode.getDescription(), cause);
+        super(errorCode.getDescription() + ": " + cause.getMessage(), cause);
         this.errorCode = errorCode.getCode();
         this.errorDescription = errorCode.getDescription();
     }

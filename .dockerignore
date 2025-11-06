@@ -1,0 +1,30 @@
+# Gradle build directories and caches
+.gradle
+build
+out
+
+# IDE files
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment and secret files
+.env
+*.keystore
+*.jks
+*.pem
+*.key
+
+# Temporary files
+tmp/
+temp/
