@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: postgres-container
     environment:
       POSTGRES_USER: postgres
@@ -93,9 +93,9 @@ services:
       JWT_SECRET_KEY: 2lYHIETKr8xHDeLmEW5nNuAdSxllkI50+HxD2F2ZBpXXV8Ze0VAMJtJox9YLYxFUTm7Urun6vmGKRr64Avs9jQ==
 
     volumes:
-      - /home/tishan/FYP/go/src/github.com/Tishan-001/fabric-samples/test-network/organizations:/organizations
+      - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.8.104"
+      - "peer0.org1.example.com:192.168.8.102"
     networks:
       - sludi-network
     restart: unless-stopped

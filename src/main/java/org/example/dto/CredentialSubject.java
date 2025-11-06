@@ -15,6 +15,7 @@ public class CredentialSubject {
     private String id; // DID of the subject
     private String fullName;
     private String nic;
+    private int age;
     private String dateOfBirth;
     private String citizenship;
     private String gender;
