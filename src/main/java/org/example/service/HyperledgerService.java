@@ -1,11 +1,10 @@
 package org.example.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
-import org.example.entity.AuthenticationLog;
-import org.example.entity.ProofData;
-import org.example.entity.VerifiableCredential;
+import org.example.entity.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 
@@ -19,8 +18,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -36,6 +38,7 @@ public class HyperledgerService {
     private String issuerDid;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Gson gson = new Gson();
 
     public HyperledgerService(
             Contract contract,
@@ -407,6 +410,120 @@ public class HyperledgerService {
                     .lastUpdated(Instant.now().toString())
                     .build();
         }
+    }
+
+    /**
+     * Registers a user on the blockchain ledger for a given organization MSP.
+     */
+    public String registerUserOnBlockchain(OrganizationUser user, String mspId) throws Exception {
+        log.info("Registering user on blockchain ledger: {}", user.getFabricUserId());
+
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("fabricUserId", user.getFabricUserId());
+        userData.put("employeeId", user.getEmployeeId());
+        userData.put("username", user.getUsername());
+        userData.put("email", user.getEmail());
+        userData.put("firstName", user.getFirstName());
+        userData.put("lastName", user.getLastName());
+        userData.put("orgCode", user.getOrganization().getOrgCode());
+        userData.put("organizationName", user.getOrganization().getName());
+        userData.put("mspId", mspId);
+        userData.put("roleCode", user.getAssignedRole().getRoleCode());
+        userData.put("permissions", user.getAssignedRole().getPermissions());
+        userData.put("department", user.getDepartment());
+        userData.put("designation", user.getDesignation());
+        userData.put("registeredAt", LocalDateTime.now().toString());
+        userData.put("status", "ACTIVE");
+
+        String userJson = objectMapper.writeValueAsString(userData);
+        byte[] result = contract.submitTransaction("RegisterOrganizationUser", userJson);
+
+        String txResponse = new String(result, StandardCharsets.UTF_8);
+        Map<String, Object> txInfo = objectMapper.readValue(txResponse, Map.class);
+
+        log.info("User successfully registered on blockchain: {}", txResponse);
+
+        return (String) txInfo.get("txId");
+    }
+
+    /**
+     * Update user role on blockchain
+     */
+    public String updateUserRoleOnBlockchain(OrganizationUser user) throws Exception {
+        log.info("Updating user role on blockchain: {}", user.getFabricUserId());
+
+        Map<String, Object> updateData = new HashMap<>();
+        updateData.put("fabricUserId", user.getFabricUserId());
+        updateData.put("newRoleCode", user.getAssignedRole().getRoleCode());
+        updateData.put("newPermissions", user.getAssignedRole().getPermissions());
+        updateData.put("updatedAt", LocalDateTime.now().toString());
+
+        byte[] result = contract.submitTransaction(
+                "UpdateUserRole",
+                gson.toJson(updateData)
+        );
+
+        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        return (String) txInfo.get("txId");
+    }
+
+    /**
+     * Revoke user access on blockchain
+     */
+    public String revokeUserAccessOnBlockchain(OrganizationUser user, String reason)
+            throws Exception {
+        log.info("Revoking user access on blockchain: {}", user.getFabricUserId());
+
+        Map<String, Object> revokeData = new HashMap<>();
+        revokeData.put("fabricUserId", user.getFabricUserId());
+        revokeData.put("reason", reason);
+        revokeData.put("revokedAt", LocalDateTime.now().toString());
+
+        byte[] result = contract.submitTransaction(
+                "RevokeUserAccess",
+                gson.toJson(revokeData)
+        );
+
+        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        return (String) txInfo.get("txId");
+    }
+
+    /**
+     * Restore user access on blockchain
+     */
+    public String restoreUserAccessOnBlockchain(OrganizationUser user) throws Exception {
+        log.info("Restoring user access on blockchain: {}", user.getFabricUserId());
+
+        Map<String, Object> restoreData = new HashMap<>();
+        restoreData.put("fabricUserId", user.getFabricUserId());
+        restoreData.put("restoredAt", LocalDateTime.now().toString());
+
+        byte[] result = contract.submitTransaction(
+                "RestoreUserAccess",
+                gson.toJson(restoreData)
+        );
+
+        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        return (String) txInfo.get("txId");
+    }
+
+    /**
+     * Update user permissions on blockchain
+     */
+    public void updateUserPermissionsOnBlockchain(OrganizationUser user) throws Exception {
+        // Calculate effective permissions
+        List<String> effectivePermissions = new ArrayList<>(
+                user.getAssignedRole().getPermissions()
+        );
+
+        Map<String, Object> updateData = new HashMap<>();
+        updateData.put("fabricUserId", user.getFabricUserId());
+        updateData.put("permissions", effectivePermissions);
+
+        contract.submitTransaction(
+                "UpdateUserPermissions",
+                gson.toJson(updateData)
+        );
     }
 
     /**

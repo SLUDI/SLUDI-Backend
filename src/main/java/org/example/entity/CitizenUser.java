@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.converter.CryptoConverter;
 import org.example.converter.LocalDateCryptoConverter;
-import org.example.enums.KYCStatus;
+import org.example.enums.VerificationStatus;
 import org.example.enums.UserStatus;
 import org.example.utils.HashUtil;
 import org.springframework.security.core.GrantedAuthority;
@@ -85,7 +85,7 @@ public class CitizenUser implements UserDetails {
     private UserStatus status;
 
     @Enumerated(EnumType.STRING)
-    private KYCStatus kycStatus;
+    private VerificationStatus verificationStatus;
 
     private String didId;
     private String publicKey;

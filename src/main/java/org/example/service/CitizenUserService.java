@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
-import org.example.enums.KYCStatus;
+import org.example.enums.VerificationStatus;
 import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
@@ -346,7 +346,7 @@ public class CitizenUserService {
                 .bloodGroup(request.getPersonalInfo().getBloodGroup())
                 .address(address)
                 .status(UserStatus.PENDING)
-                .kycStatus(KYCStatus.NOT_STARTED)
+                .verificationStatus(VerificationStatus.NOT_STARTED)
                 .createdAt(LocalDateTime.now().toString())
                 .updatedAt(LocalDateTime.now().toString())
                 .build();
@@ -479,7 +479,7 @@ public class CitizenUserService {
                     .nationality(user.getNationality())
                     .address(user.getAddress() != null ? convertJsonToAddress(user.getAddress()) : null)
                     .status(user.getStatus() != null ? user.getStatus().toString() : null)
-                    .kycStatus(user.getKycStatus() != null ? user.getKycStatus().toString() : null)
+                    .kycStatus(user.getVerificationStatus() != null ? user.getVerificationStatus().toString() : null)
                     .supportingDocumentList(responseList)
                     .createdAt(user.getCreatedAt())
                     .updatedAt(user.getUpdatedAt())

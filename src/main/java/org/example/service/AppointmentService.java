@@ -2,17 +2,15 @@ package org.example.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.AppointmentAvailabilityResponseDto;
-import org.example.dto.AppointmentDto;
 import org.example.entity.Appointment;
 import org.example.entity.CitizenUser;
 import org.example.enums.AppointmentStatus;
-import org.example.enums.KYCStatus;
+import org.example.enums.VerificationStatus;
 import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.AppointmentRepository;
 import org.example.repository.CitizenUserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -123,7 +121,7 @@ public class AppointmentService {
 
             if(documentsValid) {
                 user.setStatus(UserStatus.PENDING);
-                user.setKycStatus(KYCStatus.IN_PROGRESS);
+                user.setVerificationStatus(VerificationStatus.IN_PROGRESS);
 
                 citizenUserRepository.save(user);
 
@@ -147,7 +145,7 @@ public class AppointmentService {
                 return true;
             } else {
                 user.setStatus(UserStatus.INACTIVE);
-                user.setKycStatus(KYCStatus.REJECTED);
+                user.setVerificationStatus(VerificationStatus.REJECTED);
 
                 return false;
             }

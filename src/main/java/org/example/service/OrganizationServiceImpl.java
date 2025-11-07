@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.Organization;
+import org.example.entity.OrganizationOnboarding;
 import org.example.entity.PermissionTemplate;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
@@ -25,8 +26,8 @@ import java.util.stream.Collectors;
 public class OrganizationServiceImpl implements OrganizationService{
 
     private final PermissionService permissionService;
-
     private final OrganizationRepository organizationRepository;
+    private final FabricOrgAssignmentService fabricOrgAssignmentService;
     /*
     * Create new organization (Super Admin only)
     * Initial status: PENDING
@@ -50,13 +51,6 @@ public class OrganizationServiceImpl implements OrganizationService{
             throw new RuntimeException("Org code already used");
         }
 
-        // TODO: Improve organization code generation step for overlapping codes
-//        while (organizationRepository.existsByOrgCode(orgCode)){
-//
-//            orgCode = OrgCodeGenerator.generateWithSuffix(request.getName(), request.getOrganizationType()); // Need this method to create new orgCode instead of putting exception
-//        }
-
-        // TODO: Record on blockchain
         //Build organization entity
         Organization organization = Organization.builder()
                 .orgCode(orgCode)
@@ -152,6 +146,10 @@ public class OrganizationServiceImpl implements OrganizationService{
         organization.setStatus(Organization.OrganizationStatus.ACTIVE);
         organization.setApprovedBy(superAdminId);
         organization.setApprovedAt(LocalDateTime.now());
+
+        // Assign Fabric organization
+        OrganizationOnboarding onboarding = fabricOrgAssignmentService
+                .assignFabricOrganization(organization);
 
         // TODO: Record on blockchain
         // String txId = fabricGatewayService.registerOrganization(organization);

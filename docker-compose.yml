@@ -95,7 +95,7 @@ services:
     volumes:
       - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.8.102"
+      - "peer0.org1.example.com:192.168.8.100"
     networks:
       - sludi-network
     restart: unless-stopped

@@ -45,7 +45,7 @@ public class JwtService {
             claims.put("nic", user.getNic());
             claims.put("fullName", user.getFullName());
             claims.put("status", user.getStatus().toString());
-            claims.put("kycStatus", user.getKycStatus().toString());
+            claims.put("verificationStatus", user.getVerificationStatus().toString());
             claims.put("tokenType", JWTTokenType.ACCESS_TOKEN);
 
             return Jwts.builder()
