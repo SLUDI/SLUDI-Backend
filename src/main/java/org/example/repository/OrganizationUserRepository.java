@@ -78,7 +78,7 @@ public interface OrganizationUserRepository extends JpaRepository<OrganizationUs
      * Find active users of an organization
      */
     @Query("SELECT u FROM OrganizationUser u WHERE u.organization.id = :organizationId " +
-            "AND u.status = 'ACTIVE' AND u.isActive = true")
+            "AND u.status = 'ACTIVE'")
     List<OrganizationUser> findActiveUsersByOrganizationId(@Param("organizationId") Long organizationId);
 
     /**
@@ -106,23 +106,8 @@ public interface OrganizationUserRepository extends JpaRepository<OrganizationUs
      * Count active users by organization
      */
     @Query("SELECT COUNT(u) FROM OrganizationUser u WHERE u.organization.id = :organizationId " +
-            "AND u.status = 'ACTIVE' AND u.isActive = true")
+            "AND u.status = 'ACTIVE'")
     long countActiveUsersByOrganizationId(@Param("organizationId") Long organizationId);
-
-    /**
-     * Find users with failed login attempts
-     */
-    @Query("SELECT u FROM OrganizationUser u WHERE u.loginAttempts >= :maxAttempts " +
-            "AND u.accountLockedUntil > :now")
-    List<OrganizationUser> findLockedAccounts(
-            @Param("maxAttempts") int maxAttempts,
-            @Param("now") LocalDateTime now);
-
-    /**
-     * Find users not logged in since specific date
-     */
-    @Query("SELECT u FROM OrganizationUser u WHERE u.lastLogin < :date OR u.lastLogin IS NULL")
-    List<OrganizationUser> findInactiveUsersSince(@Param("date") LocalDateTime date);
 
     /**
      * Search users by name or email
