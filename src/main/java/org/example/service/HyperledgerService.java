@@ -432,7 +432,6 @@ public class HyperledgerService {
         userData.put("permissions", user.getAssignedRole().getPermissions());
         userData.put("department", user.getDepartment());
         userData.put("designation", user.getDesignation());
-        userData.put("registeredAt", LocalDateTime.now().toString());
         userData.put("status", "ACTIVE");
 
         String userJson = objectMapper.writeValueAsString(userData);
@@ -456,7 +455,6 @@ public class HyperledgerService {
         updateData.put("fabricUserId", user.getFabricUserId());
         updateData.put("newRoleCode", user.getAssignedRole().getRoleCode());
         updateData.put("newPermissions", user.getAssignedRole().getPermissions());
-        updateData.put("updatedAt", LocalDateTime.now().toString());
 
         byte[] result = contract.submitTransaction(
                 "UpdateUserRole",
@@ -477,7 +475,6 @@ public class HyperledgerService {
         Map<String, Object> revokeData = new HashMap<>();
         revokeData.put("fabricUserId", user.getFabricUserId());
         revokeData.put("reason", reason);
-        revokeData.put("revokedAt", LocalDateTime.now().toString());
 
         byte[] result = contract.submitTransaction(
                 "RevokeUserAccess",
@@ -496,7 +493,6 @@ public class HyperledgerService {
 
         Map<String, Object> restoreData = new HashMap<>();
         restoreData.put("fabricUserId", user.getFabricUserId());
-        restoreData.put("restoredAt", LocalDateTime.now().toString());
 
         byte[] result = contract.submitTransaction(
                 "RestoreUserAccess",

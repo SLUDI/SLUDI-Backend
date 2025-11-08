@@ -4,6 +4,8 @@ import org.example.entity.*;
 import org.example.repository.*;
 import org.example.service.FabricCAService;
 import org.example.service.FabricOrgAssignmentService;
+import org.example.utils.FabricProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.CreatePermissionTemplateRequest;
@@ -25,6 +27,9 @@ import java.util.List;
 @Configuration
 @Slf4j
 public class DataInitializer {
+
+    @Autowired
+    private FabricProperties fabricProperties;
 
     @Bean
     @Transactional
@@ -94,16 +99,18 @@ public class DataInitializer {
 
     private FabricOrgConfig initializeFabricOrg1(FabricOrgConfigRepository fabricRepository) {
         if (!fabricRepository.existsByMspId("Org1MSP")) {
+            String org1BasePath = fabricProperties.getBasePath() + "/org1.example.com";
+
             FabricOrgConfig org1 = FabricOrgConfig.builder()
-                    .mspId("Org1MSP")
-                    .channelName("sludi-channel")
-                    .chainCodeName("sludi-Chaincode")
-                    .cryptoPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com")
-                    .networkPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/connection-org1.json")
-                    .peerEndpoint("localhost:7051")
-                    .ordererEndpoint("localhost:7050")
-                    .caEndpoint("localhost:7054")
-                    .walletPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users")
+                    .mspId(fabricProperties.getOrg1().getMspId())
+                    .channelName(fabricProperties.getOrg1().getChannelName())
+                    .chainCodeName(fabricProperties.getOrg1().getChaincodeName())
+                    .cryptoPath(org1BasePath)
+                    .networkPath(org1BasePath + "/connection-org1.json")
+                    .peerEndpoint(fabricProperties.getOrg1().getPeerEndpoint())
+                    .ordererEndpoint(fabricProperties.getOrg1().getOrdererEndpoint())
+                    .caEndpoint(fabricProperties.getOrg1().getCaEndpoint())
+                    .walletPath(org1BasePath + "/users")
                     .isAssigned(false)
                     .build();
 
@@ -118,16 +125,18 @@ public class DataInitializer {
 
     private FabricOrgConfig initializeFabricOrg2(FabricOrgConfigRepository fabricRepository) {
         if (!fabricRepository.existsByMspId("Org2MSP")) {
+            String org2BasePath = fabricProperties.getBasePath() + "/org2.example.com";
+
             FabricOrgConfig org2 = FabricOrgConfig.builder()
-                    .mspId("Org2MSP")
-                    .channelName("sludi-channel")
-                    .chainCodeName("sludi-Chaincode")
-                    .cryptoPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org2.example.com")
-                    .networkPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org2.example.com/connection-org2.json")
-                    .peerEndpoint("localhost:9051")
-                    .ordererEndpoint("localhost:7050")
-                    .caEndpoint("localhost:8054")
-                    .walletPath("/home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations/peerOrganizations/org2.example.com/users")
+                    .mspId(fabricProperties.getOrg2().getMspId())
+                    .channelName(fabricProperties.getOrg2().getChannelName())
+                    .chainCodeName(fabricProperties.getOrg2().getChaincodeName())
+                    .cryptoPath(org2BasePath)
+                    .networkPath(org2BasePath + "/connection-org2.json")
+                    .peerEndpoint(fabricProperties.getOrg2().getPeerEndpoint())
+                    .ordererEndpoint(fabricProperties.getOrg2().getOrdererEndpoint())
+                    .caEndpoint(fabricProperties.getOrg2().getCaEndpoint())
+                    .walletPath(org2BasePath + "/users")
                     .isAssigned(false)
                     .build();
 
