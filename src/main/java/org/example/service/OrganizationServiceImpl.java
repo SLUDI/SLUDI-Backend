@@ -7,6 +7,8 @@ import org.example.dto.*;
 import org.example.entity.Organization;
 import org.example.entity.OrganizationOnboarding;
 import org.example.entity.PermissionTemplate;
+import org.example.enums.OrganizationStatus;
+import org.example.enums.TemplateCategory;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.OrganizationRepository;
@@ -64,7 +66,7 @@ public class OrganizationServiceImpl implements OrganizationService{
                 .address(request.getAddress())
                 .city(request.getCity())
                 .postalCode(request.getPostalCode())
-                .status(Organization.OrganizationStatus.PENDING)
+                .status(OrganizationStatus.PENDING)
                 .createdBy(superAdminId)
                 .build();
 
@@ -138,12 +140,12 @@ public class OrganizationServiceImpl implements OrganizationService{
         Organization organization = getOrganizationEntity(organizationId);
 
         // Validate current status
-        if(organization.getStatus() != Organization.OrganizationStatus.PENDING){
+        if(organization.getStatus() != OrganizationStatus.PENDING){
             throw new SludiException(ErrorCodes.INVALID_STATUS_OPERATION, organization.getOrgCode());
         }
 
         // Update status
-        organization.setStatus(Organization.OrganizationStatus.ACTIVE);
+        organization.setStatus(OrganizationStatus.ACTIVE);
         organization.setApprovedBy(superAdminId);
         organization.setApprovedAt(LocalDateTime.now());
 
@@ -227,11 +229,11 @@ public class OrganizationServiceImpl implements OrganizationService{
 
         Organization organization = getOrganizationEntity(organizationId);
 
-        if (organization.getStatus() != Organization.OrganizationStatus.ACTIVE) {
+        if (organization.getStatus() != OrganizationStatus.ACTIVE) {
             throw new SludiException( ErrorCodes.ORGANIZATION_STATUS_ERROR, organization.getStatus().toString()  );
         }
 
-        organization.setStatus(Organization.OrganizationStatus.SUSPENDED);
+        organization.setStatus(OrganizationStatus.SUSPENDED);
         organization.setSuspendedBy(superAdminId);
         organization.setSuspendedAt(LocalDateTime.now());
         organization.setSuspensionReason(reason);
@@ -253,11 +255,11 @@ public class OrganizationServiceImpl implements OrganizationService{
 
         Organization organization = getOrganizationEntity(organizationId);
 
-        if (organization.getStatus() != Organization.OrganizationStatus.SUSPENDED) {
+        if (organization.getStatus() != OrganizationStatus.SUSPENDED) {
             throw new SludiException( ErrorCodes.ORGANIZATION_STATUS_ERROR, organization.getStatus().toString()  );
         }
 
-        organization.setStatus(Organization.OrganizationStatus.ACTIVE);
+        organization.setStatus(OrganizationStatus.ACTIVE);
         organization.setSuspendedBy(null);
         organization.setSuspendedAt(null);
         organization.setSuspensionReason(null);
@@ -315,7 +317,7 @@ public class OrganizationServiceImpl implements OrganizationService{
                     .id(org.getTemplate().getId())
                     .templateCode(org.getTemplate().getTemplateCode())
                     .name(org.getTemplate().getName())
-                    .category(PermissionTemplate.TemplateCategory.valueOf(org.getTemplate().getCategory().name()))
+                    .category(TemplateCategory.valueOf(org.getTemplate().getCategory().name()))
                     .description(org.getTemplate().getDescription())
                     .basePermissions(org.getTemplate().getBasePermissions())
                     .build();

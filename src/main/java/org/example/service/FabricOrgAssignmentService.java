@@ -13,6 +13,7 @@ import org.example.repository.OrganizationOnboardingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -36,15 +37,21 @@ public class FabricOrgAssignmentService {
             throw new SludiException(ErrorCodes.NO_FABRIC_ORG_AVAILABLE);
         }
 
-        // Create onboarding record
+        availableFabricOrg.setIsAssigned(true);
+        fabricConfigRepository.save(availableFabricOrg);
+
         OrganizationOnboarding onboarding = OrganizationOnboarding.builder()
                 .organization(organization)
                 .mspId(availableFabricOrg.getMspId())
                 .peerEndpoint(availableFabricOrg.getPeerEndpoint())
                 .caEndpoint(availableFabricOrg.getCaEndpoint())
+                .networkPath(availableFabricOrg.getNetworkPath())
+                .walletPath(availableFabricOrg.getWalletPath())
                 .ordererEndpoint(availableFabricOrg.getOrdererEndpoint())
                 .cryptoConfigPath(availableFabricOrg.getCryptoPath())
                 .onboardingStatus(OnboardingStatus.INITIATED)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
 
         onboarding = onboardingRepository.save(onboarding);

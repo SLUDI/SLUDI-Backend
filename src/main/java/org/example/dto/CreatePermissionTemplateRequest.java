@@ -3,6 +3,8 @@ package org.example.dto;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import org.example.entity.PermissionTemplate;
+import org.example.enums.PredefinedRole;
+import org.example.enums.TemplateCategory;
 
 import java.util.List;
 
@@ -22,7 +24,7 @@ public class CreatePermissionTemplateRequest {
     private String name;
 
     @NotNull(message = "Category is required")
-    private PermissionTemplate.TemplateCategory category;
+    private TemplateCategory category;
 
     private String description;
 
@@ -31,7 +33,7 @@ public class CreatePermissionTemplateRequest {
             message = "Invalid permission format") String> basePermissions;
 
     @NotEmpty(message = "At least one predefined role is required")
-    private List<PermissionTemplate.PredefinedRole> predefinedRoles;
+    private List<PredefinedRole.RoleInstance> predefinedRoles;
 }
 
 

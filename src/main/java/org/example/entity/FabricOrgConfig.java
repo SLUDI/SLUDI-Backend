@@ -24,5 +24,6 @@ public class FabricOrgConfig {
     private String ordererEndpoint;
     private String cryptoPath;
     private String walletPath;
+    private String networkPath;
     private Boolean isAssigned;
 }

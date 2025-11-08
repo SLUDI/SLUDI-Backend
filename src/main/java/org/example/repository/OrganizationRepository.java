@@ -26,4 +26,8 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
      */
     @Query("SELECT o FROM Organization o LEFT JOIN FETCH o.template WHERE o.id = :id")
     Optional<Organization> findByIdWithTemplate(@Param("id") Long id);
+
+    boolean existsByNameIgnoreCase(String citizenRegistrationDepartment);
+
+    Optional<Organization> findByNameIgnoreCase(String citizenRegistrationDepartment);
 }

@@ -41,11 +41,11 @@ public class OrganizationOnboarding {
     @Column(name = "crypto_config_path")
     private String cryptoConfigPath; // Path to crypto materials
 
-    @Column(name = "tls_cert_path")
-    private String tlsCertPath;
+    @Column(name = "wallet_path")
+    private String walletPath;
 
-    @Column(name = "enrollment_secret")
-    private String enrollmentSecret; // For CA enrollment
+    @Column(name = "network_path")
+    private String networkPath;
 
     @Column(name = "onboarding_status")
     @Enumerated(EnumType.STRING)

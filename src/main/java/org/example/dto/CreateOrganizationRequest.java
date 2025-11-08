@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.entity.Organization;
+import org.example.enums.OrganizationType;
 
 @Data
 @Builder
@@ -23,7 +24,7 @@ public class CreateOrganizationRequest {
     private String registrationNumber;
 
     @NotNull(message = "Organization type is required")
-    private Organization.OrganizationType organizationType;
+    private OrganizationType organizationType;
 
     @Size(max = 50, message = "Sector must not exceed 50 characters")
     private String sector;

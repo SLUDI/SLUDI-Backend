@@ -62,6 +62,9 @@ public enum ErrorCodes {
     USER_ALREADY_SUSPEND("2044", "User is already suspended"),
     USER_IS_NOT_SUSPENDED("2045", "User is not suspended"),
     ACCOUNT_IS_NOT_ACTIVE("2046", "Account is not active"),
+    FABRIC_CONFIG_NOT_FOUND("2047","Fabric config not found for MSP: "),
+    BLOCKCHAIN_ENROLMENT_FAILED("2048", "Blockchain enrollment failed: "),
+    BLOCKCHAIN_USER_REGISTRATION_FAILED("2049", "Blockchain user registration failed"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),

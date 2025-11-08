@@ -1,12 +1,15 @@
 package org.example.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.entity.FabricOrgConfig;
+import org.example.exception.ErrorCodes;
+import org.example.exception.SludiException;
+import org.example.repository.FabricOrgConfigRepository;
 import org.hyperledger.fabric.sdk.Enrollment;
 import org.hyperledger.fabric.sdk.User;
 import org.hyperledger.fabric.sdk.security.CryptoSuite;
 import org.hyperledger.fabric.sdk.security.CryptoSuiteFactory;
 import org.hyperledger.fabric_ca.sdk.HFCAClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -25,11 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class FabricCAService {
 
-    @Value("${fabric.wallet.path:./wallet}")
-    private String walletBasePath;
-
-    @Value("${fabric.network.path:./fabric-network}")
-    private String networkPath;
+    private final FabricOrgConfigRepository fabricOrgConfigRepository;
 
     // Cache for CA clients
     private final Map<String, HFCAClient> caClientCache = new ConcurrentHashMap<>();
@@ -37,23 +36,30 @@ public class FabricCAService {
     // Cache for admin users
     private final Map<String, User> adminUserCache = new ConcurrentHashMap<>();
 
-    // CA endpoints configuration
-    private final Map<String, String> caEndpoints = new HashMap<>();
+    public FabricCAService(FabricOrgConfigRepository fabricOrgConfigRepository) {
+        this.fabricOrgConfigRepository = fabricOrgConfigRepository;
+    }
 
     @PostConstruct
     public void init() throws Exception {
         log.info("Initializing Fabric CA Service");
 
-        // Configure CA endpoints for each organization
-        caEndpoints.put("Org1MSP", "https://localhost:7054");
-        caEndpoints.put("Org2MSP", "https://localhost:8054");
-        caEndpoints.put("Org3MSP", "https://localhost:9054");
-        caEndpoints.put("Org4MSP", "https://localhost:10054");
-
         // Initialize crypto suite
         CryptoSuite cryptoSuite = CryptoSuiteFactory.getDefault().getCryptoSuite();
 
         log.info("Fabric CA Service initialized successfully");
+    }
+
+    /**
+     * Get Fabric config for MSP
+     */
+    private FabricOrgConfig getFabricConfig(String mspId) {
+        FabricOrgConfig fabricOrgConfig = fabricOrgConfigRepository.findByMspId(mspId);
+        if (fabricOrgConfig != null) {
+            return fabricOrgConfig;
+        } else {
+            throw new SludiException(ErrorCodes.FABRIC_CONFIG_NOT_FOUND, mspId);
+        }
     }
 
     /**
@@ -64,15 +70,13 @@ public class FabricCAService {
             return caClientCache.get(mspId);
         }
 
-        String caUrl = caEndpoints.get(mspId);
-        if (caUrl == null) {
-            throw new IllegalArgumentException("Unknown MSP ID: " + mspId);
-        }
+        FabricOrgConfig fabricConfig = getFabricConfig(mspId);
+        String caUrl = "https://" + fabricConfig.getCaEndpoint();
 
         log.info("Creating CA client for MSP: {} at URL: {}", mspId, caUrl);
 
         Properties props = new Properties();
-        props.put("pemFile", getCaCertPath(mspId));
+        props.put("pemFile", getCaCertPath(fabricConfig));
         props.put("allowAllHostNames", "true");
 
         HFCAClient caClient = HFCAClient.createNewInstance(caUrl, props);
@@ -87,7 +91,8 @@ public class FabricCAService {
     }
 
     /**
-     * Get admin user for specific MSP
+     * Get admin user for specific MSP (Properly implemented User interface)
+     * This method will enroll admin with CA if not already enrolled
      */
     public User getAdminUser(String mspId) throws Exception {
         if (adminUserCache.containsKey(mspId)) {
@@ -96,68 +101,129 @@ public class FabricCAService {
 
         log.info("Loading admin user for MSP: {}", mspId);
 
-        // Load admin enrollment from filesystem
-        Path adminCertPath = getAdminCertPath(mspId);
-        Path adminKeyPath = getAdminKeyPath(mspId);
+        FabricOrgConfig fabricConfig = getFabricConfig(mspId);
+        String orgShortName = mspId.replace("MSP", "").toLowerCase();
 
-        X509Certificate certificate = loadCertificate(adminCertPath);
-        PrivateKey privateKey = loadPrivateKey(adminKeyPath);
+        // Try to load existing admin from filesystem first
+        Path adminCertPath = getAdminCertPath(fabricConfig);
+        Path adminKeyPath = getAdminKeyPath(fabricConfig);
 
-        // Create enrollment
-        Enrollment enrollment = new Enrollment() {
-            @Override
-            public PrivateKey getKey() {
-                return privateKey;
-            }
+        // Check if we need to enroll admin with CA
+        // The filesystem admin might not have CA enrollment, so we enroll it
+        try {
+            log.info("Attempting to enroll admin with CA for MSP: {}", mspId);
 
-            @Override
-            public String getCert() {
-                try {
-                    return new String(Files.readAllBytes(adminCertPath));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+            HFCAClient caClient = getCaClient(mspId);
+
+            // Enroll admin with default credentials
+            Enrollment adminEnrollment = caClient.enroll("admin", "adminpw");
+
+            log.info("Admin enrolled successfully with CA");
+
+            // Create admin user with CA enrollment
+            AdminUser adminUser = new AdminUser(
+                    "admin",
+                    orgShortName + ".department1",
+                    mspId,
+                    adminEnrollment.getCert(),
+                    adminEnrollment.getKey()
+            );
+
+            adminUserCache.put(mspId, adminUser);
+
+            log.info("Admin user loaded successfully for: {} with affiliation: {}",
+                    mspId, adminUser.getAffiliation());
+
+            return adminUser;
+
+        } catch (Exception e) {
+            log.error("Failed to enroll admin with CA: {}", e.getMessage());
+
+            // Fallback: try to use filesystem admin (might not work for registration)
+            log.warn("Falling back to filesystem admin credentials (may not have CA authority)");
+
+            String certificate = Files.readString(adminCertPath);
+            PrivateKey privateKey = loadPrivateKey(adminKeyPath);
+
+            AdminUser adminUser = new AdminUser(
+                    "admin",
+                    orgShortName + ".department1",
+                    mspId,
+                    certificate,
+                    privateKey
+            );
+
+            adminUserCache.put(mspId, adminUser);
+            return adminUser;
+        }
+    }
+
+    /**
+     * Concrete implementation of User interface for Admin
+     */
+    private static class AdminUser implements User {
+        private final String name;
+        private final String affiliation;
+        private final String mspId;
+        private final Enrollment enrollment;
+        private final Set<String> roles;
+
+        public AdminUser(String name, String affiliation, String mspId,
+                         String certificate, PrivateKey privateKey) {
+            this.name = name;
+            this.affiliation = affiliation;
+            this.mspId = mspId;
+            this.roles = new HashSet<>(Arrays.asList("admin", "user"));
+
+            // Create enrollment
+            this.enrollment = new Enrollment() {
+                @Override
+                public PrivateKey getKey() {
+                    return privateKey;
                 }
-            }
-        };
 
-        // Create admin user
-        User adminUser = new User() {
-            @Override
-            public String getName() {
-                return "admin";
-            }
+                @Override
+                public String getCert() {
+                    return certificate;
+                }
+            };
+        }
 
-            @Override
-            public Set<String> getRoles() {
-                return new HashSet<>(Arrays.asList("admin"));
-            }
+        @Override
+        public String getName() {
+            return name;
+        }
 
-            @Override
-            public String getAccount() {
-                return "admin";
-            }
+        @Override
+        public Set<String> getRoles() {
+            return roles;
+        }
 
-            @Override
-            public String getAffiliation() {
-                return "org1.department1";
-            }
+        @Override
+        public String getAccount() {
+            return name;
+        }
 
-            @Override
-            public Enrollment getEnrollment() {
-                return enrollment;
-            }
+        @Override
+        public String getAffiliation() {
+            return affiliation;
+        }
 
-            @Override
-            public String getMspId() {
-                return mspId;
-            }
-        };
+        @Override
+        public Enrollment getEnrollment() {
+            return enrollment;
+        }
 
-        adminUserCache.put(mspId, adminUser);
+        @Override
+        public String getMspId() {
+            return mspId;
+        }
 
-        log.info("Admin user loaded successfully for: {}", mspId);
-
-        return adminUser;
+        @Override
+        public String toString() {
+            return String.format("AdminUser{name='%s', mspId='%s', affiliation='%s'}",
+                    name, mspId, affiliation);
+        }
     }
 
     /**
@@ -167,7 +233,8 @@ public class FabricCAService {
             throws Exception {
         log.info("Storing enrollment for user: {} in MSP: {}", userId, mspId);
 
-        Path walletPath = Paths.get(walletBasePath, mspId, userId);
+        FabricOrgConfig fabricConfig = getFabricConfig(mspId);
+        Path walletPath = Paths.get(fabricConfig.getWalletPath(), userId);
         Files.createDirectories(walletPath);
 
         // Store certificate
@@ -182,7 +249,7 @@ public class FabricCAService {
                 "\n-----END PRIVATE KEY-----\n";
         Files.writeString(keyPath, keyPem);
 
-        log.info("Enrollment stored successfully in wallet");
+        log.info("Enrollment stored successfully in wallet at: {}", walletPath);
     }
 
     /**
@@ -191,10 +258,11 @@ public class FabricCAService {
     public Enrollment loadUserEnrollment(String mspId, String userId) throws Exception {
         log.info("Loading enrollment for user: {} from MSP: {}", userId, mspId);
 
-        Path walletPath = Paths.get(walletBasePath, mspId, userId);
+        FabricOrgConfig fabricConfig = getFabricConfig(mspId);
+        Path walletPath = Paths.get(fabricConfig.getWalletPath(), userId);
 
         if (!Files.exists(walletPath)) {
-            throw new FileNotFoundException("User enrollment not found in wallet");
+            throw new FileNotFoundException("User enrollment not found in wallet: " + walletPath);
         }
 
         Path certPath = walletPath.resolve("cert.pem");
@@ -218,35 +286,46 @@ public class FabricCAService {
 
     // Helper methods for file paths
 
-    private String getCaCertPath(String mspId) {
-        String orgName = mspIdToOrgName(mspId);
-        return String.format("%s/organizations/peerOrganizations/%s/ca/ca.%s-cert.pem",
-                networkPath, orgName, orgName);
+    private String getCaCertPath(FabricOrgConfig fabricConfig) {
+        String orgName = extractOrgName(fabricConfig.getCryptoPath());
+        return String.format("%s/ca/ca.%s-cert.pem",
+                fabricConfig.getCryptoPath(), orgName);
     }
 
-    private Path getAdminCertPath(String mspId) {
-        String orgName = mspIdToOrgName(mspId);
-        return Paths.get(networkPath, "organizations", "peerOrganizations", orgName,
-                "users", "Admin@" + orgName, "msp", "signcerts",
-                "Admin@" + orgName + "-cert.pem");
+    private Path getAdminCertPath(FabricOrgConfig fabricConfig) throws IOException {
+        String orgName = extractOrgName(fabricConfig.getCryptoPath());
+        Path signcertsPath = Paths.get(
+                fabricConfig.getCryptoPath(),
+                "users", "Admin@" + orgName, "msp", "signcerts"
+        );
+
+        // Find first .pem file in signcerts directory
+        return Files.list(signcertsPath)
+                .filter(p -> p.toString().endsWith(".pem"))
+                .findFirst()
+                .orElseThrow(() -> new FileNotFoundException("Admin cert not found in: " + signcertsPath));
     }
 
-    private Path getAdminKeyPath(String mspId) throws IOException {
-        String orgName = mspIdToOrgName(mspId);
-        Path keystorePath = Paths.get(networkPath, "organizations", "peerOrganizations",
-                orgName, "users", "Admin@" + orgName, "msp", "keystore");
+
+    private Path getAdminKeyPath(FabricOrgConfig fabricConfig) throws IOException {
+        String orgName = extractOrgName(fabricConfig.getCryptoPath());
+        Path keystorePath = Paths.get(fabricConfig.getCryptoPath(),
+                "users", "Admin@" + orgName, "msp", "keystore");
 
         // Find first key file in keystore directory
         return Files.list(keystorePath)
                 .filter(p -> p.toString().endsWith("_sk"))
                 .findFirst()
-                .orElseThrow(() -> new FileNotFoundException("Admin key not found"));
+                .orElseThrow(() -> new FileNotFoundException("Admin key not found in: " + keystorePath));
     }
 
-    private String mspIdToOrgName(String mspId) {
-        // Org1MSP -> org1.example.com
-        String orgNum = mspId.replace("MSP", "").toLowerCase();
-        return orgNum + ".example.com";
+    /**
+     * Extract organization name from crypto path
+     * Example: /path/to/org1.example.com -> org1.example.com
+     */
+    private String extractOrgName(String cryptoPath) {
+        Path path = Paths.get(cryptoPath);
+        return path.getFileName().toString();
     }
 
     // Crypto utilities
@@ -261,9 +340,11 @@ public class FabricCAService {
     private PrivateKey loadPrivateKey(Path keyPath) throws Exception {
         String keyPem = Files.readString(keyPath);
 
-        // Remove PEM headers/footers
+        // Remove PEM headers/footers and whitespace
         keyPem = keyPem.replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
+                .replace("-----BEGIN EC PRIVATE KEY-----", "")
+                .replace("-----END EC PRIVATE KEY-----", "")
                 .replaceAll("\\s", "");
 
         byte[] keyBytes = Base64.getDecoder().decode(keyPem);

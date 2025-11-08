@@ -1,5 +1,9 @@
 # Gradle build directories and caches
-.gradle
+postgres_data/
+ipfs_data/
+redis_data/
+build/
+.gradle/
 build
 out
 

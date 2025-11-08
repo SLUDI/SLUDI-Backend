@@ -2,6 +2,8 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.example.enums.PredefinedRole;
+import org.example.enums.TemplateCategory;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -40,7 +42,7 @@ public class PermissionTemplate {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "predefined_roles", nullable = false, columnDefinition = "jsonb")
-    private List<PredefinedRole> predefinedRoles;
+    private List<PredefinedRole.RoleInstance> predefinedRoles;
 
     @Column(name = "is_active")
     @Builder.Default
@@ -61,20 +63,5 @@ public class PermissionTemplate {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    public enum TemplateCategory {
-        GOVERNMENT, FINANCIAL, HEALTHCARE, EDUCATION, CUSTOM
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class PredefinedRole {
-        private String roleCode;
-        private String roleName;
-        private List<String> permissions;
-        private Boolean isAdmin;
     }
 }

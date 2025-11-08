@@ -6,6 +6,8 @@ import org.example.dto.OrganizationUserRequestDto;
 import org.example.dto.OrganizationUserResponseDto;
 import org.example.dto.UserStatisticsResponseDto;
 import org.example.entity.*;
+import org.example.enums.OrganizationStatus;
+import org.example.enums.PredefinedRole;
 import org.example.enums.UserStatus;
 import org.example.enums.VerificationStatus;
 import org.example.exception.ErrorCodes;
@@ -14,9 +16,6 @@ import org.example.repository.OrganizationOnboardingRepository;
 import org.example.repository.OrganizationRepository;
 import org.example.repository.OrganizationRoleRepository;
 import org.example.repository.OrganizationUserRepository;
-import org.hyperledger.fabric.client.Contract;
-import org.hyperledger.fabric.client.Gateway;
-import org.hyperledger.fabric.client.Network;
 import org.hyperledger.fabric.sdk.Enrollment;
 import org.hyperledger.fabric.sdk.User;
 import org.hyperledger.fabric_ca.sdk.Attribute;
@@ -75,7 +74,7 @@ public class OrganizationUserService {
         Organization organization = organizationRepository.findById(request.getOrganizationId())
                 .orElseThrow(() -> new SludiException(ErrorCodes.ORGANIZATION_NOT_FOUND));
 
-        if (organization.getStatus() != Organization.OrganizationStatus.ACTIVE) {
+        if (organization.getStatus() != OrganizationStatus.ACTIVE) {
             throw new SludiException(ErrorCodes.ORGANIZATION_NOT_ACTIVE);
         }
 
@@ -179,116 +178,118 @@ public class OrganizationUserService {
     }
 
     /**
-     * Enroll user on Hyperledger Fabric blockchain
+     * Enroll user on Hyperledger Fabric blockchain (Node.js style)
      */
-    private void enrollUserOnBlockchain(OrganizationUser user) throws Exception {
+    private void enrollUserOnBlockchain(OrganizationUser user) {
         log.info("Starting blockchain enrollment for user: {}", user.getUsername());
 
-        OrganizationOnboarding onboarding = onboardingRepository
-                .findByOrganizationId(user.getOrganization().getId())
-                .orElseThrow(() -> new SludiException(ErrorCodes.ORGANIZATION_NOT_ONBOARD));
+        try {
+            OrganizationOnboarding onboarding = onboardingRepository
+                    .findByOrganizationId(user.getOrganization().getId())
+                    .orElseThrow(() -> new SludiException(ErrorCodes.ORGANIZATION_NOT_ONBOARD));
 
-        String mspId = onboarding.getMspId();
+            String mspId = onboarding.getMspId();
+            String orgShortName = mspId.replace("MSP", "").toLowerCase();
 
-        // Generate unique Fabric user ID
-        String fabricUserId = generateFabricUserId(user);
-        user.setFabricUserId(fabricUserId);
+            // Step 1: Verify admin is enrolled
+            User adminUser = fabricCAService.getAdminUser(mspId);
+            log.info("Admin identity confirmed for MSP: {}", mspId);
 
-        log.info("Generated Fabric User ID: {} for MSP: {}", fabricUserId, mspId);
+            // Step 2: Generate unique Fabric user ID
+            String fabricUserId = generateFabricUserId(user);
+            user.setFabricUserId(fabricUserId);
+            log.info("Generated Fabric User ID: {}", fabricUserId);
 
-        // Step 1: Register user with Fabric CA
-        String enrollmentSecret = registerWithFabricCA(user, mspId);
-        user.setFabricEnrollmentId(enrollmentSecret);
-        userRepository.save(user);
+            // Step 3: Register user with CA
+            String enrollmentSecret = registerUserWithCA(user, mspId, orgShortName);
+            user.setFabricEnrollmentId(enrollmentSecret);
+            userRepository.save(user);
+            log.info("User registered with CA - Secret: {}", enrollmentSecret);
 
-        log.info("User registered with Fabric CA, enrollment secret generated");
+            // Step 4: Enroll user to get certificate
+            Enrollment enrollment = enrollUserWithCA(fabricUserId, enrollmentSecret, mspId);
+            if (enrollment == null) {
+                throw new IllegalStateException("Fabric enrollment returned null");
+            }
+            log.info("User certificate obtained successfully");
 
-        // Step 2: Enroll user (get certificate)
-        Enrollment enrollment = enrollUserWithCA(fabricUserId, enrollmentSecret, mspId);
+            // Step 5: Store credentials in wallet
+            fabricCAService.storeUserEnrollment(mspId, fabricUserId, enrollment);
+            log.info("User credentials stored in wallet");
 
-        log.info("User enrollment certificate obtained");
+            // Step 6: Register user on blockchain ledger
+            // CRITICAL: Use admin identity for this transaction, not the new user's identity
+            String txId = hyperledgerService.registerUserOnBlockchain(user, mspId);
+            log.info("User registered on blockchain with Tx ID: {}", txId);
 
-        // Step 3: Store enrollment in wallet
-        fabricCAService.storeUserEnrollment(mspId, fabricUserId, enrollment);
+            // Step 7: Update user record
+            user.setIsEnrolledOnBlockchain(true);
+            user.setEnrollmentDate(LocalDateTime.now());
+            userRepository.save(user);
 
-        log.info("User credentials stored in wallet");
+            log.info("Blockchain enrollment completed successfully");
 
-        // Step 4: Register user on blockchain ledger
-        log.info("Registering user on blockchain ledger: {}", user.getFabricUserId());
-        String txId = hyperledgerService.registerUserOnBlockchain(user, mspId);
-
-        log.info("User registered on blockchain with Tx ID: {}", txId);
-
-        // Step 5: Update user record
-        user.setIsEnrolledOnBlockchain(true);
-        user.setEnrollmentDate(LocalDateTime.now());
-        userRepository.save(user);
-
-        log.info("Blockchain enrollment completed successfully for: {}", fabricUserId);
+        } catch (Exception e) {
+            log.error("Failed to enroll user on blockchain: {}", e.getMessage(), e);
+            throw new SludiException(ErrorCodes.BLOCKCHAIN_ENROLMENT_FAILED, e.getMessage());
+        }
     }
 
     /**
-     * Register user with Fabric CA
+     * Register user with Fabric CA (Node.js style with proper affiliation)
      */
-    private String registerWithFabricCA(OrganizationUser user, String mspId) throws Exception {
+    private String registerUserWithCA(OrganizationUser user, String mspId, String orgShortName) throws Exception {
         log.info("Registering user with Fabric CA: {} for MSP: {}", user.getUsername(), mspId);
 
+        // Get CA client and admin identity
         HFCAClient caClient = fabricCAService.getCaClient(mspId);
         User adminUser = fabricCAService.getAdminUser(mspId);
 
-        // Create registration request
-        RegistrationRequest registrationRequest = new RegistrationRequest(user.getFabricUserId());
-        registrationRequest.setType("client"); // User type
+        // CRITICAL: Use the exact same affiliation as the admin user
+        // The admin's affiliation must match for authorization to work
+        String affiliation = adminUser.getAffiliation();
 
-        // Set affiliation (department)
-        String affiliation = user.getDepartment() != null ?
-                user.getDepartment().toLowerCase().replaceAll("[^a-z0-9]", "") :
-                "default";
-        registrationRequest.setAffiliation(affiliation);
+        log.info("Using affiliation: {} (from admin user)", affiliation);
 
-        // Add attributes for role and permissions
-        registrationRequest.addAttribute(new Attribute(
-                "role",
-                user.getAssignedRole().getRoleCode(),
-                true // Include in certificate
-        ));
+        // Create registration request (Node.js pattern)
+        RegistrationRequest registrationRequest = new RegistrationRequest(
+                user.getFabricUserId(),
+                affiliation
+        );
 
-        registrationRequest.addAttribute(new Attribute(
-                "orgCode",
-                user.getOrganization().getOrgCode(),
-                true
-        ));
-
-        registrationRequest.addAttribute(new Attribute(
-                "email",
-                user.getEmail(),
-                true
-        ));
-
-        // Set max enrollments
+        registrationRequest.setType("client"); // Node.js uses 'client' role type
         registrationRequest.setMaxEnrollments(-1); // Unlimited re-enrollment
 
-        // Register with CA using admin identity
-        String enrollmentSecret = caClient.register(registrationRequest, adminUser);
+        // Add attributes for certificate (Node.js attrs pattern)
+        registrationRequest.addAttribute(new Attribute("role", user.getAssignedRole().getRoleCode(), true));
+        registrationRequest.addAttribute(new Attribute("orgCode", user.getOrganization().getOrgCode(), true));
+        registrationRequest.addAttribute(new Attribute("email", user.getEmail(), true));
 
-        log.info("User registered with CA successfully, secret generated");
-
-        return enrollmentSecret;
+        try {
+            // Register user and get enrollment secret (Node.js returns secret)
+            String enrollmentSecret = caClient.register(registrationRequest, adminUser);
+            log.info("User {} successfully registered with CA. Enrollment secret generated.",
+                    user.getUsername());
+            return enrollmentSecret;
+        } catch (Exception e) {
+            log.error("Failed to register user '{}' on CA for MSP '{}': {}",
+                    user.getUsername(), mspId, e.getMessage());
+            throw new SludiException(ErrorCodes.BLOCKCHAIN_USER_REGISTRATION_FAILED, e.getMessage());
+        }
     }
 
     /**
-     * Enroll user to get X.509 certificate
+     * Enroll user to get X.509 certificate (Node.js style)
      */
-    private Enrollment enrollUserWithCA(String fabricUserId, String secret, String mspId)
-            throws Exception {
+    private Enrollment enrollUserWithCA(String fabricUserId, String secret, String mspId) throws Exception {
         log.info("Enrolling user to get certificate: {}", fabricUserId);
 
         HFCAClient caClient = fabricCAService.getCaClient(mspId);
 
-        // Enroll user
+        // Enroll user with secret (Node.js pattern)
         Enrollment enrollment = caClient.enroll(fabricUserId, secret);
 
-        log.info("User certificate obtained successfully");
+        log.info("User certificate obtained successfully for: {}", fabricUserId);
 
         return enrollment;
     }
@@ -314,21 +315,25 @@ public class OrganizationUserService {
             return roleRepository.findByOrganizationId(organizationId);
         }
 
-        // Create roles from template's predefined roles
+        // Create roles from template's predefined role instances
         List<OrganizationRole> roles = new ArrayList<>();
 
-        for (PermissionTemplate.PredefinedRole predefinedRole : template.getPredefinedRoles()) {
+        for (PredefinedRole.RoleInstance roleInstance : template.getPredefinedRoles()) {
             OrganizationRole role = OrganizationRole.builder()
                     .organization(organization)
-                    .roleCode(predefinedRole.getRoleCode())
-                    .description("Role created from template: " + template.getName())
-                    .permissions(predefinedRole.getPermissions())
-                    .isAdmin(predefinedRole.getIsAdmin())
+                    .roleCode(roleInstance.getRoleCode())
+                    .description(String.format("%s - Role created from template: %s",
+                            roleInstance.getDescription(), template.getName()))
+                    .permissions(roleInstance.getPermissions())
+                    .isAdmin(roleInstance.getIsAdmin())
                     .isActive(true)
                     .build();
 
             roles.add(roleRepository.save(role));
-            log.info("Created role: {} ({})", role.getRoleCode(), role.getRoleCode());
+            log.info("Created role: {} ({}) with {} permissions",
+                    role.getRoleCode(),
+                    roleInstance.getDescription(),
+                    role.getPermissions().size());
         }
 
         log.info("Initialized {} roles for organization: {}", roles.size(), organization.getName());
@@ -405,8 +410,6 @@ public class OrganizationUserService {
             } catch (Exception e) {
                 log.error("Failed to update user role on blockchain", e);
             }
-        } else {
-
         }
 
         log.info("User role updated successfully");
@@ -439,12 +442,10 @@ public class OrganizationUserService {
         if (user.getIsEnrolledOnBlockchain()) {
             try {
                 String txId = hyperledgerService.revokeUserAccessOnBlockchain(user, reason);
-                log.info("");
+                log.info("User access revoked on blockchain");
             } catch (Exception e) {
                 log.error("Failed to revoke user access on blockchain", e);
             }
-        } else {
-
         }
 
         // Send suspension email
@@ -456,8 +457,6 @@ public class OrganizationUserService {
 
         log.info("User suspended successfully");
     }
-
-
 
     /**
      * Reactivate suspended user
@@ -487,7 +486,6 @@ public class OrganizationUserService {
             } catch (Exception e) {
                 log.error("Failed to restore user access on blockchain", e);
             }
-        } else {
         }
 
         // Send reactivation email
@@ -552,42 +550,6 @@ public class OrganizationUserService {
             return roleRepository.findByOrganizationId(organizationId);
         }
     }
-
-//    /**
-//     * Authenticate user
-//     */
-//    @Transactional
-//    public AuthenticationResponse authenticateUser(String username, String password,
-//                                                   String ipAddress) {
-//        log.info("Authenticating user: {}", username);
-//
-//        OrganizationUser user = userRepository.findByUsername(username)
-//                .orElseThrow(() -> new SludiException(ErrorCodes.INVALID_CREDENTIALS));
-//
-//        // Verify password
-//        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-//            throw new SludiException(ErrorCodes.INVALID_CREDENTIALS);
-//        }
-//
-//        // Check account status
-//        if (user.getStatus() != UserStatus.ACTIVE) {
-//            throw new SludiException(ErrorCodes.ACCOUNT_IS_NOT_ACTIVE);
-//        }
-//
-//        log.info("User authenticated successfully: {}", username);
-//
-//        return AuthenticationResponse.builder()
-//                .userId(user.getId())
-//                .username(user.getUsername())
-//                .email(user.getEmail())
-//                .organizationId(user.getOrganization().getId())
-//                .organizationName(user.getOrganization().getName())
-//                .roleName(user.getAssignedRole().getRoleCode())
-//                .permissions(user.getAssignedRole().getPermissions())
-//                .fabricUserId(user.getFabricUserId())
-//                .isEnrolledOnBlockchain(user.getIsEnrolledOnBlockchain())
-//                .build();
-//    }
 
     /**
      * Search users
@@ -684,7 +646,7 @@ public class OrganizationUserService {
     // Helper Methods
 
     /**
-     * Generate unique Fabric user ID
+     * Generate unique Fabric user ID (Node.js style: orgprefix_username)
      */
     private String generateFabricUserId(OrganizationUser user) {
         String orgPrefix = user.getOrganization().getOrgCode()
