@@ -84,16 +84,16 @@ public class Organization {
 
     // Approval Workflow
     @Column(name = "created_by")
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "approved_by")
-    private Long approvedBy;
+    private String approvedBy;
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
     @Column(name = "suspended_by")
-    private Long suspendedBy;
+    private String suspendedBy;
 
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;

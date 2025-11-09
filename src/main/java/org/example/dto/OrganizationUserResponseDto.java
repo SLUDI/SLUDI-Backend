@@ -30,7 +30,7 @@ public class OrganizationUserResponseDto {
     private Long roleId;
     private String roleCode;
     private List<String> permissions;
-    private Long createdBy;
+    private String createdBy;
     private String status;
     private String verificationStatus;
     private String isActive;
@@ -38,9 +38,9 @@ public class OrganizationUserResponseDto {
     private String fabricEnrollmentId;
     private Boolean isEnrolledOnBlockchain;
     private LocalDateTime enrollmentDate;
-    private Long approvedBy;
+    private String approvedBy;
     private LocalDateTime suspendedAt;
-    private Long suspendedBy;
+    private String suspendedBy;
     private String suspensionReason;
     private LocalDateTime createdAt;
     private LocalDateTime approvedAt;

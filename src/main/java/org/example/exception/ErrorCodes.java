@@ -13,6 +13,9 @@ public enum ErrorCodes {
     UNAUTHORIZED("1008", "Authentication is missing or invalid"),
     UNAUTHORIZED_USER("1009", "Unauthorized user access"),
     FAILED_TO_RETRIEVE_IDENTITY_VC("1010", "Failed to retrieve identity Verifiable Credential"),
+    INVALID_CURRENT_PASSWORD("1011", "Invalid current password"),
+    NEW_PASSWORD_SAME_AS_OLD("1012", "New password same as the current password"),
+    INSUFFICIENT_PERMISSIONS("1013", "User attempted to do operation without permission"),
     
     // Data Processing Errors (2000-2999)
     ADDRESS_PARSE_ERROR("2000", "Failed to parse address data"),

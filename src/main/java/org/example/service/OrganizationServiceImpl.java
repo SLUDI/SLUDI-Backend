@@ -6,13 +6,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.Organization;
 import org.example.entity.OrganizationOnboarding;
+import org.example.entity.OrganizationUser;
 import org.example.entity.PermissionTemplate;
 import org.example.enums.OrganizationStatus;
 import org.example.enums.TemplateCategory;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.OrganizationRepository;
-import org.example.util.OrgCodeGenerator;
+import org.example.repository.OrganizationUserRepository;
+import org.example.utils.OrgCodeGenerator;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,16 +30,34 @@ import java.util.stream.Collectors;
 @Transactional
 public class OrganizationServiceImpl implements OrganizationService{
 
-    private final PermissionService permissionService;
     private final OrganizationRepository organizationRepository;
+    private final OrganizationUserRepository userRepository;
+    private final PermissionService permissionService;
     private final FabricOrgAssignmentService fabricOrgAssignmentService;
+    private final OrganizationUserService userService;
+
     /*
-    * Create new organization (Super Admin only)
-    * Initial status: PENDING
+    * Create new organization (Admin only)
     * */
     @Override
-    public OrganizationResponse createOrganization (CreateOrganizationRequest request, Long superAdminId){
-        log.info("Creating new organization: {} by super admin: {}",request.getName(),superAdminId);
+    public OrganizationResponse createOrganization (CreateOrganizationRequest request, String userName){
+        log.info("Creating new organization: {} by super admin: {}",request.getName(), userName);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:create")) {
+            log.warn("User {} attempted to create organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to create organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         // Validate template exists
         PermissionTemplate template = permissionService.getTemplateById(request.getTemplateId());
@@ -67,7 +88,7 @@ public class OrganizationServiceImpl implements OrganizationService{
                 .city(request.getCity())
                 .postalCode(request.getPostalCode())
                 .status(OrganizationStatus.PENDING)
-                .createdBy(superAdminId)
+                .createdBy(userName)
                 .build();
 
         // Save to database
@@ -82,8 +103,24 @@ public class OrganizationServiceImpl implements OrganizationService{
     }
 
     @Override
-    public OrganizationResponse updateOrganization (Long organizationId, UpdateOrganizationRequest request, Long updatedBy){
+    public OrganizationResponse updateOrganization (Long organizationId, UpdateOrganizationRequest request, String userName){
         log.info("Updating organization ID: {}",organizationId);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:update")) {
+            log.warn("User {} attempted to update organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to update organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         Organization organization = getOrganizationEntity(organizationId);
 
@@ -112,7 +149,23 @@ public class OrganizationServiceImpl implements OrganizationService{
     }
 
     @Override
-    public List<OrganizationResponse> getAllOrganizations(){
+    public List<OrganizationResponse> getAllOrganizations(String userName){
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:view")) {
+            log.warn("User {} attempted to view organizations without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organizations", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
         List<Organization> organizations = organizationRepository.findAll();
         return organizations.stream()
                 .map(this::toOrganizationResponse)
@@ -120,12 +173,44 @@ public class OrganizationServiceImpl implements OrganizationService{
     }
 
     @Override
-    public OrganizationResponse getOrganizationById(Long id){
+    public OrganizationResponse getOrganizationById(Long id, String userName){
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:view")) {
+            log.warn("User {} attempted to view organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
         return toOrganizationResponse(getOrganizationEntity(id));
     }
 
     @Override
-    public OrganizationDetailResponse getOrganizationDetails(Long organizationId) {
+    public OrganizationDetailResponse getOrganizationDetails(Long organizationId, String userName) {
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:view")) {
+            log.warn("User {} attempted to view organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
         Organization organization = organizationRepository.findByIdWithTemplate(organizationId)
                 .orElseThrow(() -> new SludiException(ErrorCodes.ORGANIZATION_NOT_FOUND, String.valueOf(organizationId))
                   );
@@ -135,8 +220,25 @@ public class OrganizationServiceImpl implements OrganizationService{
 
 
     @Override
-    public OrganizationResponse approveOrganization(Long organizationId, Long superAdminId){
-        log.info("Approving organization ID: {} by super admin: {}", organizationId, superAdminId);
+    public OrganizationResponse approveOrganization(Long organizationId, String userName){
+        log.info("Approving organization ID: {} by super admin: {}", organizationId, userName);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:approve")) {
+            log.warn("User {} attempted to approve organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to approve organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
         Organization organization = getOrganizationEntity(organizationId);
 
         // Validate current status
@@ -146,17 +248,12 @@ public class OrganizationServiceImpl implements OrganizationService{
 
         // Update status
         organization.setStatus(OrganizationStatus.ACTIVE);
-        organization.setApprovedBy(superAdminId);
+        organization.setApprovedBy(userName);
         organization.setApprovedAt(LocalDateTime.now());
 
         // Assign Fabric organization
         OrganizationOnboarding onboarding = fabricOrgAssignmentService
                 .assignFabricOrganization(organization);
-
-        // TODO: Record on blockchain
-        // String txId = fabricGatewayService.registerOrganization(organization);
-        // organization.setBlockchainTxId(txId);
-        // organization.setBlockchainTimestamp(LocalDateTime.now());
 
         organization = organizationRepository.save(organization);
 
@@ -169,9 +266,25 @@ public class OrganizationServiceImpl implements OrganizationService{
     public OrganizationDetailResponse customizePermissions(
             Long organizationId,
             CustomPermissionsRequest request,
-            Long superAdminId) {
+            String userName) {
 
         log.info("Customizing permissions for organization ID: {}", organizationId);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:update")) {
+            log.warn("User {} attempted to update organization permission without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to update organization permission", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         Organization organization = getOrganizationEntity(organizationId);
 
@@ -207,25 +320,35 @@ public class OrganizationServiceImpl implements OrganizationService{
         organization.setCustomPermissions(customPermissions);
         organization = organizationRepository.save(organization);
 
-        // TODO: Record permission change on blockchain
-        // fabricGatewayService.recordPermissionChange(organization, request);
-
-        // Log audit trail
-        //auditService.logPermissionCustomization(organization, request, superAdminId);
-
         return toOrganizationDetailResponse(organization);
     }
 
     /**
-     * Suspend organization (Super Admin only)
+     * Suspend organization
      */
     @Override
     public OrganizationResponse suspendOrganization(
             Long organizationId,
             String reason,
-            Long superAdminId) {
+            String userName) {
 
-        log.info("Suspending organization ID: {} by super admin: {}", organizationId, superAdminId);
+        log.info("Suspending organization ID: {} by super admin: {}", organizationId, userName);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:suspend")) {
+            log.warn("User {} attempted to suspend organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to suspend organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         Organization organization = getOrganizationEntity(organizationId);
 
@@ -234,14 +357,11 @@ public class OrganizationServiceImpl implements OrganizationService{
         }
 
         organization.setStatus(OrganizationStatus.SUSPENDED);
-        organization.setSuspendedBy(superAdminId);
+        organization.setSuspendedBy(userName);
         organization.setSuspendedAt(LocalDateTime.now());
         organization.setSuspensionReason(reason);
 
         organization = organizationRepository.save(organization);
-
-        //  TODO : Log audit trail
-        //  auditService.logOrganizationSuspension(organization, superAdminId, reason);
 
         return toOrganizationResponse(organization);
     }
@@ -250,8 +370,24 @@ public class OrganizationServiceImpl implements OrganizationService{
      * Reactivate suspended organization
      */
     @Override
-    public OrganizationResponse reactivateOrganization(Long organizationId, Long superAdminId) {
+    public OrganizationResponse reactivateOrganization(Long organizationId, String userName) {
         log.info("Reactivating organization ID: {}", organizationId);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organizations
+        if (!userService.verifyUserPermission(userName, "organization:reactive")) {
+            log.warn("User {} attempted to reactive organization without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to reactive organization", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         Organization organization = getOrganizationEntity(organizationId);
 
@@ -266,13 +402,10 @@ public class OrganizationServiceImpl implements OrganizationService{
 
         organization = organizationRepository.save(organization);
 
-        // TODO: Log audit trail
-        //auditService.logOrganizationReactivation(organization, superAdminId);
-
         return toOrganizationResponse(organization);
     }
 
-    // ==================== Helper Methods ====================
+    // Helper Methods
 
     private Organization getOrganizationEntity(Long organizationId) {
         return organizationRepository.findById(organizationId)

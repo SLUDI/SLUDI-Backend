@@ -49,11 +49,11 @@ public class OrganizationDetailResponse {
     private LocalDateTime blockchainTimestamp;
 
     // Audit Trail
-    private Long createdBy;
+    private String createdBy;
     private LocalDateTime createdAt;
-    private Long approvedBy;
+    private String approvedBy;
     private LocalDateTime approvedAt;
-    private Long suspendedBy;
+    private String suspendedBy;
     private LocalDateTime suspendedAt;
     private String suspensionReason;
     private LocalDateTime updatedAt;

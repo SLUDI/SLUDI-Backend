@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.util.List;
+
 @Slf4j
 @Service
 public class MailService {
@@ -109,21 +111,27 @@ public class MailService {
         log.info("Sending verification email to: {}", user.getEmail());
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Account Registration - Verification Required");
-            message.setText(buildVerificationEmailContent(user));
+            Context context = new Context();
+            context.setVariable("firstName", user.getFirstName());
+            context.setVariable("lastName", user.getLastName());
+            context.setVariable("organizationName", user.getOrganization().getName());
+            context.setVariable("username", user.getUsername());
+            context.setVariable("employeeId", user.getEmployeeId());
+            context.setVariable("role", user.getAssignedRole().getRoleCode());
 
-            mailSender.send(message);
+            sendEmail(user.getEmail(),
+                    "Account Registration - Verification Required",
+                    "user-verification-mail",
+                    context);
+
             log.info("Verification email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send verification email to: " + user.getEmail(), e);
+        } catch (MessagingException e) {
+            log.error("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage(), e);
         }
     }
 
     /**
-     * Send user activation email
+     * Sends user activation email
      */
     public void sendUserActivationEmail(OrganizationUser user) {
         if (!emailEnabled) {
@@ -134,21 +142,39 @@ public class MailService {
         log.info("Sending activation email to: {}", user.getEmail());
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Account Activated - Welcome to Digital Identity System");
-            message.setText(buildActivationEmailContent(user));
+            Context context = new Context();
+            context.setVariable("firstName", user.getFirstName());
+            context.setVariable("lastName", user.getLastName());
+            context.setVariable("organizationName", user.getOrganization().getName());
+            context.setVariable("department", user.getDepartment());
+            context.setVariable("role", user.getAssignedRole().getRoleCode());
+            context.setVariable("employeeId", user.getEmployeeId());
+            context.setVariable("fabricUserId", user.getFabricUserId());
+            context.setVariable("username", user.getUsername());
+            context.setVariable("loginUrl", baseUrl + "/login");
 
-            mailSender.send(message);
+            // Convert permissions list to a readable format
+            List<String> permissions = user.getAssignedRole().getPermissions().stream()
+                    .map(p -> p.startsWith("-") ? p : "- " + p)
+                    .toList();
+
+            context.setVariable("permissions", permissions);
+
+            sendEmail(
+                    user.getEmail(),
+                    "Account Activated - Welcome to Digital Identity System",
+                    "user-activation-mail",
+                    context
+            );
+
             log.info("Activation email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send activation email to: " + user.getEmail(), e);
+        } catch (MessagingException e) {
+            log.error("Failed to send activation email to {}: {}", user.getEmail(), e.getMessage(), e);
         }
     }
 
     /**
-     * Send user suspension email
+     * Sends user suspension email
      */
     public void sendUserSuspensionEmail(OrganizationUser user, String reason) {
         if (!emailEnabled) {
@@ -159,16 +185,21 @@ public class MailService {
         log.info("Sending suspension email to: {}", user.getEmail());
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Account Suspended - Digital Identity System");
-            message.setText(buildSuspensionEmailContent(user, reason));
+            Context context = new Context();
+            context.setVariable("firstName", user.getFirstName());
+            context.setVariable("lastName", user.getLastName());
+            context.setVariable("reason", reason);
 
-            mailSender.send(message);
+            sendEmail(
+                    user.getEmail(),
+                    "Account Suspended - Digital Identity System",
+                    "user-suspension-mail",
+                    context
+            );
+
             log.info("Suspension email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send suspension email to: " + user.getEmail(), e);
+        } catch (MessagingException e) {
+            log.error("Failed to send suspension email to {}: {}", user.getEmail(), e.getMessage(), e);
         }
     }
 
@@ -184,16 +215,22 @@ public class MailService {
         log.info("Sending reactivation email to: {}", user.getEmail());
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Account Reactivated - Digital Identity System");
-            message.setText(buildReactivationEmailContent(user));
+            Context context = new Context();
+            context.setVariable("firstName", user.getFirstName());
+            context.setVariable("lastName", user.getLastName());
+            context.setVariable("loginUrl", baseUrl + "/login");
+            context.setVariable("username", user.getUsername());
 
-            mailSender.send(message);
+            sendEmail(
+                    user.getEmail(),
+                    "Account Reactivated - Digital Identity System",
+                    "user-reactivation-mail",
+                    context
+            );
+
             log.info("Reactivation email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send reactivation email to: " + user.getEmail(), e);
+        } catch (MessagingException e) {
+            log.error("Failed to send reactivation email to {}: {}", user.getEmail(), e.getMessage(), e);
         }
     }
 
@@ -209,126 +246,23 @@ public class MailService {
         log.info("Sending password reset email to: {}", user.getEmail());
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(user.getEmail());
-            message.setSubject("Password Reset - Digital Identity System");
-            message.setText(buildPasswordResetEmailContent(user, newPassword));
+            Context context = new Context();
+            context.setVariable("firstName", user.getFirstName());
+            context.setVariable("lastName", user.getLastName());
+            context.setVariable("newPassword", newPassword);
+            context.setVariable("loginUrl", baseUrl + "/login");
+            context.setVariable("username", user.getUsername());
 
-            mailSender.send(message);
+            sendEmail(
+                    user.getEmail(),
+                    "Password Reset - Digital Identity System",
+                    "password-reset-mail",
+                    context
+            );
+
             log.info("Password reset email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send password reset email to: " + user.getEmail(), e);
+        } catch (MessagingException e) {
+            log.error("Failed to send password reset email to {}: {}", user.getEmail(), e.getMessage(), e);
         }
-    }
-
-    // Email content builders
-
-    private String buildVerificationEmailContent(OrganizationUser user) {
-        return String.format(
-                "Dear %s %s,\n\n" +
-                        "Your account has been created for %s.\n\n" +
-                        "Account Details:\n" +
-                        "- Username: %s\n" +
-                        "- Employee ID: %s\n" +
-                        "- Role: %s\n\n" +
-                        "Your account is currently pending approval from an administrator.\n" +
-                        "You will receive another email once your account is approved and activated.\n\n" +
-                        "If you did not request this account, please contact your administrator immediately.\n\n" +
-                        "Best regards,\n" +
-                        "Digital Identity System Team",
-                user.getFirstName(),
-                user.getLastName(),
-                user.getOrganization().getName(),
-                user.getUsername(),
-                user.getEmployeeId(),
-                user.getAssignedRole().getRoleCode()
-        );
-    }
-
-    private String buildActivationEmailContent(OrganizationUser user) {
-        return String.format(
-                "Dear %s %s,\n\n" +
-                        "Great news! Your account has been approved and activated.\n\n" +
-                        "You can now login to the Digital Identity System:\n" +
-                        "- Login URL: %s/login\n" +
-                        "- Username: %s\n\n" +
-                        "Your Account Details:\n" +
-                        "- Organization: %s\n" +
-                        "- Role: %s\n" +
-                        "- Department: %s\n" +
-                        "- Employee ID: %s\n\n" +
-                        "Your account has been enrolled on the blockchain network with ID: %s\n\n" +
-                        "Assigned Permissions:\n%s\n\n" +
-                        "For security reasons, please change your password after first login.\n\n" +
-                        "Welcome to the team!\n\n" +
-                        "Best regards,\n" +
-                        "Digital Identity System Team",
-                user.getFirstName(),
-                user.getLastName(),
-                baseUrl,
-                user.getUsername(),
-                user.getOrganization().getName(),
-                user.getAssignedRole().getRoleCode(),
-                user.getDepartment(),
-                user.getEmployeeId(),
-                user.getFabricUserId(),
-                String.join("\n", user.getAssignedRole().getPermissions().stream()
-                        .map(p -> "- " + p)
-                        .toList())
-        );
-    }
-
-    private String buildSuspensionEmailContent(OrganizationUser user, String reason) {
-        return String.format(
-                "Dear %s %s,\n\n" +
-                        "Your account has been suspended.\n\n" +
-                        "Reason: %s\n\n" +
-                        "Your access to the Digital Identity System has been temporarily disabled.\n" +
-                        "All blockchain operations associated with your account have been revoked.\n\n" +
-                        "If you believe this is a mistake or would like to discuss this matter,\n" +
-                        "please contact your administrator.\n\n" +
-                        "Best regards,\n" +
-                        "Digital Identity System Team",
-                user.getFirstName(),
-                user.getLastName(),
-                reason
-        );
-    }
-
-    private String buildReactivationEmailContent(OrganizationUser user) {
-        return String.format(
-                "Dear %s %s,\n\n" +
-                        "Good news! Your account has been reactivated.\n\n" +
-                        "You can now login again to the Digital Identity System:\n" +
-                        "- Login URL: %s/login\n" +
-                        "- Username: %s\n\n" +
-                        "Your blockchain access has been restored.\n\n" +
-                        "Best regards,\n" +
-                        "Digital Identity System Team",
-                user.getFirstName(),
-                user.getLastName(),
-                baseUrl,
-                user.getUsername()
-        );
-    }
-
-    private String buildPasswordResetEmailContent(OrganizationUser user, String newPassword) {
-        return String.format(
-                "Dear %s %s,\n\n" +
-                        "Your password has been reset by an administrator.\n\n" +
-                        "Your new temporary password is: %s\n\n" +
-                        "IMPORTANT: Please login and change this password immediately.\n\n" +
-                        "Login URL: %s/login\n" +
-                        "Username: %s\n\n" +
-                        "For security reasons, this temporary password should be changed as soon as possible.\n\n" +
-                        "Best regards,\n" +
-                        "Digital Identity System Team",
-                user.getFirstName(),
-                user.getLastName(),
-                newPassword,
-                baseUrl,
-                user.getUsername()
-        );
     }
 }

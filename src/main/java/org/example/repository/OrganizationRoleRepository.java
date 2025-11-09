@@ -15,7 +15,7 @@ public interface OrganizationRoleRepository extends JpaRepository<OrganizationRo
     /**
      * Find all roles for an organization
      */
-    @Query("SELECT r FROM OrganizationRole r WHERE r.organization.id = :organizationId")
+    @Query("SELECT r FROM OrganizationRole r JOIN FETCH r.organization WHERE r.organization.id = :organizationId")
     List<OrganizationRole> findByOrganizationId(@Param("organizationId") Long organizationId);
 
     /**

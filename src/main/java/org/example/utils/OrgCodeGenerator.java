@@ -1,7 +1,6 @@
-package org.example.util;
+package org.example.utils;
 
 import lombok.extern.slf4j.Slf4j;
-import org.example.entity.Organization;
 import org.example.enums.OrganizationType;
 
 import java.security.SecureRandom;

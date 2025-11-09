@@ -98,16 +98,16 @@ public class OrganizationUser {
 
     // Approval workflow
     @Column(name = "created_by")
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "approved_by")
-    private Long approvedBy;
+    private String approvedBy;
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
     @Column(name = "suspended_by")
-    private Long suspendedBy;
+    private String suspendedBy;
 
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
@@ -126,19 +126,10 @@ public class OrganizationUser {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        employeeId = generateEmployeeId();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    private String generateEmployeeId() {
-        if (employeeId == null && organization != null) {
-            return organization.getOrgCode() + "_EMP_" +
-                    System.currentTimeMillis();
-        }
-        return employeeId;
     }
 }

@@ -1,10 +1,9 @@
 package org.example.service;
 
 import com.google.gson.Gson;
+import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dto.OrganizationUserRequestDto;
-import org.example.dto.OrganizationUserResponseDto;
-import org.example.dto.UserStatisticsResponseDto;
+import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.OrganizationStatus;
 import org.example.enums.PredefinedRole;
@@ -16,11 +15,14 @@ import org.example.repository.OrganizationOnboardingRepository;
 import org.example.repository.OrganizationRepository;
 import org.example.repository.OrganizationRoleRepository;
 import org.example.repository.OrganizationUserRepository;
+import org.example.security.OrganizationJwtService;
+import org.example.utils.EmployeeIdGenerator;
 import org.hyperledger.fabric.sdk.Enrollment;
 import org.hyperledger.fabric.sdk.User;
 import org.hyperledger.fabric_ca.sdk.Attribute;
 import org.hyperledger.fabric_ca.sdk.HFCAClient;
 import org.hyperledger.fabric_ca.sdk.RegistrationRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrganizationUserService {
 
+    @Value("${security.jwt.access.expiration-time}")
+    private long jwtExpiration;
+
     private final OrganizationUserRepository userRepository;
     private final OrganizationRepository organizationRepository;
     private final OrganizationRoleRepository roleRepository;
@@ -41,6 +46,8 @@ public class OrganizationUserService {
     private final FabricCAService fabricCAService;
     private final PasswordEncoder passwordEncoder;
     private final MailService emailService;
+    private final EmployeeIdGenerator employeeIdGenerator;
+    private final OrganizationJwtService jwtService;
     private final Gson gson = new Gson();
 
     public OrganizationUserService(
@@ -51,7 +58,9 @@ public class OrganizationUserService {
             HyperledgerService hyperledgerService,
             FabricCAService fabricCAService,
             PasswordEncoder passwordEncoder,
-            MailService emailService
+            MailService emailService,
+            EmployeeIdGenerator employeeIdGenerator,
+            OrganizationJwtService jwtService
     ) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -61,13 +70,44 @@ public class OrganizationUserService {
         this.fabricCAService = fabricCAService;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.employeeIdGenerator = employeeIdGenerator;
+        this.jwtService = jwtService;
+    }
+
+    /**
+     * Register a new organization user (admin)
+     */
+    public OrganizationUserResponseDto registerAdminUser(OrganizationUserRequestDto request) {
+        return registerUser(request);
     }
 
     /**
      * Register a new organization user (employee)
      */
+    public OrganizationUserResponseDto registerEmployeeUser(OrganizationUserRequestDto request, String userName) {
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organization user
+        if (!verifyUserPermission(userName, "organization:user:create")) {
+            log.warn("User {} attempted to create organization user without permission", userName);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to create organization user", userName);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+        return registerUser(request);
+    }
+
+    /**
+     * Register a new organization user
+     */
     @Transactional
-    public OrganizationUserResponseDto registerUser(OrganizationUserRequestDto request) {
+    private OrganizationUserResponseDto registerUser(OrganizationUserRequestDto request) {
         log.info("Registering new user for organization: {}", request.getOrganizationId());
 
         // Validate organization
@@ -98,6 +138,8 @@ public class OrganizationUserService {
             throw new SludiException(ErrorCodes.ROLE_IS_NOT_ACTIVE);
         }
 
+        String employeeId = employeeIdGenerator.generateCode(organization);
+
         // Create user
         OrganizationUser user = OrganizationUser.builder()
                 .organization(organization)
@@ -108,6 +150,7 @@ public class OrganizationUserService {
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
                 .did(request.getDid())
+                .employeeId(employeeId)
                 .department(request.getDepartment())
                 .designation(request.getDesignation())
                 .jobTitle(request.getJobTitle())
@@ -132,10 +175,39 @@ public class OrganizationUserService {
     }
 
     /**
+     * Approve a new organization user (admin)
+     */
+    public OrganizationUserResponseDto approveAdminUser(Long userId, String approvedBy) {
+        return approveUser(userId, approvedBy);
+    }
+
+    /**
+     * Approve a new organization user (employee)
+     */
+    public OrganizationUserResponseDto approveEmployeeUser(Long userId, String approvedBy) {
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(approvedBy)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to create organization user
+        if (!verifyUserPermission(approvedBy, "organization:user:approve")) {
+            log.warn("User {} attempted to approve organization user without permission", approvedBy);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to approve organization user", approvedBy);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+        return approveUser(userId, approvedBy);
+    }
+
+    /**
      * Admin approves user and enrolls on blockchain
      */
     @Transactional
-    public OrganizationUserResponseDto approveUser(Long userId, Long approvedBy) {
+    private OrganizationUserResponseDto approveUser(Long userId, String approvedBy) {
         log.info("Approving user ID: {}", userId);
 
         OrganizationUser user = userRepository.findById(userId)
@@ -191,38 +263,37 @@ public class OrganizationUserService {
             String mspId = onboarding.getMspId();
             String orgShortName = mspId.replace("MSP", "").toLowerCase();
 
-            // Step 1: Verify admin is enrolled
+            // Verify admin is enrolled
             User adminUser = fabricCAService.getAdminUser(mspId);
             log.info("Admin identity confirmed for MSP: {}", mspId);
 
-            // Step 2: Generate unique Fabric user ID
+            // Generate unique Fabric user ID
             String fabricUserId = generateFabricUserId(user);
             user.setFabricUserId(fabricUserId);
             log.info("Generated Fabric User ID: {}", fabricUserId);
 
-            // Step 3: Register user with CA
+            // Register user with CA
             String enrollmentSecret = registerUserWithCA(user, mspId, orgShortName);
             user.setFabricEnrollmentId(enrollmentSecret);
             userRepository.save(user);
             log.info("User registered with CA - Secret: {}", enrollmentSecret);
 
-            // Step 4: Enroll user to get certificate
+            // Enroll user to get certificate
             Enrollment enrollment = enrollUserWithCA(fabricUserId, enrollmentSecret, mspId);
             if (enrollment == null) {
                 throw new IllegalStateException("Fabric enrollment returned null");
             }
             log.info("User certificate obtained successfully");
 
-            // Step 5: Store credentials in wallet
+            // Store credentials in wallet
             fabricCAService.storeUserEnrollment(mspId, fabricUserId, enrollment);
             log.info("User credentials stored in wallet");
 
-            // Step 6: Register user on blockchain ledger
-            // CRITICAL: Use admin identity for this transaction, not the new user's identity
+            // Register user on blockchain ledger
             String txId = hyperledgerService.registerUserOnBlockchain(user, mspId);
             log.info("User registered on blockchain with Tx ID: {}", txId);
 
-            // Step 7: Update user record
+            // Update user record
             user.setIsEnrolledOnBlockchain(true);
             user.setEnrollmentDate(LocalDateTime.now());
             userRepository.save(user);
@@ -245,28 +316,26 @@ public class OrganizationUserService {
         HFCAClient caClient = fabricCAService.getCaClient(mspId);
         User adminUser = fabricCAService.getAdminUser(mspId);
 
-        // CRITICAL: Use the exact same affiliation as the admin user
         // The admin's affiliation must match for authorization to work
         String affiliation = adminUser.getAffiliation();
 
         log.info("Using affiliation: {} (from admin user)", affiliation);
 
-        // Create registration request (Node.js pattern)
         RegistrationRequest registrationRequest = new RegistrationRequest(
                 user.getFabricUserId(),
                 affiliation
         );
 
-        registrationRequest.setType("client"); // Node.js uses 'client' role type
+        registrationRequest.setType("client");
         registrationRequest.setMaxEnrollments(-1); // Unlimited re-enrollment
 
-        // Add attributes for certificate (Node.js attrs pattern)
+        // Add attributes for certificate
         registrationRequest.addAttribute(new Attribute("role", user.getAssignedRole().getRoleCode(), true));
         registrationRequest.addAttribute(new Attribute("orgCode", user.getOrganization().getOrgCode(), true));
         registrationRequest.addAttribute(new Attribute("email", user.getEmail(), true));
 
         try {
-            // Register user and get enrollment secret (Node.js returns secret)
+            // Register user and get enrollment secret
             String enrollmentSecret = caClient.register(registrationRequest, adminUser);
             log.info("User {} successfully registered with CA. Enrollment secret generated.",
                     user.getUsername());
@@ -347,9 +416,26 @@ public class OrganizationUserService {
     @Transactional()
     public List<OrganizationUserResponseDto> getOrganizationUsers(
             Long organizationId,
-            UserStatus status) {
+            UserStatus status,
+            String userName) {
 
         log.info("Fetching users for organization: {} with status: {}", organizationId, status);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to view organization user
+        if (!verifyUserPermission(userName, "organization:user:view")) {
+            log.warn("User {} attempted to view organization user without permission", user);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization user", user);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         List<OrganizationUser> users;
 
@@ -381,8 +467,24 @@ public class OrganizationUserService {
      * Update user role
      */
     @Transactional
-    public OrganizationUserResponseDto updateUserRole(Long userId, Long newRoleId, Long updatedBy) {
+    public OrganizationUserResponseDto updateUserRole(Long userId, Long newRoleId, String updatedBy) {
         log.info("Updating role for user ID: {} to role ID: {}", userId, newRoleId);
+
+        // Find user
+        OrganizationUser adminUser = userRepository.findByUsername(updatedBy)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to update organization user
+        if (!verifyUserPermission(updatedBy, "organization:user:update")) {
+            log.warn("User {} attempted to update organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to update organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         OrganizationUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
@@ -421,8 +523,24 @@ public class OrganizationUserService {
      * Suspend user
      */
     @Transactional
-    public void suspendUser(Long userId, String reason, Long suspendedBy) {
+    public void suspendUser(Long userId, String reason, String suspendedBy) {
         log.info("Suspending user ID: {} for reason: {}", userId, reason);
+
+        // Find user
+        OrganizationUser adminUser = userRepository.findByUsername(suspendedBy)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to suspend organization user
+        if (!verifyUserPermission(suspendedBy, "organization:user:suspend")) {
+            log.warn("User {} attempted to suspend organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to suspend organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         OrganizationUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
@@ -462,8 +580,24 @@ public class OrganizationUserService {
      * Reactivate suspended user
      */
     @Transactional
-    public OrganizationUserResponseDto reactivateUser(Long userId, Long reactivatedBy) {
+    public OrganizationUserResponseDto reactivateUser(Long userId, String reactivatedBy) {
         log.info("Reactivating user ID: {}", userId);
+
+        // Find user
+        OrganizationUser adminUser = userRepository.findByUsername(reactivatedBy)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to reactive organization user
+        if (!verifyUserPermission(reactivatedBy, "organization:user:reactive")) {
+            log.warn("User {} attempted to reactive organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to reactive organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         OrganizationUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
@@ -540,23 +674,63 @@ public class OrganizationUserService {
      * Get organization roles
      */
     @Transactional(readOnly = true)
-    public List<OrganizationRole> getOrganizationRoles(Long organizationId, Boolean activeOnly) {
-        log.info("Fetching roles for organization: {} (activeOnly: {})",
-                organizationId, activeOnly);
+    public List<OrganizationRoleDto> getOrganizationRoles(Long organizationId, Boolean activeOnly, String userName) {
+        log.info("Fetching roles for organization: {} (activeOnly: {})", organizationId, activeOnly);
 
-        if (activeOnly != null && activeOnly) {
-            return roleRepository.findActiveRolesByOrganizationId(organizationId);
-        } else {
-            return roleRepository.findByOrganizationId(organizationId);
+        OrganizationUser adminUser = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        if (!verifyUserPermission(userName, "organization:user:view")) {
+            log.warn("User {} attempted to view organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
         }
+
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
+        List<OrganizationRole> roles = (activeOnly != null && activeOnly)
+                ? roleRepository.findActiveRolesByOrganizationId(organizationId)
+                : roleRepository.findByOrganizationId(organizationId);
+
+        // Convert to DTOs
+        return roles.stream()
+                .map(role -> OrganizationRoleDto.builder()
+                        .id(role.getId())
+                        .roleCode(role.getRoleCode())
+                        .description(role.getDescription())
+                        .permissions(role.getPermissions())
+                        .isAdmin(role.getIsAdmin())
+                        .isActive(role.getIsActive())
+                        .createdAt(role.getCreatedAt())
+                        .updatedAt(role.getUpdatedAt())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     /**
      * Search users
      */
     @Transactional(readOnly = true)
-    public List<OrganizationUserResponseDto> searchUsers(Long organizationId, String searchTerm) {
+    public List<OrganizationUserResponseDto> searchUsers(Long organizationId, String searchTerm, String userName) {
         log.info("Searching users in organization {} with term: {}", organizationId, searchTerm);
+
+        // Find user
+        OrganizationUser adminUser = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to view organization user
+        if (!verifyUserPermission(userName, "organization:user:view")) {
+            log.warn("User {} attempted to view organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         List<OrganizationUser> users = userRepository.searchUsers(organizationId, searchTerm);
 
@@ -569,8 +743,24 @@ public class OrganizationUserService {
      * Get user statistics for organization
      */
     @Transactional(readOnly = true)
-    public UserStatisticsResponseDto getOrganizationUserStatistics(Long organizationId) {
+    public UserStatisticsResponseDto getOrganizationUserStatistics(Long organizationId, String userName) {
         log.info("Fetching user statistics for organization: {}", organizationId);
+
+        // Find user
+        OrganizationUser adminUser = userRepository.findByUsername(userName)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Check if user has permission to view organization user
+        if (!verifyUserPermission(userName, "organization:user:view")) {
+            log.warn("User {} attempted to view organization user without permission", adminUser);
+            throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Verify user is active
+        if (adminUser.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user {} attempted to view organization user", adminUser);
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
 
         long totalUsers = userRepository.countByOrganizationId(organizationId);
         long activeUsers = userRepository.countActiveUsersByOrganizationId(organizationId);
@@ -643,10 +833,139 @@ public class OrganizationUserService {
         log.info("User deleted successfully");
     }
 
-    // Helper Methods
+    /**
+     * Login organization user
+     */
+    @Transactional
+    public OrganizationLoginResponseDto login(OrganizationLoginRequestDto request) {
+        log.info("Login attempt for user: {}", request.getUsernameOrEmail());
+
+        // Find user by username or email
+        OrganizationUser user = userRepository.findByUsername(request.getUsernameOrEmail())
+                .orElseGet(() -> userRepository.findByEmail(request.getUsernameOrEmail())
+                        .orElseThrow(() -> new SludiException(ErrorCodes.INVALID_CREDENTIALS)));
+
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            log.warn("Invalid password for user: {}", request.getUsernameOrEmail());
+            throw new SludiException(ErrorCodes.INVALID_CREDENTIALS);
+        }
+
+        // Check user status
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            log.warn("Inactive user login attempt: {} (Status: {})",
+                    user.getUsername(), user.getStatus());
+            throw new SludiException(ErrorCodes.USER_INACTIVE);
+        }
+
+        // Check organization status
+        if (user.getOrganization().getStatus() != OrganizationStatus.ACTIVE) {
+            log.warn("User {} attempted login but organization {} is not active",
+                    user.getUsername(), user.getOrganization().getName());
+            throw new SludiException(ErrorCodes.ORGANIZATION_NOT_ACTIVE);
+        }
+
+        // Generate tokens
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        log.info("User logged in successfully: {} (Organization: {})",
+                user.getUsername(), user.getOrganization().getName());
+
+        return OrganizationLoginResponseDto.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtExpiration)
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .employeeId(user.getEmployeeId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .organizationId(user.getOrganization().getId())
+                .organizationName(user.getOrganization().getName())
+                .organizationCode(user.getOrganization().getOrgCode())
+                .roleId(user.getAssignedRole().getId())
+                .roleCode(user.getAssignedRole().getRoleCode())
+                .isAdmin(user.getAssignedRole().getIsAdmin())
+                .permissions(user.getAssignedRole().getPermissions())
+                .loginTime(LocalDateTime.now())
+                .build();
+    }
 
     /**
-     * Generate unique Fabric user ID (Node.js style: orgprefix_username)
+     * Refresh access token
+     */
+    @Transactional
+    public RefreshTokenResponseDto refreshToken(String refreshToken) {
+        log.info("Refreshing access token");
+
+        try {
+            // Validate refresh token
+            Claims claims = jwtService.validateToken(refreshToken);
+            String username = claims.getSubject();
+
+            // Find user
+            OrganizationUser user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Check user is still active
+            if (user.getStatus() != UserStatus.ACTIVE) {
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
+            }
+
+            // Generate new access token
+            String newAccessToken = jwtService.refreshAccessToken(refreshToken, user);
+
+            log.info("Access token refreshed for user: {}", username);
+
+            return RefreshTokenResponseDto.builder()
+                    .accessToken(newAccessToken)
+                    .tokenType("Bearer")
+                    .expiresIn(jwtExpiration)
+                    .build();
+
+        } catch (SludiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Token refresh failed: {}", e.getMessage(), e);
+            throw new SludiException(ErrorCodes.TOKEN_REFRESH_FAILED, e.getMessage());
+        }
+    }
+
+    /**
+     * Change password for authenticated user
+     */
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequestDto request) {
+        log.info("Password change request for user: {}", username);
+
+        // Find user
+        OrganizationUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            log.warn("Invalid current password for user: {}", username);
+            throw new SludiException(ErrorCodes.INVALID_CURRENT_PASSWORD);
+        }
+
+        // Validate new password is different
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new SludiException(ErrorCodes.NEW_PASSWORD_SAME_AS_OLD);
+        }
+
+        // Update password
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {}", username);
+    }
+
+    // Helper Methods
+    /**
+     * Generate unique Fabric user ID
      */
     private String generateFabricUserId(OrganizationUser user) {
         String orgPrefix = user.getOrganization().getOrgCode()

@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 
 @Service
-public class JwtService {
+public class CitizenUserJwtService {
     @Value("${security.jwt.secret-key}")
     private String jwtSecretKey;
 

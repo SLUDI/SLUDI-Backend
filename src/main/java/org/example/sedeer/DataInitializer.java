@@ -5,6 +5,7 @@ import org.example.repository.*;
 import org.example.service.FabricCAService;
 import org.example.service.FabricOrgAssignmentService;
 import org.example.utils.FabricProperties;
+import org.example.utils.OrgCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -39,39 +40,33 @@ public class DataInitializer {
             OrganizationRepository organizationRepository,
             OrganizationRoleRepository roleRepository,
             OrganizationUserRepository userRepository,
-            OrganizationOnboardingRepository onboardingRepository,
             FabricOrgAssignmentService fabricOrgAssignmentService,
             PermissionService permissionService,
             OrganizationUserService userService,
             FabricCAService fabricCAService
     ) {
         return args -> {
-            log.info("========================================");
-            log.info("Starting Data Initialization...");
-            log.info("========================================");
-
-            // Step 1: Seed Fabric Organizations
-            log.info("Step 1: Initializing Fabric Organizations...");
+            // Seed Fabric Organizations
+            log.info("Initializing Fabric Organizations...");
             FabricOrgConfig org1Fabric = initializeFabricOrg1(fabricRepository);
             FabricOrgConfig org2Fabric = initializeFabricOrg2(fabricRepository);
 
-            // Step 2: Verify Fabric CA Admin Enrollment
-            log.info("Step 2: Verifying Fabric CA Admin Enrollment...");
+            // Verify Fabric CA Admin Enrollment
             try {
                 // Ensure admin is enrolled for Org1
                 fabricCAService.getAdminUser("Org1MSP");
-                log.info("✓ Org1MSP CA Admin verified");
+                log.info("Org1MSP CA Admin verified");
             } catch (Exception e) {
-                log.error("✗ Failed to verify Org1MSP CA Admin. Make sure admin credentials exist at crypto path.", e);
+                log.error("Failed to verify Org1MSP CA Admin. Make sure admin credentials exist at crypto path.", e);
                 throw new RuntimeException("CA Admin verification failed. Cannot proceed with user enrollment.", e);
             }
 
-            // Step 3: Seed Permission Template
-            log.info("Step 3: Initializing Permission Template...");
+            // Seed Permission Template
+            log.info("Initializing Permission Template...");
             initializePermissionTemplate(templateRepository, permissionService);
 
-            // Step 4: Seed Citizen Registration Department
-            log.info("Step 4: Initializing Citizen Registration Department...");
+            // Seed Citizen Registration Department
+            log.info("Initializing Citizen Registration Department...");
             Organization citizenOrg = initializeCitizenOrganization(
                     organizationRepository,
                     templateRepository,
@@ -79,21 +74,19 @@ public class DataInitializer {
                     fabricOrgAssignmentService
             );
 
-            // Step 5: Initialize Organization Roles
-            log.info("Step 5: Initializing Organization Roles...");
+            // Initialize Organization Roles
+            log.info("Initializing Organization Roles...");
             initializeOrganizationRoles(roleRepository, userService, citizenOrg);
 
-            // Step 6: Create Admin User
-            log.info("Step 6: Creating Admin User...");
+            // Create Admin User
+            log.info("Creating Admin User...");
             createAdminUser(userRepository, roleRepository, userService, citizenOrg);
 
-            // Step 7: Create Regular User
-            log.info("Step 7: Creating Regular User...");
+            // Create Regular User
+            log.info("Creating Regular User...");
             createRegularUser(userRepository, roleRepository, userService, citizenOrg);
 
-            log.info("========================================");
             log.info("Data Initialization Completed Successfully!");
-            log.info("========================================");
         };
     }
 
@@ -115,10 +108,10 @@ public class DataInitializer {
                     .build();
 
             org1 = fabricRepository.save(org1);
-            log.info("✓ Fabric Org1MSP configuration created");
+            log.info("Fabric Org1MSP configuration created");
             return org1;
         } else {
-            log.info("✓ Fabric Org1MSP configuration already exists");
+            log.info("Fabric Org1MSP configuration already exists");
             return fabricRepository.findByMspId("Org1MSP");
         }
     }
@@ -141,10 +134,10 @@ public class DataInitializer {
                     .build();
 
             org2 = fabricRepository.save(org2);
-            log.info("✓ Fabric Org2MSP configuration created");
+            log.info("Fabric Org2MSP configuration created");
             return org2;
         } else {
-            log.info("✓ Fabric Org2MSP configuration already exists");
+            log.info("Fabric Org2MSP configuration already exists");
             return fabricRepository.findByMspId("Org2MSP");
         }
     }
@@ -181,6 +174,24 @@ public class DataInitializer {
                         "identity:kyc:update",
                         "identity:kyc:approve",
 
+                        // Organization management
+                        "organization:create",
+                        "organization:view",
+                        "organization:update",
+                        "organization:delete",
+                        "organization:approve",
+                        "organization:suspend",
+                        "organization:reactive",
+
+                        // Organization user management
+                        "organization:user:create",
+                        "organization:user:view",
+                        "organization:user:update",
+                        "organization:user:delete",
+                        "organization:user:approve",
+                        "organization:user:suspend",
+                        "organization:user:reactive",
+
                         // Administrative permissions
                         "WRITE",
                         "READ",
@@ -213,14 +224,14 @@ public class DataInitializer {
                 templateRequest.setPredefinedRoles(predefinedRoles);
 
                 permissionService.addPermissionTemplate(templateRequest);
-                log.info("✓ Citizen Registration Department Permission Template created");
+                log.info("Citizen Registration Department Permission Template created");
 
             } catch (Exception e) {
-                log.error("✗ Failed to initialize permission template", e);
+                log.error("Failed to initialize permission template", e);
                 throw new RuntimeException("Failed to initialize permission template", e);
             }
         } else {
-            log.info("✓ Permission template already exists");
+            log.info("Permission template already exists");
         }
     }
 
@@ -237,9 +248,10 @@ public class DataInitializer {
                 throw new RuntimeException("Permission template 'CITIZEN_REG_TEMPLATE' not found");
             }
 
+            String orgCode = OrgCodeGenerator.generate("Citizen Registration Department", OrganizationType.GOVERNMENT);
             // Create organization
             Organization citizenOrg = Organization.builder()
-                    .orgCode("CITIZEN_REG_DEPT")
+                    .orgCode(orgCode)
                     .name("Citizen Registration Department")
                     .template(citizenTemplate)
                     .orgType(OrganizationType.GOVERNMENT)
@@ -265,16 +277,16 @@ public class DataInitializer {
                 org1Fabric.setIsAssigned(true);
                 fabricRepository.save(org1Fabric);
 
-                log.info("✓ Organization 'Citizen Registration Department' created and onboarded to {}",
+                log.info("Organization 'Citizen Registration Department' created and onboarded to {}",
                         onboarding.getMspId());
             } catch (Exception e) {
-                log.error("✗ Failed to onboard organization to Fabric", e);
+                log.error("Failed to onboard organization to Fabric", e);
                 throw new RuntimeException("Failed to onboard organization", e);
             }
 
             return citizenOrg;
         } else {
-            log.info("✓ Organization 'Citizen Registration Department' already exists");
+            log.info("Organization 'Citizen Registration Department' already exists");
             return organizationRepository.findByNameIgnoreCase("Citizen Registration Department")
                     .orElseThrow(() -> new RuntimeException("Failed to retrieve organization"));
         }
@@ -288,19 +300,19 @@ public class DataInitializer {
         if (!roleRepository.existsByOrganizationId(organization.getId())) {
             try {
                 List<OrganizationRole> roles = userService.initializeOrganizationRoles(organization.getId());
-                log.info("✓ {} roles initialized for organization", roles.size());
+                log.info("{} roles initialized for organization", roles.size());
 
                 // Log created roles
                 roles.forEach(role ->
                         log.info("  - Role: {} (Permissions: {})", role.getRoleCode(), role.getPermissions().size())
                 );
             } catch (Exception e) {
-                log.error("✗ Failed to initialize organization roles", e);
+                log.error("Failed to initialize organization roles", e);
                 throw new RuntimeException("Failed to initialize roles", e);
             }
         } else {
             List<OrganizationRole> existingRoles = roleRepository.findByOrganizationId(organization.getId());
-            log.info("✓ Organization roles already initialized ({} roles)", existingRoles.size());
+            log.info("Organization roles already initialized ({} roles)", existingRoles.size());
         }
     }
 
@@ -335,26 +347,26 @@ public class DataInitializer {
                 adminRequest.setCreatedBy(null);
 
                 // Register user
-                OrganizationUserResponseDto adminUser = userService.registerUser(adminRequest);
+                OrganizationUserResponseDto adminUser = userService.registerAdminUser(adminRequest);
                 log.info("  - User registered: {} (ID: {})", adminUser.getUsername(), adminUser.getUserId());
 
                 // Auto-approve and enroll on blockchain
                 log.info("  - Approving and enrolling user on blockchain...");
-                OrganizationUserResponseDto approvedUser = userService.approveUser(adminUser.getUserId(), null);
+                OrganizationUserResponseDto approvedUser = userService.approveAdminUser(adminUser.getUserId(), null);
 
-                log.info("✓ Admin user created successfully");
+                log.info("Admin user created successfully");
                 log.info("  - Username: {}", approvedUser.getUsername());
                 log.info("  - Email: {}", approvedUser.getEmail());
                 log.info("  - Fabric User ID: {}", approvedUser.getFabricUserId());
                 log.info("  - Enrolled on Blockchain: {}", approvedUser.getIsEnrolledOnBlockchain());
 
             } catch (Exception e) {
-                log.error("✗ Failed to create admin user", e);
+                log.error("Failed to create admin user", e);
                 log.error("Error details: {}", e.getMessage());
                 // Don't throw - allow initialization to continue
             }
         } else {
-            log.info("✓ Admin user 'citizen_admin' already exists");
+            log.info("Admin user 'citizen_admin' already exists");
         }
     }
 
@@ -389,26 +401,26 @@ public class DataInitializer {
                 userRequest.setCreatedBy(null);
 
                 // Register user
-                OrganizationUserResponseDto regularUser = userService.registerUser(userRequest);
+                OrganizationUserResponseDto regularUser = userService.registerEmployeeUser(userRequest, "citizen_admin");
                 log.info("  - User registered: {} (ID: {})", regularUser.getUsername(), regularUser.getUserId());
 
                 // Auto-approve and enroll on blockchain
                 log.info("  - Approving and enrolling user on blockchain...");
-                OrganizationUserResponseDto approvedUser = userService.approveUser(regularUser.getUserId(), null);
+                OrganizationUserResponseDto approvedUser = userService.approveEmployeeUser(regularUser.getUserId(), "citizen_admin");
 
-                log.info("✓ Regular user created successfully");
+                log.info("Regular user created successfully");
                 log.info("  - Username: {}", approvedUser.getUsername());
                 log.info("  - Email: {}", approvedUser.getEmail());
                 log.info("  - Fabric User ID: {}", approvedUser.getFabricUserId());
                 log.info("  - Enrolled on Blockchain: {}", approvedUser.getIsEnrolledOnBlockchain());
 
             } catch (Exception e) {
-                log.error("✗ Failed to create regular user", e);
+                log.error("Failed to create regular user", e);
                 log.error("Error details: {}", e.getMessage());
                 // Don't throw - allow initialization to continue
             }
         } else {
-            log.info("✓ Regular user 'citizen_user' already exists");
+            log.info("Regular user 'citizen_user' already exists");
         }
     }
 }
