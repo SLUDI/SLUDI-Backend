@@ -1,6 +1,6 @@
 package org.example.enums;
 
-public enum KYCStatus {
+public enum VerificationStatus {
     NOT_STARTED,
     IN_PROGRESS,
     VERIFIED,

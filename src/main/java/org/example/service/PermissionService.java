@@ -8,6 +8,7 @@ import org.example.dto.PermissionTemplateResponse;
 import org.example.dto.CustomPermissionsRequest;
 import org.example.entity.Organization;
 import org.example.entity.PermissionTemplate;
+import org.example.enums.PredefinedRole;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.PermissionTemplateRepository;
@@ -231,7 +232,7 @@ public class PermissionService {
 
 
     private void validateRolePermissions(
-            List<PermissionTemplate.PredefinedRole> roles,
+            List<PredefinedRole.RoleInstance> roles,
             List<String> basePermissions
     ) {
         for (var role : roles) {
@@ -271,10 +272,4 @@ public class PermissionService {
             }
         }
     }
-
-
-
-
-
-
 }

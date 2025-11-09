@@ -4,7 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.example.security.JwtService;
+import lombok.extern.slf4j.Slf4j;
+import org.example.security.CitizenUserJwtService;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -18,19 +19,20 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
 
+@Slf4j
 @Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class CitizenUserJwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService;
+    private final CitizenUserJwtService citizenUserJwtService;
     private final UserDetailsService userDetailsService;
     private final HandlerExceptionResolver handlerExceptionResolver;
 
-    public JwtAuthenticationFilter(
-            JwtService jwtService,
+    public CitizenUserJwtAuthenticationFilter(
+            CitizenUserJwtService citizenUserJwtService,
             UserDetailsService userDetailsService,
             HandlerExceptionResolver handlerExceptionResolver
     ) {
-        this.jwtService = jwtService;
+        this.citizenUserJwtService = citizenUserJwtService;
         this.userDetailsService = userDetailsService;
         this.handlerExceptionResolver = handlerExceptionResolver;
     }
@@ -42,6 +44,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
+        // Skip this filter for organization endpoints
+        String requestPath = request.getRequestURI();
+        if (
+                requestPath.startsWith("/api/organization") || requestPath.startsWith("/api/organization-user")
+        ) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -50,14 +61,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             final String jwt = authHeader.substring(7);
-            final String didId = jwtService.extractDidFromToken(jwt);
+            final String didId = citizenUserJwtService.extractDidFromToken(jwt);
 
             Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
 
             if (didId != null && currentAuth == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(didId);
 
-                if (!jwtService.isTokenExpired(jwt)) {
+                if (!citizenUserJwtService.isTokenExpired(jwt)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
@@ -65,12 +76,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    log.debug("Citizen user authenticated: {}", didId);
                 }
             }
 
             filterChain.doFilter(request, response);
         } catch (Exception e) {
+            log.error("Citizen authentication error: {}", e.getMessage());
             handlerExceptionResolver.resolveException(request, response, null, e);
         }
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/organization") || path.startsWith("/api/organization-user");
     }
 }

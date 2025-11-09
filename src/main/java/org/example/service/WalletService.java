@@ -8,7 +8,7 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
-import org.example.security.JwtService;
+import org.example.security.CitizenUserJwtService;
 import org.example.utils.HashUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -34,7 +34,7 @@ public class WalletService {
     private final WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final StringRedisTemplate redisTemplate;
-    private final JwtService jwtService;
+    private final CitizenUserJwtService citizenUserJwtService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +49,7 @@ public class WalletService {
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
             VerifiableCredentialRepository verifiableCredentialRepository,
             StringRedisTemplate redisTemplate,
-            JwtService jwtService
+            CitizenUserJwtService citizenUserJwtService
     ) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
@@ -62,7 +62,7 @@ public class WalletService {
         this.walletVerifiableCredentialRepository = walletVerifiableCredentialRepository;
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.redisTemplate = redisTemplate;
-        this.jwtService = jwtService;
+        this.citizenUserJwtService = citizenUserJwtService;
     }
 
     /**
@@ -191,8 +191,8 @@ public class WalletService {
         redisTemplate.delete(nonceKey);
 
         // Issue JWT
-        String token = jwtService.generateAccessToken(user);
-        String refreshToken = jwtService.generateRefreshToken(user);
+        String token = citizenUserJwtService.generateAccessToken(user);
+        String refreshToken = citizenUserJwtService.generateRefreshToken(user);
 
         // Return response
         Map<String, String> response = new HashMap<>();

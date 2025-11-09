@@ -84,7 +84,7 @@ public class DIDDocumentService {
             }
 
             // Convert user entity to JSON string
-            CitizenUserDTO dto = CitizenUserDTO.builder()
+            CitizenUserDto dto = CitizenUserDto.builder()
                     .id(citizenUser.getId())
                     .citizenCode(citizenUser.getCitizenCode())
                     .fullName(citizenUser.getFullName())
@@ -100,7 +100,7 @@ public class DIDDocumentService {
                     .address(citizenUser.getAddress())
                     .supportingDocuments(citizenUser.getSupportingDocuments())
                     .status(citizenUser.getStatus())
-                    .kycStatus(citizenUser.getKycStatus())
+                    .verificationStatus(citizenUser.getVerificationStatus())
                     .didId(citizenUser.getDidId())
                     .publicKey(citizenUser.getPublicKey())
                     .fingerprintIpfsHash(citizenUser.getFingerprintIpfsHash())

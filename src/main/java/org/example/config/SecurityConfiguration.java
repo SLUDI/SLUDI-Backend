@@ -3,6 +3,7 @@ package org.example.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -17,13 +18,15 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfiguration {
 
     private final AuthenticationProvider authenticationProvider;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CitizenUserJwtAuthenticationFilter citizenUserJwtAuthenticationFilter;
+    private final OrganizationJwtAuthenticationFilter organizationJwtAuthenticationFilter;
 
-    // Allow public endpoints
-    private static final String[] PUBLIC_URLS = {
+    // Citizen user public endpoints
+    private static final String[] CITIZEN_PUBLIC_URLS = {
             "/auth/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
@@ -40,28 +43,55 @@ public class SecurityConfiguration {
             "/api/wallet/**"
     };
 
-    //  Require authentication for only this endpoint
-    private static final String[] PRIVATE_URL = {
+    // Organization user public endpoints
+    private static final String[] ORGANIZATION_PUBLIC_URLS = {
+            "/api/organization-users/auth/login",
+            "/api/organization-users/auth/refresh",
+            "/api/organization-users/register",
+            "/api/organization-users/verify-permission",
+            "/api/organization-users/organization/{organizationId}/roles/initialize",
+    };
+
+    // Citizen user private endpoints (require authentication)
+    private static final String[] CITIZEN_PRIVATE_URLS = {
             "/api/wallet/retrieve"
     };
 
+    // Organization user private endpoints (require authentication)
+    private static final String[] ORGANIZATION_PRIVATE_URLS = {
+            "/api/organization/**",
+            "/api/organization-users/**",
+            "/api/organization-users/auth/change-password"
+    };
+
     public SecurityConfiguration(
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            AuthenticationProvider authenticationProvider
+            OrganizationJwtAuthenticationFilter organizationJwtAuthenticationFilter,
+            AuthenticationProvider authenticationProvider,
+            CitizenUserJwtAuthenticationFilter citizenUserJwtAuthenticationFilter
     ) {
+        this.citizenUserJwtAuthenticationFilter = citizenUserJwtAuthenticationFilter;
+        this.organizationJwtAuthenticationFilter = organizationJwtAuthenticationFilter;
         this.authenticationProvider = authenticationProvider;
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // Permit all public URLs
-                        .requestMatchers(PUBLIC_URLS).permitAll()
-                        // Require auth for everything else
-                        .requestMatchers(PRIVATE_URL).authenticated()
+                        // Permit all citizen public URLs
+                        .requestMatchers(CITIZEN_PUBLIC_URLS).permitAll()
+
+                        // Permit all organization public URLs
+                        .requestMatchers(ORGANIZATION_PUBLIC_URLS).permitAll()
+
+                        // Require authentication for citizen private URLs
+                        .requestMatchers(CITIZEN_PRIVATE_URLS).authenticated()
+
+                        // Require authentication for organization URLs
+                        .requestMatchers(ORGANIZATION_PRIVATE_URLS).authenticated()
+
                         // Deny everything else
                         .anyRequest().denyAll()
                 )
@@ -69,21 +99,25 @@ public class SecurityConfiguration {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authenticationProvider(authenticationProvider)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // Add citizen JWT filter first
+                .addFilterBefore(citizenUserJwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // Add organization JWT filter after citizen filter
+                .addFilterAfter(organizationJwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }

@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.enums.OrganizationStatus;
+import org.example.enums.OrganizationType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -82,16 +84,16 @@ public class Organization {
 
     // Approval Workflow
     @Column(name = "created_by")
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "approved_by")
-    private Long approvedBy;
+    private String approvedBy;
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
     @Column(name = "suspended_by")
-    private Long suspendedBy;
+    private String suspendedBy;
 
     @Column(name = "suspended_at")
     private LocalDateTime suspendedAt;
@@ -115,15 +117,6 @@ public class Organization {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    // Enums
-    public enum OrganizationType {
-        GOVERNMENT, FINANCIAL, PRIVATE, NGO
-    }
-
-    public enum OrganizationStatus {
-        PENDING, ACTIVE, SUSPENDED, INACTIVE
     }
 
     // Inner class for custom permissions

@@ -75,6 +75,25 @@ services:
       IPFS_API_PORT: 5001
       IPFS_GATEWAY_URL: http://ipfs:8080/ipfs/
 
+      # ==== Fabric Configuration (Using container paths) ====
+      FABRIC_BASE_PATH: /organizations/peerOrganizations
+
+      # Org1 Configuration
+      FABRIC_ORG1_MSP_ID: Org1MSP
+      FABRIC_ORG1_CHANNEL_NAME: sludi-channel
+      FABRIC_ORG1_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_ORG1_PEER_ENDPOINT: peer0.org1.example.com:7051
+      FABRIC_ORG1_ORDERER_ENDPOINT: orderer.example.com:7050
+      FABRIC_ORG1_CA_ENDPOINT: 192.168.8.103:7054
+
+      # Org2 Configuration
+      FABRIC_ORG2_MSP_ID: Org2MSP
+      FABRIC_ORG2_CHANNEL_NAME: sludi-channel
+      FABRIC_ORG2_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_ORG2_PEER_ENDPOINT: peer0.org2.example.com:9051
+      FABRIC_ORG2_ORDERER_ENDPOINT: orderer.example.com:7050
+      FABRIC_ORG2_CA_ENDPOINT: 192.168.8.103:8054
+
       # ==== Fabric (Injected via mounted volume) ====
       FABRIC_MSP_ID: Org1MSP
       FABRIC_CHANNEL_NAME: sludi-channel
@@ -85,7 +104,7 @@ services:
       FABRIC_WALLET_PATH: /organizations/peerOrganizations/org1.example.com/msp/keystore
 
       SLUDI_ORGANIZATION_PRIVATE_KEY_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore
-      SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/cert.pem
+      SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts
       SLUDI_ORGANIZATION_MSP_ID: Org1MSP
       SLUDI_ISSUER_DID: did:sludi:government789
 
@@ -95,11 +114,16 @@ services:
     volumes:
       - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.8.102"
+      - "peer0.org1.example.com:192.168.8.103"
+      - "peer0.org2.example.com:192.168.8.103"
+      - "orderer.example.com:192.168.8.103"
     networks:
       - sludi-network
+      - fabric_test
     restart: unless-stopped
 
 networks:
   sludi-network:
     driver: bridge
+  fabric_test:
+    external: true

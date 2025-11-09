@@ -1,7 +1,7 @@
-package org.example.util;
+package org.example.utils;
 
 import lombok.extern.slf4j.Slf4j;
-import org.example.entity.Organization;
+import org.example.enums.OrganizationType;
 
 import java.security.SecureRandom;
 import java.text.Normalizer;
@@ -16,16 +16,16 @@ public class OrgCodeGenerator {
     private static final int RANDOM_SUFFIX_LENGTH = 3;
     
     //Organization type prefix
-    private static final Map<Organization.OrganizationType, String > TYPE_PREFIXES = new HashMap<>();
+    private static final Map<OrganizationType, String > TYPE_PREFIXES = new HashMap<>();
     
     static {
-        TYPE_PREFIXES.put(Organization.OrganizationType.GOVERNMENT, "GOV");
-        TYPE_PREFIXES.put(Organization.OrganizationType.FINANCIAL, "FIN");
-        TYPE_PREFIXES.put(Organization.OrganizationType.PRIVATE, "PVT");
-        TYPE_PREFIXES.put(Organization.OrganizationType.NGO, "NGO");
+        TYPE_PREFIXES.put(OrganizationType.GOVERNMENT, "GOV");
+        TYPE_PREFIXES.put(OrganizationType.FINANCIAL, "FIN");
+        TYPE_PREFIXES.put(OrganizationType.PRIVATE, "PVT");
+        TYPE_PREFIXES.put(OrganizationType.NGO, "NGO");
     }
     
-    public static String generate(String name, Organization.OrganizationType type){
+    public static String generate(String name, OrganizationType type){
         if (name == null || name.trim().isEmpty()){
             throw new IllegalArgumentException("Organization name cannot be null or empty");
         }

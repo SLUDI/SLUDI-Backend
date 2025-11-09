@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.entity.Organization;
+import org.example.enums.OrganizationStatus;
+import org.example.enums.OrganizationType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,7 +23,7 @@ public class OrganizationDetailResponse {
     private String orgCode;
     private String name;
     private String registrationNumber;
-    private Organization.OrganizationType orgType;
+    private OrganizationType orgType;
     private String sector;
 
     // Contact Information
@@ -39,7 +41,7 @@ public class OrganizationDetailResponse {
     private CustomPermissionsResponse customPermissions;
 
     // Status
-    private Organization.OrganizationStatus status;
+    private OrganizationStatus status;
 
     // Blockchain
     private String blockchainTxId;
@@ -47,11 +49,11 @@ public class OrganizationDetailResponse {
     private LocalDateTime blockchainTimestamp;
 
     // Audit Trail
-    private Long createdBy;
+    private String createdBy;
     private LocalDateTime createdAt;
-    private Long approvedBy;
+    private String approvedBy;
     private LocalDateTime approvedAt;
-    private Long suspendedBy;
+    private String suspendedBy;
     private LocalDateTime suspendedAt;
     private String suspensionReason;
     private LocalDateTime updatedAt;

@@ -3,9 +3,8 @@ package org.example.dto;
 import lombok.Builder;
 import lombok.Data;
 import org.example.entity.Address;
-import org.example.entity.CitizenUser;
 import org.example.entity.SupportingDocument;
-import org.example.enums.KYCStatus;
+import org.example.enums.VerificationStatus;
 import org.example.enums.UserStatus;
 
 import java.util.List;
@@ -13,7 +12,7 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class CitizenUserDTO {
+public class CitizenUserDto {
     private UUID id;
     private String citizenCode;
     private String fullName;
@@ -29,7 +28,7 @@ public class CitizenUserDTO {
     private Address address;
     private List<SupportingDocument> supportingDocuments;
     private UserStatus status;
-    private KYCStatus kycStatus;
+    private VerificationStatus verificationStatus;
     private String didId;
     private String publicKey;
     private String fingerprintIpfsHash;

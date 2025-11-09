@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.entity.Organization;
+import org.example.enums.OrganizationStatus;
+import org.example.enums.OrganizationType;
 
 import java.time.LocalDateTime;
 
@@ -19,7 +21,7 @@ public class OrganizationResponse {
     private String orgCode;
     private String name;
     private String registrationNumber;
-    private Organization.OrganizationType orgType;
+    private OrganizationType orgType;
     private String sector;
 
     // Contact Information
@@ -30,7 +32,7 @@ public class OrganizationResponse {
     private String postalCode;
 
     // Status
-    private Organization.OrganizationStatus status;
+    private OrganizationStatus status;
 
     // Template Information (basic)
     private String templateName;

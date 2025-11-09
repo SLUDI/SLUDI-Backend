@@ -18,4 +18,6 @@ public interface PermissionTemplateRepository extends JpaRepository<PermissionTe
 
     // check existence of the template
     boolean existsByTemplateCode(@NotBlank(message = "Template code is required") @Pattern(regexp = "^[A-Z_]+$", message = "Template code must contain only uppercase letters and underscores") @Size(max = 50, message = "Template code must not exceed 50 characters") String templateCode);
+
+    PermissionTemplate findByTemplateCode(String citizenRegTemplate);
 }
