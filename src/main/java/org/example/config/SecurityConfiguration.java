@@ -61,7 +61,9 @@ public class SecurityConfiguration {
     private static final String[] ORGANIZATION_PRIVATE_URLS = {
             "/api/organization/**",
             "/api/organization-users/**",
-            "/api/organization-users/auth/change-password"
+            "/api/organization-users/auth/change-password",
+            "/api/vc/identity/credential",
+            "/api/did/register"
     };
 
     public SecurityConfiguration(

@@ -1,14 +1,19 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
+import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.VerifiableCredentialService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +37,9 @@ public class VerifiableCredentialController {
      * POST /api/vc/identity/credential
      */
     @PostMapping(value = "/identity/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> createVCIdentity(
             @RequestParam("did") @Valid String did,
             @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
@@ -40,6 +48,8 @@ public class VerifiableCredentialController {
         log.info("Received request to issue VC for DID: {}", did);
 
         try {
+            String userName = getCurrentUsername();
+
             String id = "did:sludi:" + did;
 
             IssueVCRequestDto issueVCRequestDto = IssueVCRequestDto.builder()
@@ -65,7 +75,7 @@ public class VerifiableCredentialController {
                 issueVCRequestDto.setSupportingDocuments(docs);
             }
 
-            VCIssuedResponseDto response = verifiableCredentialService.issueVC(issueVCRequestDto);
+            VCIssuedResponseDto response = verifiableCredentialService.issueVC(issueVCRequestDto, userName);
 
             ApiResponseDto<VCIssuedResponseDto> apiResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
                     .success(true)
@@ -98,7 +108,8 @@ public class VerifiableCredentialController {
         log.info("Request received to fetch Identity VC with credentialId: {}", credentialId);
 
         try {
-            VerifiableCredentialDto credential = verifiableCredentialService.getVerifiableCredential(credentialId);
+            String id = "credential:identity:did:sludi:" + credentialId;
+            VerifiableCredentialDto credential = verifiableCredentialService.getVerifiableCredential(id);
 
             log.info("Successfully retrieved VC for credentialId: {}", credentialId);
 
@@ -134,4 +145,12 @@ public class VerifiableCredentialController {
         }
     }
 
+    // Helper method to get current authenticated username
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SludiException(ErrorCodes.AUTH_FAILED);
+        }
+        return authentication.getName();
+    }
 }

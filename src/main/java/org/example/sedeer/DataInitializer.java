@@ -401,12 +401,12 @@ public class DataInitializer {
                 userRequest.setCreatedBy(null);
 
                 // Register user
-                OrganizationUserResponseDto regularUser = userService.registerEmployeeUser(userRequest, "citizen_admin");
+                OrganizationUserResponseDto regularUser = userService.registerAdminUser(userRequest);
                 log.info("  - User registered: {} (ID: {})", regularUser.getUsername(), regularUser.getUserId());
 
                 // Auto-approve and enroll on blockchain
                 log.info("  - Approving and enrolling user on blockchain...");
-                OrganizationUserResponseDto approvedUser = userService.approveEmployeeUser(regularUser.getUserId(), "citizen_admin");
+                OrganizationUserResponseDto approvedUser = userService.approveAdminUser(regularUser.getUserId(), null);
 
                 log.info("Regular user created successfully");
                 log.info("  - Username: {}", approvedUser.getUsername());

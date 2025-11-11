@@ -4,16 +4,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.CitizenUser;
+import org.example.entity.OrganizationUser;
 import org.example.entity.ProofData;
 import org.example.entity.VerifiableCredential;
 import org.example.enums.ProofPurpose;
+import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
 import org.example.repository.CitizenUserRepository;
 import org.example.repository.IPFSContentRepository;
+import org.example.repository.OrganizationUserRepository;
 import org.example.repository.VerifiableCredentialRepository;
 import org.example.security.CryptographyService;
+import org.example.utils.CredentialClaimsMapper;
 import org.example.utils.HashUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -32,6 +37,9 @@ public class VerifiableCredentialService {
     private final CryptographyService cryptographyService;
     private final DigitalSignatureService digitalSignatureService;
     private final IPFSIntegration ipfsIntegration;
+    private final CredentialClaimsMapper claimsMapper;
+    private final OrganizationUserService organizationUserService;
+    private final OrganizationUserRepository organizationUserRepository;
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final CitizenUserRepository userRepository;
     private final IPFSContentRepository ipfsContentRepository;
@@ -45,7 +53,10 @@ public class VerifiableCredentialService {
             IPFSIntegration ipfsIntegration,
             VerifiableCredentialRepository verifiableCredentialRepository,
             CitizenUserRepository userRepository,
-            IPFSContentRepository ipfsContentRepository
+            IPFSContentRepository ipfsContentRepository,
+            CredentialClaimsMapper claimsMapper,
+            OrganizationUserService organizationUserService,
+            OrganizationUserRepository organizationUserRepository
     ) {
         this.hyperledgerService = hyperledgerService;
         this.cryptographyService = cryptographyService;
@@ -54,12 +65,31 @@ public class VerifiableCredentialService {
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.userRepository = userRepository;
         this.ipfsContentRepository = ipfsContentRepository;
+        this.claimsMapper = claimsMapper;
+        this.organizationUserService = organizationUserService;
+        this.organizationUserRepository = organizationUserRepository;
     }
 
-    public VCIssuedResponseDto issueVC(IssueVCRequestDto request) {
+    public VCIssuedResponseDto issueVC(IssueVCRequestDto request, String userName) {
         log.info("Issuing identity VC for DID: {}, CredentialType: {}", request.getDid(), request.getCredentialType());
 
         try {
+            // Find user
+            OrganizationUser adminUser = organizationUserRepository.findByUsername(userName)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Check if user has permission to issue DID
+            if (!organizationUserService.verifyUserPermission(userName, "citizen:issue_identity_credentials")) {
+                log.warn("User {} attempted to issue DID without permission", userName);
+                throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+            }
+
+            // Verify user is active
+            if (adminUser.getStatus() != UserStatus.ACTIVE) {
+                log.warn("Inactive user {} attempted to issue DID", userName);
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
+            }
+
             CitizenUser user = userRepository.findByAnyHash(null, null, HashUtil.sha256(request.getDid()));
             if (user == null) {
                 log.error("User not found for DID: {}", request.getDid());
@@ -74,12 +104,29 @@ public class VerifiableCredentialService {
 
             List<SupportingDocumentResponseDto> supportingDocuments = mapSupportingDocuments(user, request);
 
+            // Create credential ID
+            String credentialId = "credential:" + request.getCredentialType() + ":" + request.getDid();
+
+            // Get expire date
+            String expireDate = getExpirationDate(LocalDateTime.now());
+
+            // CONVERT CredentialSubject to Claims Map
+            Map<String, Object> claims = claimsMapper.convertToClaimsMap(credentialSubject);
+
+            // Create signature request with claims
+            CredentialSignatureRequestDto credentialSignatureRequestDto = CredentialSignatureRequestDto.builder()
+                    .credentialId(credentialId)
+                    .credentialType(request.getCredentialType())
+                    .subjectDid(request.getDid())
+                    .claims(claims)
+                    .expirationDate(expireDate)
+                    .build();
+
             // Create Proof of Data
-            ProofData proofData = digitalSignatureService.createProofData(
-                    credentialSubjectJson,
-                    user.getDidId(),
-                    LocalDateTime.now().toString(),
-                    ProofPurpose.CREDENTIAL_ISSUE.getValue()
+            // Sign the credential with claims
+            ProofData proofData = digitalSignatureService.signVerifiableCredential(
+                    credentialSignatureRequestDto,
+                    adminUser
             );
 
             ProofDataDto proofDataDto = ProofDataDto.builder()
@@ -91,12 +138,14 @@ public class VerifiableCredentialService {
                     .build();
 
             CredentialIssuanceRequestDto issuanceRequest = CredentialIssuanceRequestDto.builder()
+                    .credentialId(credentialId)
                     .subjectDID(user.getDidId())
                     .issuerDID(proofDataDto.getIssuerDid())
                     .credentialType(request.getCredentialType())
                     .credentialSubjectHash(credentialSubjectHash)
                     .supportingDocuments(supportingDocuments)
                     .proofData(proofDataDto)
+                    .expireDate(expireDate)
                     .build();
 
             log.info("Sending credential issuance request to Hyperledger for DID: {}", user.getDidId());
@@ -261,4 +310,8 @@ public class VerifiableCredentialService {
         }
     }
 
+    private String getExpirationDate(LocalDateTime dateTime) {
+        dateTime = dateTime.plusYears(25);
+        return dateTime.toString();
+    }
 }

@@ -33,6 +33,8 @@ public class DIDDocumentService {
     private final DigitalSignatureService digitalSignatureService;
     private final AIIntegration aiIntegration;
     private final CryptographyService cryptographyService;
+    private final OrganizationUserService organizationUserService;
+    private final OrganizationUserRepository organizationUserRepository;
     private final CitizenUserRepository citizenUserRepository;
     private final DIDDocumentRepository didDocumentRepository;
     private final AuthenticationLogRepository authLogRepository;
@@ -46,6 +48,8 @@ public class DIDDocumentService {
             DigitalSignatureService digitalSignatureService,
             AIIntegration aiIntegration,
             CryptographyService cryptographyService,
+            OrganizationUserService organizationUserService,
+            OrganizationUserRepository organizationUserRepository,
             CitizenUserRepository citizenUserRepository,
             DIDDocumentRepository didDocumentRepository,
             AuthenticationLogRepository authLogRepository,
@@ -56,6 +60,8 @@ public class DIDDocumentService {
         this.digitalSignatureService = digitalSignatureService;
         this.aiIntegration = aiIntegration;
         this.cryptographyService = cryptographyService;
+        this.organizationUserService = organizationUserService;
+        this.organizationUserRepository = organizationUserRepository;
         this.citizenUserRepository = citizenUserRepository;
         this.didDocumentRepository = didDocumentRepository;
         this.authLogRepository = authLogRepository;
@@ -65,8 +71,24 @@ public class DIDDocumentService {
     /**
      * Create DID Document
      */
-    public DIDCreateResponseDto createDID(DIDCreateRequestDto request) {
+    public DIDCreateResponseDto createDID(DIDCreateRequestDto request, String userName) {
         try {
+            // Find user
+            OrganizationUser adminUser = organizationUserRepository.findByUsername(userName)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Check if user has permission to issue DID
+            if (!organizationUserService.verifyUserPermission(userName, "citizen:issue_did")) {
+                log.warn("User {} attempted to issue DID without permission", userName);
+                throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+            }
+
+            // Verify user is active
+            if (adminUser.getStatus() != UserStatus.ACTIVE) {
+                log.warn("Inactive user {} attempted to issue DID", userName);
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
+            }
+
             // Validate input data
             validateDIDCreateRequest(request);
 
@@ -125,11 +147,10 @@ public class DIDDocumentService {
             String timeNow = LocalDateTime.now().toString();
 
             // Create Proof of Data
-            ProofData proofData = digitalSignatureService.createProofData(
+            ProofData proofData = digitalSignatureService.signDIDDocument(
                     userData,
                     didId,
-                    timeNow,
-                    ProofPurpose.DID_CREATION.getValue()
+                    adminUser
             );
 
             // Create DID on Hyperledger Fabric

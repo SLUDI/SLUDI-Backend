@@ -26,7 +26,7 @@ public class OrganizationUser {
     private Long id;
 
     // Link to organization
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 

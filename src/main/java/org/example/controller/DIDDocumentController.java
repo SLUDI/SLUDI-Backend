@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -9,6 +11,8 @@ import org.example.exception.SludiException;
 import org.example.exception.HttpStatusHandler;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -32,13 +36,18 @@ public class DIDDocumentController {
      * POST /api/did/register
      */
     @PostMapping("/register")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<DIDCreateResponseDto>> createDID(
             @Valid @RequestBody DIDCreateRequestDto request) {
 
         log.info("Received user NIC: {} for DID create", request.getNic());
 
         try {
-            DIDCreateResponseDto response = didDocumentService.createDID(request);
+            String userName = getCurrentUsername();
+
+            DIDCreateResponseDto response = didDocumentService.createDID(request, userName);
 
             ApiResponseDto<DIDCreateResponseDto> apiResponse = ApiResponseDto.<DIDCreateResponseDto>builder()
                     .success(true)
@@ -245,12 +254,9 @@ public class DIDDocumentController {
      * GET /api/did/statistics
      */
     @GetMapping("/statistics")
-    public ResponseEntity<ApiResponseDto<Map<String, Object>>> getUserStatistics(
-            @RequestHeader(value = "Authorization", required = true) String authHeader) {
+    public ResponseEntity<ApiResponseDto<Map<String, Object>>> getUserStatistics() {
 
         try {
-            validateAdminAuthorization(authHeader);
-
             Map<String, Object> stats = didDocumentService.getUserStatistics();
 
             return ResponseEntity.ok(ApiResponseDto.<Map<String, Object>>builder()
@@ -280,84 +286,13 @@ public class DIDDocumentController {
         }
     }
 
-    /**
-     * Validate authorization header and extract user ID
-     * @param authHeader
-     * @param userId
-     */
-    private void validateAuthorization(String authHeader, UUID userId) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SludiException(ErrorCodes.INVALID_AUTHRTIZATION_HEADER);
+    // Helper method to get current authenticated username
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SludiException(ErrorCodes.AUTH_FAILED);
         }
-
-        String token = authHeader.substring(7);
-        UUID tokenUserId = extractUserIdFromToken(token);
-
-        if (!tokenUserId.equals(userId)) {
-            throw new SludiException(ErrorCodes.UNAUTHORIZED);
-        }
-    }
-
-    /**
-     * Validate admin authorization
-     * @param authHeader
-     */
-    private void validateAdminAuthorization(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SludiException(ErrorCodes.INVALID_AUTHRTIZATION_HEADER);
-        }
-
-        String token = authHeader.substring(7);
-        String userRole = extractRoleFromToken(token);
-
-        if (!"ADMIN".equals(userRole)) {
-            throw new SludiException(ErrorCodes.ADMIN_ONLY_OPERATION);
-        }
-    }
-
-    /**
-     * Extract DID from Authorization header
-     * @param authHeader
-     * @return DID
-     */
-    private String extractDidFromAuthHeader(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SludiException(ErrorCodes.INVALID_AUTHRTIZATION_HEADER);
-        }
-
-        String token = authHeader.substring(7);
-        return extractDidFromToken(token);
-    }
-
-    /**
-     * Extract user ID, DID, and role from JWT token
-     * These methods are placeholders and should be implemented with actual JWT decoding logic
-     */
-    private UUID extractUserIdFromToken(String token) {
-        try {
-            // Decode JWT token and extract user ID
-            return UUID.randomUUID(); // Placeholder
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID);
-        }
-    }
-
-    private String extractDidFromToken(String token) {
-        try {
-            // Decode JWT token and extract DID
-            return "did:sludi:placeholder"; // Placeholder
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID);
-        }
-    }
-
-    private String extractRoleFromToken(String token) {
-        try {
-            // Decode JWT token and extract role
-            return "USER"; // Placeholder
-        } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_INVALID);
-        }
+        return authentication.getName();
     }
 }
 

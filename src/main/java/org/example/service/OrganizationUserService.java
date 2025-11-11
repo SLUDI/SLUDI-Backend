@@ -100,6 +100,7 @@ public class OrganizationUserService {
             log.warn("Inactive user {} attempted to create organization user", userName);
             throw new SludiException(ErrorCodes.USER_INACTIVE);
         }
+        request.setCreatedBy(userName);
         return registerUser(request);
     }
 

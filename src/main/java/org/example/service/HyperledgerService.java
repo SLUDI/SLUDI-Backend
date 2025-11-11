@@ -89,11 +89,13 @@ public class HyperledgerService {
 
             byte[] result = contract.submitTransaction(
                     "IssueCredential",
+                    request.getCredentialId(),
                     request.getSubjectDID(),
                     request.getIssuerDID(),
                     request.getCredentialType(),
                     supportingDocsJson,
                     request.getCredentialSubjectHash(),
+                    request.getExpireDate(),
                     proofJson
             );
 

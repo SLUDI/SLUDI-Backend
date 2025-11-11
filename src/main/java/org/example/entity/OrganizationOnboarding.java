@@ -20,7 +20,7 @@ public class OrganizationOnboarding {
     private Long id;
 
     // Link to organization
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne
     @JoinColumn(name = "organization_id", nullable = false, unique = true)
     private Organization organization;
 
