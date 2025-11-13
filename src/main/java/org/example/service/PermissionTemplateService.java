@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PermissionService {
+public class PermissionTemplateService {
     @Autowired
     private final PermissionTemplateRepository templateRepository;
 
@@ -53,7 +53,6 @@ public class PermissionService {
         validateRolePermissions(request.getPredefinedRoles(), request.getBasePermissions());
 
     }
-
 
     /*
     * Get all active permission templates
@@ -117,7 +116,7 @@ public class PermissionService {
         return effectivePermissions;
     }
 
-    // ================= Helper Methods ======================
+    // Helper Methods
 
     /**
      * Validate permissions against predefined list
@@ -153,6 +152,16 @@ public class PermissionService {
      */
     private Set<String> getValidPermissionPatterns(){
         return Set.of(
+                // Organization management
+                "organization:create", "organization:view", "organization:update",
+                "organization:delete", "organization:approve", "organization:suspend",
+                "organization:reactive",
+
+                // Organization user management
+                "organization:user:create", "organization:user:view", "organization:user:update",
+                "organization:user:delete", "organization:user:approve", "organization:user:suspend",
+                "organization:user:reactive",
+
                 // Identity permissions
                 "identity:read", "identity:verify", "identity:search", "identity:flag",
                 "identity:history:read", "identity:kyc", "identity:kyc:update", "identity:kyc:approve",

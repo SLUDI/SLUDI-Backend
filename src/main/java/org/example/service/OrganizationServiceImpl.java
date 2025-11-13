@@ -32,7 +32,7 @@ public class OrganizationServiceImpl implements OrganizationService{
 
     private final OrganizationRepository organizationRepository;
     private final OrganizationUserRepository userRepository;
-    private final PermissionService permissionService;
+    private final PermissionTemplateService permissionTemplateService;
     private final FabricOrgAssignmentService fabricOrgAssignmentService;
     private final OrganizationUserService userService;
 
@@ -60,7 +60,7 @@ public class OrganizationServiceImpl implements OrganizationService{
         }
 
         // Validate template exists
-        PermissionTemplate template = permissionService.getTemplateById(request.getTemplateId());
+        PermissionTemplate template = permissionTemplateService.getTemplateById(request.getTemplateId());
 
         // Check for duplicates
         if (request.getRegistrationNumber() != null &&
@@ -289,7 +289,7 @@ public class OrganizationServiceImpl implements OrganizationService{
         Organization organization = getOrganizationEntity(organizationId);
 
         // Validate permission request
-        permissionService.validateCustomPermissionsRequest(request, organization);
+        permissionTemplateService.validateCustomPermissionsRequest(request, organization);
 
         // Get or create custom permissions object
         Organization.CustomPermissions customPermissions = organization.getCustomPermissions();
@@ -434,7 +434,7 @@ public class OrganizationServiceImpl implements OrganizationService{
     }
 
     private OrganizationDetailResponse toOrganizationDetailResponse(Organization org) {
-        Set<String> effectivePermissions = permissionService.calculateEffectivePermissions(org);
+        Set<String> effectivePermissions = permissionTemplateService.calculateEffectivePermissions(org);
 
         CustomPermissionsResponse customPerms = null;
         if (org.getCustomPermissions() != null) {

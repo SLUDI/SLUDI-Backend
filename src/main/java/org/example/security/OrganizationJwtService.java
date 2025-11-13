@@ -31,9 +31,6 @@ public class OrganizationJwtService {
     @Value("${security.jwt.refresh.expiration-time}")
     private long refreshTokenExpiration;
 
-    @Value("${sludi.issuer-did}")
-    private String issuerDid;
-
     /**
      * Generate access token for authenticated organization user
      */
@@ -60,7 +57,6 @@ public class OrganizationJwtService {
             return Jwts.builder()
                     .setClaims(claims)
                     .setSubject(user.getUsername())
-                    .setIssuer(issuerDid)
                     .setAudience("sludi-org-api")
                     .setIssuedAt(new Date())
                     .setExpiration(Date.from(Instant.now().plus(jwtExpiration, ChronoUnit.MILLIS)))
@@ -69,7 +65,7 @@ public class OrganizationJwtService {
                     .compact();
 
         } catch (Exception e) {
-            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, "Failed to generate access token", e);
+            throw new SludiException(ErrorCodes.TOKEN_GENERATION_FAILED, e);
         }
     }
 
@@ -88,7 +84,6 @@ public class OrganizationJwtService {
             return Jwts.builder()
                     .setClaims(claims)
                     .setSubject(user.getUsername())
-                    .setIssuer(issuerDid)
                     .setAudience("sludi-org-api")
                     .setIssuedAt(new Date())
                     .setExpiration(Date.from(Instant.now().plus(refreshTokenExpiration, ChronoUnit.MILLIS)))

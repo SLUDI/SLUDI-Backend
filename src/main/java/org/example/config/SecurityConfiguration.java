@@ -39,8 +39,8 @@ public class SecurityConfiguration {
             "/api/citizen-user/**",
             "/api/deepfake/**",
             "/api/did/**",
-            "/api/vc/**",
-            "/api/wallet/**"
+            "/api/wallet/**",
+            "api/permission-template/**"
     };
 
     // Organization user public endpoints
@@ -50,6 +50,7 @@ public class SecurityConfiguration {
             "/api/organization-users/register",
             "/api/organization-users/verify-permission",
             "/api/organization-users/organization/{organizationId}/roles/initialize",
+            "api/permission-template/**"
     };
 
     // Citizen user private endpoints (require authentication)
@@ -62,7 +63,7 @@ public class SecurityConfiguration {
             "/api/organization/**",
             "/api/organization-users/**",
             "/api/organization-users/auth/change-password",
-            "/api/vc/identity/credential",
+            "/api/vc/**",
             "/api/did/register"
     };
 

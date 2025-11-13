@@ -21,7 +21,7 @@ public class VerifiableCredential {
     private String id;
 
     private String subjectDid;
-    private List<String> credentialType;
+    private String credentialType;
     private String issuanceDate;
     private String expirationDate;
 

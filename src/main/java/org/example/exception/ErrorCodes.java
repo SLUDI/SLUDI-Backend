@@ -105,6 +105,12 @@ public enum ErrorCodes {
     SIGNATURE_CREATION_FAILED("3032", "Failed to create signature"),
     PROOF_DATA_CREATION_FAILED("3033", "Failed to create Proof of Data"),
     DID_DELETION_FAILED("3034", "Failed to delete DID on blockchain"),
+    IDENTITY_CREDENTIAL_REQUIRED("3035", "Citizen must have identity credential before driving license"),
+    AGE_REQUIREMENT_NOT_MET("3036", "Must be 18 or older to obtain driving license"),
+    VEHICLE_CATEGORIES_REQUIRED("3037", "Vehicle category is required"),
+    REQUIRED_DOCUMENT_MISSING("3038", "Required document are missing"),
+    DRIVING_LICENSE_ALREADY_EXISTS("3039", "Driving license already exists"),
+    FAILED_TO_ISSUE_DRIVING_LICENSE_VC("3040", "Failed to issued driving license verifiable credential"),
     
     // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),

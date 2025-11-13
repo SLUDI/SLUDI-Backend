@@ -17,7 +17,7 @@ import org.example.enums.OrganizationType;
 import org.example.enums.PredefinedRole;
 import org.example.enums.TemplateCategory;
 import org.example.service.OrganizationUserService;
-import org.example.service.PermissionService;
+import org.example.service.PermissionTemplateService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +41,7 @@ public class DataInitializer {
             OrganizationRoleRepository roleRepository,
             OrganizationUserRepository userRepository,
             FabricOrgAssignmentService fabricOrgAssignmentService,
-            PermissionService permissionService,
+            PermissionTemplateService permissionTemplateService,
             OrganizationUserService userService,
             FabricCAService fabricCAService
     ) {
@@ -63,7 +63,7 @@ public class DataInitializer {
 
             // Seed Permission Template
             log.info("Initializing Permission Template...");
-            initializePermissionTemplate(templateRepository, permissionService);
+            initializePermissionTemplate(templateRepository, permissionTemplateService);
 
             // Seed Citizen Registration Department
             log.info("Initializing Citizen Registration Department...");
@@ -144,7 +144,7 @@ public class DataInitializer {
 
     private void initializePermissionTemplate(
             PermissionTemplateRepository templateRepository,
-            PermissionService permissionService) {
+            PermissionTemplateService permissionTemplateService) {
 
         if (!templateRepository.existsByTemplateCode("CITIZEN_REG_TEMPLATE")) {
             try {
@@ -223,7 +223,7 @@ public class DataInitializer {
                 List<PredefinedRole.RoleInstance> predefinedRoles = Arrays.asList(adminRole, userRole);
                 templateRequest.setPredefinedRoles(predefinedRoles);
 
-                permissionService.addPermissionTemplate(templateRequest);
+                permissionTemplateService.addPermissionTemplate(templateRequest);
                 log.info("Citizen Registration Department Permission Template created");
 
             } catch (Exception e) {

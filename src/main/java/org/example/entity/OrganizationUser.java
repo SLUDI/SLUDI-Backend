@@ -34,7 +34,7 @@ public class OrganizationUser {
     @Column(name = "employee_id", unique = true, nullable = false, length = 50)
     private String employeeId;
 
-    @Column(name = "email", unique = true, nullable = false, length = 100)
+    @Column(name = "email", unique = true, nullable = false, length = 200)
     private String email;
 
     @Column(name = "username", unique = true, nullable = false, length = 50)
@@ -53,17 +53,17 @@ public class OrganizationUser {
     @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(name = "did", length = 20)
+    @Column(name = "did", length = 200)
     private String did;
 
     // Role and department
-    @Column(name = "department", length = 100)
+    @Column(name = "department", length = 200)
     private String department;
 
-    @Column(name = "designation", length = 100)
+    @Column(name = "designation", length = 200)
     private String designation;
 
-    @Column(name = "job_title", length = 100)
+    @Column(name = "job_title", length = 200)
     private String jobTitle;
 
     // Assigned role from permission template

@@ -12,4 +12,5 @@ public interface VerifiableCredentialRepository extends JpaRepository<Verifiable
     boolean existsById(String id);
     Optional<VerifiableCredential> findById(String id);
     List<VerifiableCredential> getAllBySubjectDid(String id);
+    Optional<VerifiableCredential> findBySubjectDidAndCredentialType(String subjectDid, String credentialType);
 }
