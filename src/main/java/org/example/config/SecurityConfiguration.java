@@ -50,7 +50,6 @@ public class SecurityConfiguration {
             "/api/organization-users/register",
             "/api/organization-users/verify-permission",
             "/api/organization-users/organization/{organizationId}/roles/initialize",
-            "api/permission-template/**"
     };
 
     // Citizen user private endpoints (require authentication)
@@ -62,6 +61,7 @@ public class SecurityConfiguration {
     private static final String[] ORGANIZATION_PRIVATE_URLS = {
             "/api/organization/**",
             "/api/organization-users/**",
+            "/api/permission-templates/**",
             "/api/organization-users/auth/change-password",
             "/api/vc/**",
             "/api/did/register"

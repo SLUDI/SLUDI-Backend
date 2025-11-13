@@ -9,7 +9,6 @@ import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.service.OrganizationService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -24,8 +23,12 @@ import java.util.List;
 @RequestMapping("api/organization")
 @CrossOrigin(origins = "*")
 public class OrganizationController {
-    @Autowired
-    private OrganizationService organizationService;
+
+    private final OrganizationService organizationService;
+
+    public OrganizationController(OrganizationService organizationService) {
+        this.organizationService = organizationService;
+    }
 
     /**
      * Create new organization

@@ -99,6 +99,6 @@ public class CitizenUserJwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/organization-users")
                 || path.startsWith("/api/vc")
                 || path.startsWith("/api/did")
-                || path.startsWith("api/permission-template");
+                || path.startsWith("/api/permission-templates");
     }
 }

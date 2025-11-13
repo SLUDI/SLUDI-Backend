@@ -57,8 +57,8 @@ public class PermissionTemplateService {
     /*
     * Get all active permission templates
     * */
-    public List<PermissionTemplateResponse> getAllActiveTemplates(){
-        return templateRepository.findByIsActive(true).stream()
+    public List<PermissionTemplateResponse> getAllTemplates(Boolean status){
+        return templateRepository.findByIsActiveOrNull(status).stream()
                 .map(this::toTemplateResponse)
                 .collect(Collectors.toList());
     }
@@ -66,6 +66,23 @@ public class PermissionTemplateService {
     public PermissionTemplate getTemplateById(Long templateId){
         return templateRepository.findById(templateId)
                 .orElseThrow(()-> new SludiException(ErrorCodes.TEMPLATE_NOT_FOUND, String.valueOf(templateId)));
+    }
+
+    public PermissionTemplateResponse getTemplate(Long templateId) {
+        PermissionTemplate template = getTemplateById(templateId);
+
+        return PermissionTemplateResponse.builder()
+                .id(template.getId())
+                .templateCode(template.getTemplateCode())
+                .name(template.getName())
+                .category(template.getCategory())
+                .description(template.getDescription())
+                .basePermissions(template.getBasePermissions())
+                .predefinedRoles(template.getPredefinedRoles())
+                .isActive(template.getIsActive())
+                .createdAt(template.getCreatedAt())
+                .updatedAt(template.getUpdatedAt())
+                .build();
     }
 
     public void validateCustomPermissionsRequest(CustomPermissionsRequest request, Organization organization){

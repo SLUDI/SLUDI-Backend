@@ -84,7 +84,7 @@ services:
       FABRIC_ORG1_CHAINCODE_NAME: sludi-Chaincode
       FABRIC_ORG1_PEER_ENDPOINT: peer0.org1.example.com:7051
       FABRIC_ORG1_ORDERER_ENDPOINT: orderer.example.com:7050
-      FABRIC_ORG1_CA_ENDPOINT: 192.168.1.6:7054
+      FABRIC_ORG1_CA_ENDPOINT: 192.168.8.103:7054
 
       # Org2 Configuration
       FABRIC_ORG2_MSP_ID: Org2MSP
@@ -92,7 +92,7 @@ services:
       FABRIC_ORG2_CHAINCODE_NAME: sludi-Chaincode
       FABRIC_ORG2_PEER_ENDPOINT: peer0.org2.example.com:9051
       FABRIC_ORG2_ORDERER_ENDPOINT: orderer.example.com:7050
-      FABRIC_ORG2_CA_ENDPOINT: 192.168.1.6:8054
+      FABRIC_ORG2_CA_ENDPOINT: 192.168.8.103:8054
 
       # ==== Fabric (Injected via mounted volume) ====
       FABRIC_MSP_ID: Org1MSP
@@ -114,9 +114,9 @@ services:
     volumes:
       - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
     extra_hosts:
-      - "peer0.org1.example.com:192.168.1.6"
-      - "peer0.org2.example.com:192.168.1.6"
-      - "orderer.example.com:192.168.1.6"
+      - "peer0.org1.example.com:192.168.8.103"
+      - "peer0.org2.example.com:192.168.8.103"
+      - "orderer.example.com:192.168.8.103"
     networks:
       - sludi-network
       - fabric_test
