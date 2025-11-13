@@ -15,7 +15,7 @@ import java.util.List;
 public class VCBlockChainResult {
     private String id;
     private List<String> context;
-    private List<String> credentialTypes;
+    private String credentialType;
     private String issuer;
     private String issuanceDate;
     private String expirationDate;

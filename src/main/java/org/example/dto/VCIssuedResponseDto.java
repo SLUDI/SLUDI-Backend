@@ -10,7 +10,7 @@ import java.util.List;
 public class VCIssuedResponseDto {
     private String credentialId;
     private String subjectDID;
-    private List<String> credentialType;
+    private String credentialType;
     private String status;
     private String message;
     private String blockchainTxId;

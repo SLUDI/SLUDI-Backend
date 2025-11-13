@@ -4,7 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,6 +61,62 @@ public class CredentialClaimsMapper {
         }
 
         log.debug("Converted {} claims from CredentialSubject", claims.size());
+        return claims;
+    }
+
+    /**
+     * Convert DrivingLicenseCredentialSubject to Claims Map for signing
+     *
+     * @param drivingLicenseSubject The structured driving license credential subject
+     * @return Map of claims suitable for signing
+     */
+    public Map<String, Object> convertLicenseClaimsMap(DrivingLicenseCredentialSubject drivingLicenseSubject) {
+        log.debug("Converting DrivingLicenseCredentialSubject to claims map for DID: {}",
+                drivingLicenseSubject.getId());
+
+        Map<String, Object> claims = new HashMap<>();
+
+        // Basic identity claims
+        addClaimIfNotNull(claims, "id", drivingLicenseSubject.getId());
+        addClaimIfNotNull(claims, "fullName", drivingLicenseSubject.getFullName());
+        addClaimIfNotNull(claims, "nic", drivingLicenseSubject.getNic());
+        addClaimIfNotNull(claims, "dateOfBirth", drivingLicenseSubject.getDateOfBirth());
+        addClaimIfNotNull(claims, "address", drivingLicenseSubject.getAddress());
+        addClaimIfNotNull(claims, "profilePhoto", drivingLicenseSubject.getProfilePhoto());
+        addClaimIfNotNull(claims, "bloodGroup", drivingLicenseSubject.getBloodGroup());
+
+        // Driving license specific claims
+        addClaimIfNotNull(claims, "licenseNumber", drivingLicenseSubject.getLicenseNumber());
+        addClaimIfNotNull(claims, "issueDate", drivingLicenseSubject.getIssueDate() != null ?
+                drivingLicenseSubject.getIssueDate().toString() : null);
+        addClaimIfNotNull(claims, "expiryDate", drivingLicenseSubject.getExpiryDate() != null ?
+                drivingLicenseSubject.getExpiryDate().toString() : null);
+        addClaimIfNotNull(claims, "issuingAuthority", drivingLicenseSubject.getIssuingAuthority());
+        addClaimIfNotNull(claims, "restrictions", drivingLicenseSubject.getRestrictions());
+        addClaimIfNotNull(claims, "endorsements", drivingLicenseSubject.getEndorsements());
+
+        // Authorized vehicles (as list of objects)
+        if (drivingLicenseSubject.getAuthorizedVehicles() != null &&
+                !drivingLicenseSubject.getAuthorizedVehicles().isEmpty()) {
+
+            List<Map<String, Object>> vehiclesList = new ArrayList<>();
+
+            for (VehicleCategory vehicle : drivingLicenseSubject.getAuthorizedVehicles()) {
+                Map<String, Object> vehicleMap = new HashMap<>();
+                addClaimIfNotNull(vehicleMap, "category", vehicle.getCategory());
+                addClaimIfNotNull(vehicleMap, "validFrom", vehicle.getValidFrom() != null ?
+                        vehicle.getValidFrom().toString() : null);
+                addClaimIfNotNull(vehicleMap, "validUntil", vehicle.getValidUntil() != null ?
+                        vehicle.getValidUntil().toString() : null);
+                addClaimIfNotNull(vehicleMap, "restrictions", vehicle.getRestrictions());
+
+                vehiclesList.add(vehicleMap);
+            }
+
+            claims.put("authorizedVehicles", vehiclesList);
+        }
+
+        log.debug("Converted {} claims from DrivingLicenseCredentialSubject", claims.size());
         return claims;
     }
 

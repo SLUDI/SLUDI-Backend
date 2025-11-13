@@ -39,8 +39,8 @@ public class SecurityConfiguration {
             "/api/citizen-user/**",
             "/api/deepfake/**",
             "/api/did/**",
-            "/api/vc/**",
-            "/api/wallet/**"
+            "/api/wallet/**",
+            "api/permission-template/**"
     };
 
     // Organization user public endpoints
@@ -61,8 +61,9 @@ public class SecurityConfiguration {
     private static final String[] ORGANIZATION_PRIVATE_URLS = {
             "/api/organization/**",
             "/api/organization-users/**",
+            "/api/permission-templates/**",
             "/api/organization-users/auth/change-password",
-            "/api/vc/identity/credential",
+            "/api/vc/**",
             "/api/did/register"
     };
 

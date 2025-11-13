@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PermissionService {
+public class PermissionTemplateService {
     @Autowired
     private final PermissionTemplateRepository templateRepository;
 
@@ -54,12 +54,11 @@ public class PermissionService {
 
     }
 
-
     /*
     * Get all active permission templates
     * */
-    public List<PermissionTemplateResponse> getAllActiveTemplates(){
-        return templateRepository.findByIsActive(true).stream()
+    public List<PermissionTemplateResponse> getAllTemplates(Boolean status){
+        return templateRepository.findByIsActiveOrNull(status).stream()
                 .map(this::toTemplateResponse)
                 .collect(Collectors.toList());
     }
@@ -67,6 +66,23 @@ public class PermissionService {
     public PermissionTemplate getTemplateById(Long templateId){
         return templateRepository.findById(templateId)
                 .orElseThrow(()-> new SludiException(ErrorCodes.TEMPLATE_NOT_FOUND, String.valueOf(templateId)));
+    }
+
+    public PermissionTemplateResponse getTemplate(Long templateId) {
+        PermissionTemplate template = getTemplateById(templateId);
+
+        return PermissionTemplateResponse.builder()
+                .id(template.getId())
+                .templateCode(template.getTemplateCode())
+                .name(template.getName())
+                .category(template.getCategory())
+                .description(template.getDescription())
+                .basePermissions(template.getBasePermissions())
+                .predefinedRoles(template.getPredefinedRoles())
+                .isActive(template.getIsActive())
+                .createdAt(template.getCreatedAt())
+                .updatedAt(template.getUpdatedAt())
+                .build();
     }
 
     public void validateCustomPermissionsRequest(CustomPermissionsRequest request, Organization organization){
@@ -117,7 +133,7 @@ public class PermissionService {
         return effectivePermissions;
     }
 
-    // ================= Helper Methods ======================
+    // Helper Methods
 
     /**
      * Validate permissions against predefined list
@@ -153,6 +169,16 @@ public class PermissionService {
      */
     private Set<String> getValidPermissionPatterns(){
         return Set.of(
+                // Organization management
+                "organization:create", "organization:view", "organization:update",
+                "organization:delete", "organization:approve", "organization:suspend",
+                "organization:reactive",
+
+                // Organization user management
+                "organization:user:create", "organization:user:view", "organization:user:update",
+                "organization:user:delete", "organization:user:approve", "organization:user:suspend",
+                "organization:user:reactive",
+
                 // Identity permissions
                 "identity:read", "identity:verify", "identity:search", "identity:flag",
                 "identity:history:read", "identity:kyc", "identity:kyc:update", "identity:kyc:approve",

@@ -48,9 +48,10 @@ public class CitizenUserJwtAuthenticationFilter extends OncePerRequestFilter {
         String requestPath = request.getRequestURI();
         if (
                 requestPath.startsWith("/api/organization")
-                        || requestPath.startsWith("/api/organization-user")
+                        || requestPath.startsWith("/api/organization-users")
                         || requestPath.startsWith("/api/vc")
                         || requestPath.startsWith("/api/did")
+                || requestPath.startsWith("api/permission-template")
         ) {
             filterChain.doFilter(request, response);
             return;
@@ -95,8 +96,9 @@ public class CitizenUserJwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.startsWith("/api/organization")
-                || path.startsWith("/api/organization-user")
+                || path.startsWith("/api/organization-users")
                 || path.startsWith("/api/vc")
-                || path.startsWith("/api/did");
+                || path.startsWith("/api/did")
+                || path.startsWith("/api/permission-templates");
     }
 }
