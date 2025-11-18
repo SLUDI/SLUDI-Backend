@@ -427,7 +427,7 @@ public class VerifiableCredentialService {
             }
 
             // Verify VP signature
-            boolean vpSignatureValid = digitalSignatureService.verifyVPSignature(vpDto);
+            boolean vpSignatureValid = digitalSignatureService.verifyVPSignature(sessionId, vpDto);
             if (!vpSignatureValid) {
                 log.error("Invalid VP signature for sessionId: {}", sessionId);
                 throw new SludiException(ErrorCodes.INVALID_VP_SIGNATURE);
@@ -458,7 +458,6 @@ public class VerifiableCredentialService {
 
             // Verify all requested attributes are present
             verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
-
 
             // Store presentation data
             request.setStatus("FULFILLED");

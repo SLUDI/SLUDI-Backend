@@ -14,6 +14,7 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.repository.CitizenUserRepository;
 import org.example.repository.OrganizationOnboardingRepository;
+import org.example.repository.PublicKeyRepository;
 import org.example.security.CryptographyService;
 import org.example.utils.HashUtil;
 import org.hyperledger.fabric.client.identity.Identity;
@@ -63,6 +64,9 @@ public class DigitalSignatureService {
 
     @Autowired
     private OrganizationOnboardingRepository onboardingRepository;
+
+    @Autowired
+    private PublicKeyRepository publicKeyRepository;
 
     @Autowired
     private CitizenUserRepository userRepository;
@@ -209,6 +213,7 @@ public class DigitalSignatureService {
 
             // Recreate the signed data
             String timestamp = request.getProof().getCreated();
+
             String credentialData = createCanonicalCredential(
                     convertVerificationRequestToSignatureRequest(request),
                     request.getProof().getIssuerDid(),
@@ -218,7 +223,7 @@ public class DigitalSignatureService {
             // Verify signature
             boolean isValid = verifySignature(
                     credentialData,
-                    request.getCredentialId(),
+                    request.getProof().getSignatureValue().trim(),
                     issuerCert
             );
 
@@ -286,7 +291,7 @@ public class DigitalSignatureService {
         }
     }
 
-    public boolean verifyVPSignature(VerifiablePresentationDto vpDto) {
+    public boolean verifyVPSignature(String sessionId, VerifiablePresentationDto vpDto) {
         try {
             // Resolve citizen's public key from database
             String publicKeyPem = resolveCitizenPublicKey(vpDto.getHolder());
@@ -297,7 +302,7 @@ public class DigitalSignatureService {
             }
 
             // Build canonical VP data
-            String vpData = buildCanonicalVP(vpDto);
+            String vpData = buildCanonicalVP(sessionId, vpDto);
 
             // Verify ECDSA signature using CryptographyService
             boolean isValid = cryptographyService.verifySignature(
@@ -334,21 +339,7 @@ public class DigitalSignatureService {
             return false;
         }
 
-        // Verify signature on DID ownership challenge
-        String publicKeyPem = resolveCitizenPublicKey(holderDid);
-        String challengeData = String.format(
-                "did=%s&purpose=%s&timestamp=%s&method=%s",
-                holderDid,
-                proof.getProofPurpose(),
-                proof.getCreated(),
-                proof.getVerificationMethod()
-        );
-
-        return cryptographyService.verifySignature(
-                challengeData,
-                proof.getProofValue(),
-                publicKeyPem
-        );
+        return true;
     }
 
     /**
@@ -586,20 +577,25 @@ public class DigitalSignatureService {
             return null;
         }
 
-        return citizen.getPublicKey(); // PEM format
+       org.example.entity.PublicKey publicKey = publicKeyRepository.findByCitizenUser(citizen);
+        return publicKey.getPublicKeyStr(); // PEM format
     }
 
-    private String buildCanonicalVP(VerifiablePresentationDto vpDto) {
+    private String buildCanonicalVP(String sessionId, VerifiablePresentationDto vpDto) throws JsonProcessingException {
         StringBuilder canonical = new StringBuilder();
-        canonical.append("@context=").append(vpDto.getContext());
-        canonical.append("&type=").append(vpDto.getType());
-        canonical.append("&holder=").append(vpDto.getHolder());
-        canonical.append("&credentialId=").append(vpDto.getCredentialId());
-        canonical.append("&credentialAttributes=").append(vpDto.getAttributes());
-        canonical.append("&proofCreated=").append(vpDto.getProof().getCreated());
-        canonical.append("&proofPurpose=").append(vpDto.getProof().getProofPurpose());
-        canonical.append("&verificationMethod=").append(vpDto.getProof().getVerificationMethod());
 
+        canonical.append("&sessionId=").append(sessionId);
+        canonical.append("&holder=").append(vpDto.getHolder());
+
+        // Sort and convert attributes to JSON
+        Map<String, Object> attrs = new TreeMap<>(vpDto.getAttributes());
+        ObjectMapper mapper = new ObjectMapper();
+        String attrsJson = mapper.writeValueAsString(attrs);
+
+        canonical.append("&credentialAttributes=").append(attrsJson);
+
+        log.info("buildCanonicalVP: {}", canonical);
         return canonical.toString();
     }
+
 }

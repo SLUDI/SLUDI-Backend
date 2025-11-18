@@ -54,7 +54,9 @@ public class SecurityConfiguration {
 
     // Citizen user private endpoints (require authentication)
     private static final String[] CITIZEN_PRIVATE_URLS = {
-            "/api/wallet/retrieve"
+            "/api/wallet/retrieve",
+            "/api/wallet/driving-license/request/{sessionId}",
+            "/api/wallet/driving-license/presentation/{sessionId}"
     };
 
     // Organization user private endpoints (require authentication)

@@ -8,6 +8,7 @@ import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
+import org.example.service.VerifiableCredentialService;
 import org.example.service.WalletService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,9 +27,14 @@ import java.util.Map;
 public class WalletController {
 
     private final WalletService walletService;
+    private final VerifiableCredentialService verifiableCredentialService;
 
-    public WalletController(WalletService walletService) {
+    public WalletController(
+            WalletService walletService,
+            VerifiableCredentialService verifiableCredentialService
+    ) {
         this.walletService = walletService;
+        this.verifiableCredentialService = verifiableCredentialService;
     }
 
     /**
@@ -306,6 +312,87 @@ public class WalletController {
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(java.time.Instant.now())
                             .build());
+        }
+    }
+
+    /**
+     * Get Presentation Request
+     * GET /api/wallet/driving-license/request/{sessionId}
+     */
+    @GetMapping("/driving-license/request/{sessionId}")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<PresentationRequestDto>> getPresentationRequest(
+            @PathVariable String sessionId) {
+
+        log.info("Received request to get presentation request for sessionId: {}", sessionId);
+
+        try {
+            PresentationRequestDto request = verifiableCredentialService.getPresentationRequest(sessionId);
+
+            ApiResponseDto<PresentationRequestDto> apiResponse = ApiResponseDto.<PresentationRequestDto>builder()
+                    .success(true)
+                    .message("Presentation request retrieved successfully")
+                    .data(request)
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto.<PresentationRequestDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto.<PresentationRequestDto>builder()
+                    .success(false)
+                    .message("Failed to retrieve presentation request")
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Submit Verifiable Presentation
+     * POST /api/wallet/driving-license/presentation/{sessionId}
+     */
+    @PostMapping("/driving-license/presentation/{sessionId}")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<VerifiablePresentationResponseDto>> submitVerifiablePresentation(
+            @PathVariable String sessionId,
+            @RequestBody @Valid VerifiablePresentationDto vpDto) {
+
+        log.info("Received verifiable presentation for sessionId: {}", sessionId);
+
+        try {
+            VerifiablePresentationResponseDto response = verifiableCredentialService.submitVerifiablePresentation(sessionId, vpDto);
+
+            ApiResponseDto<VerifiablePresentationResponseDto> apiResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
+                    .success(true)
+                    .message("Verifiable presentation submitted successfully")
+                    .data(response)
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
+                    .success(false)
+                    .message("Failed to submit verifiable presentation")
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
