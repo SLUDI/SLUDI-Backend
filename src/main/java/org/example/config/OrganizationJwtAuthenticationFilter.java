@@ -114,6 +114,8 @@ public class OrganizationJwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         // Skip this filter for citizen user endpoints
         String path = request.getRequestURI();
-        return path.startsWith("/api/citizen-user") || path.startsWith("api/permission-template");
+        return path.startsWith("/api/citizen-user")
+                || path.startsWith("api/permission-template")
+                || path.startsWith("/api/wallet");
     }
 }

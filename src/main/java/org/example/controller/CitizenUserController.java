@@ -63,6 +63,7 @@ public class CitizenUserController {
             @Valid @RequestParam("os") String os,
             @Valid @RequestParam("ipAddress") String ipAddress,
             @Valid @RequestParam("location") String location,
+            @RequestParam(value = "profilePhoto") MultipartFile profilePhoto,
             @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
             @RequestParam(value = "documentTypes") List<String> documentTypes,
             @RequestParam(value = "documentSides") List<String> documentSides) {
@@ -89,6 +90,7 @@ public class CitizenUserController {
                     .nationality(nationality)
                     .bloodGroup(bloodGroup)
                     .address(addressDto)
+                    .profilePhoto(profilePhoto)
                     .build();
 
             ContactInfoDto contactInfoDto = ContactInfoDto.builder()

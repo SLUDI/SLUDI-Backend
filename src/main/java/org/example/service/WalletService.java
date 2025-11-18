@@ -6,6 +6,7 @@ import org.example.dto.*;
 import org.example.entity.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
+import org.example.integration.IPFSIntegration;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.example.security.CitizenUserJwtService;
@@ -35,6 +36,7 @@ public class WalletService {
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final StringRedisTemplate redisTemplate;
     private final CitizenUserJwtService citizenUserJwtService;
+    private final IPFSIntegration ipfsIntegration;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +51,8 @@ public class WalletService {
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
             VerifiableCredentialRepository verifiableCredentialRepository,
             StringRedisTemplate redisTemplate,
-            CitizenUserJwtService citizenUserJwtService
+            CitizenUserJwtService citizenUserJwtService,
+            IPFSIntegration ipfsIntegration
     ) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
@@ -63,6 +66,7 @@ public class WalletService {
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.redisTemplate = redisTemplate;
         this.citizenUserJwtService = citizenUserJwtService;
+        this.ipfsIntegration = ipfsIntegration;
     }
 
     /**
@@ -232,6 +236,7 @@ public class WalletService {
                 WalletVerifiableCredentialDto walletVerifiableCredentialDto = WalletVerifiableCredentialDto.builder()
                         .issuanceDate(walletVerifiableCredential.getVerifiableCredential().getIssuanceDate())
                         .expirationDate(walletVerifiableCredential.getVerifiableCredential().getExpirationDate())
+                        .credentialId(walletVerifiableCredential.getVerifiableCredential().getId())
                         .status(walletVerifiableCredential.getVerifiableCredential().getStatus())
                         .credentialSubject(credentialSubject)
                         .proof(proofDataDto)
@@ -261,6 +266,14 @@ public class WalletService {
             // Wrap all other exceptions
             throw new SludiException(ErrorCodes.WALLET_RETRIEVAL_FAILED, e);
         }
+    }
+
+    public byte[] getProfilePhoto(String cid) {
+        byte[] data = ipfsIntegration.retrieveFile(cid);
+        if (data == null || data.length == 0) {
+            throw new SludiException(ErrorCodes.FILE_READ_ERROR, "No data found for CID: " + cid);
+        }
+        return data;
     }
 
     private void validateWalletCreationInputs(String did, String publicKeyStr) {

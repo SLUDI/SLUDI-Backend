@@ -87,6 +87,15 @@ public class CitizenUserService {
             user.setCreatedAt(LocalDateTime.now().toString());
             user.setUpdatedAt(LocalDateTime.now().toString());
 
+            String path = String.format("profile/users/%s/profile_photo.jpg", user.getId());
+            String hash = ipfsIntegration.storeFile(path, request.getPersonalInfo().getProfilePhoto().getBytes());
+
+            log.debug("Profile photo stored in IPFS for user {}. Hash: {}", user.getId(), hash);
+
+            recordIPFSContent(user.getId(), hash, "profile", "photo", "image/jpeg");
+
+            user.setProfilePhotoIpfsHash(hash);
+
             // Handle document uploads
             if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {
                 log.info("Uploading {} supporting documents for NIC: {}",

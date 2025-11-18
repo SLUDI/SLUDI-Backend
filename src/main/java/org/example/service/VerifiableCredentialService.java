@@ -5,19 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.CredentialsType;
-import org.example.enums.ProofPurpose;
 import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
-import org.example.repository.CitizenUserRepository;
-import org.example.repository.IPFSContentRepository;
-import org.example.repository.OrganizationUserRepository;
-import org.example.repository.VerifiableCredentialRepository;
+import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.example.utils.CredentialClaimsMapper;
 import org.example.utils.HashUtil;
 import org.example.utils.LicenseNumberGenerator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +28,9 @@ import java.util.stream.Collectors;
 @Transactional
 public class VerifiableCredentialService {
 
+    @Value("${spring.base.url}")
+    private String baseUrl;
+
     private final HyperledgerService hyperledgerService;
     private final CryptographyService cryptographyService;
     private final DigitalSignatureService digitalSignatureService;
@@ -38,10 +38,12 @@ public class VerifiableCredentialService {
     private final CredentialClaimsMapper claimsMapper;
     private final LicenseNumberGenerator licenseNumberGenerator;
     private final OrganizationUserService organizationUserService;
+    private final QRCodeService qrCodeService;
     private final OrganizationUserRepository organizationUserRepository;
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final CitizenUserRepository userRepository;
     private final IPFSContentRepository ipfsContentRepository;
+    private final PresentationRequestRepository presentationRequestRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -50,25 +52,28 @@ public class VerifiableCredentialService {
             CryptographyService cryptographyService,
             DigitalSignatureService digitalSignatureService,
             IPFSIntegration ipfsIntegration,
-            LicenseNumberGenerator licenseNumberGenerator,
+            LicenseNumberGenerator licenseNumberGenerator, QRCodeService qrCodeService,
             VerifiableCredentialRepository verifiableCredentialRepository,
             CitizenUserRepository userRepository,
             IPFSContentRepository ipfsContentRepository,
             CredentialClaimsMapper claimsMapper,
             OrganizationUserService organizationUserService,
-            OrganizationUserRepository organizationUserRepository
+            OrganizationUserRepository organizationUserRepository,
+            PresentationRequestRepository presentationRequestRepository
     ) {
         this.hyperledgerService = hyperledgerService;
         this.cryptographyService = cryptographyService;
         this.digitalSignatureService = digitalSignatureService;
         this.ipfsIntegration = ipfsIntegration;
         this.licenseNumberGenerator = licenseNumberGenerator;
+        this.qrCodeService = qrCodeService;
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.userRepository = userRepository;
         this.ipfsContentRepository = ipfsContentRepository;
         this.claimsMapper = claimsMapper;
         this.organizationUserService = organizationUserService;
         this.organizationUserRepository = organizationUserRepository;
+        this.presentationRequestRepository = presentationRequestRepository;
     }
 
     public VCIssuedResponseDto issueIdentityVC(IssueVCRequestDto request, String userName) {
@@ -170,6 +175,26 @@ public class VerifiableCredentialService {
                     .credentialSubjectHash(result.getCredentialSubjectHash())
                     .build();
 
+            List<CredentialClaim> claimEntities = claims.entrySet().stream()
+                    .map(entry -> {
+                        try {
+                            String claimName = entry.getKey();
+                            String claimValue = String.valueOf(entry.getValue());
+                            String claimHash = HashUtil.sha256(claimValue); // hash the claim value
+
+                            return CredentialClaim.builder()
+                                    .claimName(claimName)
+                                    .claimHash(claimHash)
+                                    .credential(vc) // will set parent reference
+                                    .build();
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to hash claim: " + entry.getKey(), e);
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+            vc.setClaims(claimEntities);
+
             verifiableCredentialRepository.save(vc);
 
             log.info("VC issued successfully. CredentialId: {}, TxId: {}", result.getId(), result.getBlockchainTxId());
@@ -188,126 +213,6 @@ public class VerifiableCredentialService {
         } catch (Exception e) {
             log.error("Unexpected error while issuing VC for DID: {}. Error: {}", request.getDid(), e.getMessage());
             throw new SludiException(ErrorCodes.FAILED_TO_ISSUE_IDENTITY_VC, e);
-        }
-    }
-
-    public VCIssuedResponseDto issueDrivingLicenseVC(
-            IssueDrivingLicenseVCRequestDto request,
-            String userName) {
-
-        log.info("Issuing driving license VC for DID: {}", request.getDid());
-
-        try {
-            // Find user
-            OrganizationUser adminUser = organizationUserRepository.findByUsername(userName)
-                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
-
-            // Check if user has permission to issue driving license
-            if (!organizationUserService.verifyUserPermission(userName, "license:issue")) {
-                log.warn("User {} attempted to issue driving license without permission", userName);
-                throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
-            }
-
-            // Verify user is active
-            if (adminUser.getStatus() != UserStatus.ACTIVE) {
-                log.warn("Inactive user {} attempted to issue driving license", userName);
-                throw new SludiException(ErrorCodes.USER_INACTIVE);
-            }
-
-            // Validate citizen and existing identity VC
-            CitizenUser citizen = validateCitizenForDrivingLicense(request.getDid());
-
-            // Validate driving license requirements
-            validateDrivingLicenseRequirements(request);
-
-            // Check for existing driving license
-            if (
-                    verifiableCredentialRepository.findBySubjectDidAndCredentialType(
-                            request.getDid(), CredentialsType.DRIVING_LICENSE.toString()).isPresent()
-            ) {
-                throw new SludiException(ErrorCodes.DRIVING_LICENSE_ALREADY_EXISTS);
-            }
-
-            // Store supporting documents (test certificates, medical reports)
-            List<SupportingDocumentResponseDto> supportingDocs =
-                    mapSupportingDocuments(citizen, request.getSupportingDocuments(), CredentialsType.DRIVING_LICENSE.toString());
-
-            // Generate license number
-            String drivingLicenseNumber = licenseNumberGenerator.generateLicenseNumber();
-
-            // Get expire date
-            String expireDate = getExpirationDate(LocalDateTime.now(), request.getValidityYears());
-
-            // Build credential subject
-            DrivingLicenseCredentialSubject credentialSubject = buildDrivingLicenseCredentialSubject(
-                    citizen, request, drivingLicenseNumber, LocalDate.now().toString(), expireDate
-            );
-
-            // Encrypt and hash credential subject
-            String credentialSubjectJson =
-                    objectMapper.writeValueAsString(credentialSubject);
-            String credentialSubjectHash =
-                    cryptographyService.encryptData(credentialSubjectJson);
-
-            // Generate credential ID
-            String credentialId = String.format("credential:%s:%s:%s",CredentialsType.DRIVING_LICENSE,
-                    request.getDid(), drivingLicenseNumber);
-
-            // Convert to claims and create proof
-            Map<String, Object> claims =
-                    claimsMapper.convertLicenseClaimsMap(credentialSubject);
-
-            CredentialSignatureRequestDto signatureRequest =
-                    CredentialSignatureRequestDto.builder()
-                            .credentialId(credentialId)
-                            .credentialType(CredentialsType.DRIVING_LICENSE.toString())
-                            .subjectDid(request.getDid())
-                            .claims(claims)
-                            .expirationDate(expireDate)
-                            .build();
-
-            ProofData proofData = digitalSignatureService
-                    .signVerifiableCredential(signatureRequest, adminUser);
-
-            // Issue credential on blockchain
-            CredentialIssuanceRequestDto issuanceRequest =
-                    buildIssuanceRequest(credentialId, citizen, credentialSubjectHash, supportingDocs, proofData, expireDate);
-
-            VCBlockChainResult result =
-                    hyperledgerService.issueCredential(issuanceRequest);
-
-            // Save credential and license records
-            VerifiableCredential vc = VerifiableCredential.builder()
-                    .id(result.getId())
-                    .subjectDid(result.getSubjectDID())
-                    .credentialType(result.getCredentialType())
-                    .issuanceDate(result.getIssuanceDate())
-                    .expirationDate(result.getExpirationDate())
-                    .status(result.getStatus())
-                    .proof(proofData)
-                    .blockchainTxId(result.getBlockchainTxId())
-                    .blockNumber(result.getBlockNumber())
-                    .credentialSubjectHash(result.getCredentialSubjectHash())
-                    .build();
-
-            verifiableCredentialRepository.save(vc);
-
-            log.info("Driving license VC issued successfully. CredentialId: {}",
-                    result.getId());
-
-            return VCIssuedResponseDto.builder()
-                    .credentialId(result.getId())
-                    .subjectDID(result.getSubjectDID())
-                    .credentialType(result.getCredentialType())
-                    .status(result.getStatus())
-                    .message("Driving License Verifiable Credential issued successfully")
-                    .blockchainTxId(result.getBlockchainTxId())
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Failed to issue driving license VC: {}", e.getMessage());
-            throw new SludiException(
-                    ErrorCodes.FAILED_TO_ISSUE_DRIVING_LICENSE_VC, e);
         }
     }
 
@@ -377,6 +282,381 @@ public class VerifiableCredentialService {
         }
     }
 
+    /**
+     * Initiates the driving license issuance process by generating a QR code
+     * that the citizen scans with their identity wallet
+     */
+    public DrivingLicenseRequestResponseDto initiateDrivingLicenseRequest(String userName) {
+        log.info("Initiating driving license request by user: {}", userName);
+
+        try {
+            // Verify officer permissions
+            OrganizationUser officer = organizationUserRepository.findByUsername(userName)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            if (!organizationUserService.verifyUserPermission(userName, "license:request_citizen_data")) {
+                log.warn("User {} attempted to request citizen data without permission", userName);
+                throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+            }
+
+            if (officer.getStatus() != UserStatus.ACTIVE) {
+                log.warn("Inactive user {} attempted to request citizen data", userName);
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
+            }
+
+            // Generate unique session ID
+            String sessionId = UUID.randomUUID().toString();
+
+            // Get department
+            String departmentDid = officer.getOrganization().getOrgCode();
+
+            // Create presentation request
+            PresentationRequest presentationRequest = PresentationRequest.builder()
+                    .id(UUID.randomUUID())
+                    .sessionId(sessionId)
+                    .requesterId(departmentDid)
+                    .requesterName("Department of Motor Traffic")
+                    .requestedAttributes(Arrays.asList(
+                            "fullName",
+                            "dateOfBirth",
+                            "age",
+                            "address",
+                            "bloodGroup",
+                            "did",
+                            "nic",
+                            "profilePhoto"
+                    ))
+                    .purpose("Driving License Issuance")
+                    .status("PENDING")
+                    .createdAt(LocalDateTime.now())
+                    .expiresAt(LocalDateTime.now().plusMinutes(15))
+                    .createdBy(officer.getUsername())
+                    .build();
+
+            presentationRequestRepository.save(presentationRequest);
+
+            // Generate QR code URL
+            String requestUrl = String.format(
+                    "%s/api/vc/driving-license/request/%s",
+                    baseUrl,
+                    sessionId
+            );
+
+            // Generate QR code image
+            byte[] qrCodeImage = qrCodeService.generateQRCode(requestUrl, 300, 300);
+
+            log.info("Driving license request initiated. SessionId: {}", sessionId);
+
+            return DrivingLicenseRequestResponseDto.builder()
+                    .sessionId(sessionId)
+                    .requestUrl(requestUrl)
+                    .qrCode(Base64.getEncoder().encodeToString(qrCodeImage))
+                    .expiresAt(presentationRequest.getExpiresAt())
+                    .message("QR code generated. Citizen should scan with identity wallet.")
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to initiate driving license request: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.FAILED_TO_INITIATE_LICENSE_REQUEST, e);
+        }
+    }
+
+    /**
+     * Wallet calls this endpoint after scanning QR code to get the presentation request details
+     */
+    public PresentationRequestDto getPresentationRequest(String sessionId) {
+        log.info("Retrieving presentation request for sessionId: {}", sessionId);
+
+        try {
+            PresentationRequest request = presentationRequestRepository
+                    .findBySessionId(sessionId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
+
+            // Check if expired
+            if (request.getExpiresAt().isBefore(LocalDateTime.now())) {
+                request.setStatus("EXPIRED");
+                presentationRequestRepository.save(request);
+                throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_EXPIRED);
+            }
+
+            // Check if already fulfilled
+            if ("FULFILLED".equals(request.getStatus())) {
+                throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_ALREADY_FULFILLED);
+            }
+
+            return PresentationRequestDto.builder()
+                    .sessionId(request.getSessionId())
+                    .requesterId(request.getRequesterId())
+                    .requesterName(request.getRequesterName())
+                    .requestedAttributes(request.getRequestedAttributes())
+                    .purpose(request.getPurpose())
+                    .expiresAt(request.getExpiresAt())
+                    .build();
+
+        } catch (SludiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to retrieve presentation request: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_PRESENTATION_REQUEST, e);
+        }
+    }
+
+    /**
+     * Wallet submits the citizen's data as a Verifiable Presentation
+     * after citizen approves in their wallet
+     */
+    public VerifiablePresentationResponseDto submitVerifiablePresentation(
+            String sessionId,
+            VerifiablePresentationDto vpDto) {
+
+        log.info("Receiving verifiable presentation for sessionId: {}", sessionId);
+
+        try {
+            // Find presentation request
+            PresentationRequest request = presentationRequestRepository
+                    .findBySessionId(sessionId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
+
+            // Verify request is still valid
+            if (request.getExpiresAt().isBefore(LocalDateTime.now())) {
+                throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_EXPIRED);
+            }
+
+            if ("FULFILLED".equals(request.getStatus())) {
+                throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_ALREADY_FULFILLED);
+            }
+
+            // Verify VP signature
+            boolean vpSignatureValid = digitalSignatureService.verifyVPSignature(vpDto);
+            if (!vpSignatureValid) {
+                log.error("Invalid VP signature for sessionId: {}", sessionId);
+                throw new SludiException(ErrorCodes.INVALID_VP_SIGNATURE);
+            }
+
+            // Verify the holder owns the DID (proof of possession)
+            boolean didOwnershipValid = digitalSignatureService.verifyDIDOwnership(
+                    vpDto.getHolder(),
+                    vpDto.getProof()
+            );
+            if (!didOwnershipValid) {
+                log.error("Invalid DID ownership proof for sessionId: {}", sessionId);
+                throw new SludiException(ErrorCodes.INVALID_DID_OWNERSHIP);
+            }
+
+            // Verify the included VC is valid and signed by trusted issuer
+            VerifiableCredential credential = verifiableCredentialRepository.findById(vpDto.getCredentialId())
+                    .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
+
+            boolean vcValid = verifyIncludedCredential(credential);
+            if (!vcValid) {
+                log.error("Invalid or untrusted credential in VP for sessionId: {}", sessionId);
+                throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
+            }
+
+            // Verify user sharedAttributes are valid
+            verifySharedAttributes(vpDto, credential);
+
+            // Verify all requested attributes are present
+            verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
+
+
+            // Store presentation data
+            request.setStatus("FULFILLED");
+            request.setFulfilledAt(LocalDateTime.now());
+            request.setHolderDid(vpDto.getHolder());
+            request.setSharedAttributes(vpDto.getAttributes());
+            presentationRequestRepository.save(request);
+
+            log.info("Verifiable presentation verified and stored for sessionId: {}", sessionId);
+
+            return VerifiablePresentationResponseDto.builder()
+                    .sessionId(sessionId)
+                    .status("VERIFIED")
+                    .message("Citizen data verified successfully. Proceed with driving license issuance.")
+                    .build();
+
+        } catch (SludiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to process verifiable presentation: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.FAILED_TO_PROCESS_VP, e);
+        }
+    }
+
+    /**
+     * Officer dashboard polls this to check if citizen has submitted their data
+     */
+    public PresentationStatusDto checkPresentationStatus(String sessionId) {
+        log.info("Checking presentation status for sessionId: {}", sessionId);
+
+        try {
+            PresentationRequest request = presentationRequestRepository
+                    .findBySessionId(sessionId)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
+
+            boolean canProceed = "FULFILLED".equals(request.getStatus()) ||
+                    "COMPLETED".equals(request.getStatus());
+
+            Map<String, Object> sharedAttributes = Collections.emptyMap();
+            if (canProceed && request.getSharedAttributes() != null) {
+                sharedAttributes = request.getSharedAttributes();
+            }
+
+            return PresentationStatusDto.builder()
+                    .sessionId(sessionId)
+                    .status(request.getStatus())
+                    .canProceed(canProceed)
+                    .sharedAttributes(sharedAttributes)
+                    .fulfilledAt(request.getFulfilledAt())
+                    .expiresAt(request.getExpiresAt())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to check presentation status: {}", e.getMessage());
+            throw new SludiException(ErrorCodes.FAILED_TO_CHECK_STATUS, e);
+        }
+    }
+
+    /**
+     * Issues the driving license credential after verifying citizen data through VP
+     */
+    public VCIssuedResponseDto issueDrivingLicenseVC(
+            IssueDrivingLicenseVCRequestDto request,
+            String userName) {
+
+        log.info("Issuing driving license VC for sessionId: {}", request.getSessionId());
+
+        try {
+            // Find user
+            OrganizationUser adminUser = organizationUserRepository.findByUsername(userName)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.USER_NOT_FOUND));
+
+            // Check if user has permission to issue driving license
+            if (!organizationUserService.verifyUserPermission(userName, "license:issue")) {
+                log.warn("User {} attempted to issue driving license without permission", userName);
+                throw new SludiException(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+            }
+
+            // Verify user is active
+            if (adminUser.getStatus() != UserStatus.ACTIVE) {
+                log.warn("Inactive user {} attempted to issue driving license", userName);
+                throw new SludiException(ErrorCodes.USER_INACTIVE);
+            }
+
+            // Retrieve fulfilled presentation request
+            PresentationRequest presentationRequest = presentationRequestRepository
+                    .findBySessionId(request.getSessionId())
+                    .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
+
+            if (!"FULFILLED".equals(presentationRequest.getStatus())) {
+                throw new SludiException(ErrorCodes.PRESENTATION_NOT_FULFILLED);
+            }
+
+            // Validate citizen and existing identity VC
+            String citizenDid = presentationRequest.getHolderDid();
+            String did = "did:sludi:" + citizenDid;
+
+            CitizenUser citizen = userRepository.findByAnyHash(null, null, HashUtil.sha256(did));
+
+            if (citizen == null) {
+                log.error("User not found for DID: {}", citizenDid);
+                throw new SludiException(ErrorCodes.USER_NOT_FOUND);
+            }
+
+            // Validate driving license requirements
+            validateDrivingLicenseRequirements(request, presentationRequest);
+
+            // Check for existing driving license
+            if (
+                    verifiableCredentialRepository.findBySubjectDidAndCredentialType(
+                            did, CredentialsType.DRIVING_LICENSE.toString()).isPresent()
+            ) {
+                throw new SludiException(ErrorCodes.DRIVING_LICENSE_ALREADY_EXISTS);
+            }
+
+            // Store supporting documents (test certificates, medical reports)
+            List<SupportingDocumentResponseDto> supportingDocs =
+                    mapSupportingDocuments(citizen, request.getSupportingDocuments(), CredentialsType.DRIVING_LICENSE.toString());
+
+            // Generate license number
+            String drivingLicenseNumber = licenseNumberGenerator.generateLicenseNumber();
+
+            // Get expire date
+            String expireDate = getExpirationDate(LocalDateTime.now(), request.getValidityYears());
+
+            // Build credential subject
+            DrivingLicenseCredentialSubject credentialSubject = buildDrivingLicenseCredentialSubject(
+                    request, presentationRequest, drivingLicenseNumber, LocalDate.now().toString(), expireDate
+            );
+
+            // Encrypt and hash credential subject
+            String credentialSubjectJson =
+                    objectMapper.writeValueAsString(credentialSubject);
+            String credentialSubjectHash =
+                    cryptographyService.encryptData(credentialSubjectJson);
+
+            // Generate credential ID
+            String credentialId = String.format("credential:%s:%s:%s",CredentialsType.DRIVING_LICENSE,
+                    citizenDid , drivingLicenseNumber);
+
+            // Convert to claims and create proof
+            Map<String, Object> claims =
+                    claimsMapper.convertLicenseClaimsMap(credentialSubject);
+
+            CredentialSignatureRequestDto signatureRequest =
+                    CredentialSignatureRequestDto.builder()
+                            .credentialId(credentialId)
+                            .credentialType(CredentialsType.DRIVING_LICENSE.toString())
+                            .subjectDid(did)
+                            .claims(claims)
+                            .expirationDate(expireDate)
+                            .build();
+
+            ProofData proofData = digitalSignatureService
+                    .signVerifiableCredential(signatureRequest, adminUser);
+
+            // Issue credential on blockchain
+            CredentialIssuanceRequestDto issuanceRequest =
+                    buildIssuanceRequest(credentialId, citizen, credentialSubjectHash, supportingDocs, proofData, expireDate);
+
+            VCBlockChainResult result =
+                    hyperledgerService.issueCredential(issuanceRequest);
+
+            // Save credential and license records
+            VerifiableCredential vc = VerifiableCredential.builder()
+                    .id(result.getId())
+                    .subjectDid(result.getSubjectDID())
+                    .credentialType(result.getCredentialType())
+                    .issuanceDate(result.getIssuanceDate())
+                    .expirationDate(result.getExpirationDate())
+                    .status(result.getStatus())
+                    .proof(proofData)
+                    .blockchainTxId(result.getBlockchainTxId())
+                    .blockNumber(result.getBlockNumber())
+                    .credentialSubjectHash(result.getCredentialSubjectHash())
+                    .build();
+
+            verifiableCredentialRepository.save(vc);
+
+            log.info("Driving license VC issued successfully. CredentialId: {}",
+                    result.getId());
+
+            return VCIssuedResponseDto.builder()
+                    .credentialId(result.getId())
+                    .subjectDID(result.getSubjectDID())
+                    .credentialType(result.getCredentialType())
+                    .status(result.getStatus())
+                    .message("Driving License Verifiable Credential issued successfully")
+                    .blockchainTxId(result.getBlockchainTxId())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to issue driving license VC: {}", e.getMessage());
+            throw new SludiException(
+                    ErrorCodes.FAILED_TO_ISSUE_DRIVING_LICENSE_VC, e);
+        }
+    }
+
     public Map<String, String> getVehicleCategoryDescriptions() {
         Map<String, String> categories = new HashMap<>();
 
@@ -410,6 +690,101 @@ public class VerifiableCredentialService {
         return categories;
     }
 
+    /**
+     * Verify the credential included in the VP is valid
+     */
+    private boolean verifyIncludedCredential(VerifiableCredential credential) {
+        try {
+
+            String credentialSubjectJson = cryptographyService.decryptData(credential.getCredentialSubjectHash());
+
+            CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
+
+            Map<String, Object> claims = claimsMapper.convertToClaimsMap(credentialSubject);
+
+            ProofDataDto proofDataDto = ProofDataDto.builder()
+                    .proofType(credential.getProof().getProofType())
+                    .created(credential.getProof().getCreated())
+                    .creator(credential.getProof().getCreator())
+                    .issuerDid(credential.getProof().getIssuerDid())
+                    .signatureValue(credential.getProof().getSignatureValue())
+                    .build();
+
+            CredentialVerificationRequestDto requestDto = CredentialVerificationRequestDto.builder()
+                    .credentialId(credential.getId())
+                    .credentialType(credential.getCredentialType())
+                    .subjectDid(credential.getSubjectDid())
+                    .claims(claims)
+                    .proof(proofDataDto)
+                    .build();
+
+            CredentialVerificationResponseDto response = digitalSignatureService.verifyCredential(requestDto);
+
+            return response.getSignatureValid();
+
+        } catch (Exception e) {
+            log.error("Error verifying credential: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verify that all requested attributes are present in the VerifiablePresentationDto.
+     */
+     private static void verifyRequestedAttributes(List<String> requestedAttributes, VerifiablePresentationDto vpDto) {
+        if (requestedAttributes == null || requestedAttributes.isEmpty()) {
+            return; // Nothing to verify
+        }
+
+        if (vpDto == null || vpDto.getAttributes() == null) {
+            throw new SludiException(ErrorCodes.VP_ATTRIBUTES_MISSING);
+        }
+
+        Map<String, Object> providedAttributes = vpDto.getAttributes();
+
+        List<String> missingAttributes = requestedAttributes.stream()
+                .filter(attr -> !providedAttributes.containsKey(attr) || providedAttributes.get(attr) == null)
+                .toList();
+
+        if (!missingAttributes.isEmpty()) {
+            throw new SludiException(ErrorCodes.ATTRIBUTE_MISSING);
+        }
+    }
+
+    /**
+     * Verify that all attributes shared in the VP exist in the original Verifiable Credential.
+     * Throws exception if any attribute is invalid.
+     */
+    public static void verifySharedAttributes(VerifiablePresentationDto vpDto, VerifiableCredential credential) {
+        if (vpDto.getAttributes() == null || vpDto.getAttributes().isEmpty()) {
+            throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES);
+        }
+
+        // Build a map of claimName -> claimHash from the VC
+        Map<String, String> validClaims = credential.getClaims().stream()
+                .collect(Collectors.toMap(CredentialClaim::getClaimName, CredentialClaim::getClaimHash));
+
+        // Check each shared attribute
+        for (Map.Entry<String, Object> entry : vpDto.getAttributes().entrySet()) {
+            String claimName = entry.getKey();
+            Object claimValue = entry.getValue();
+
+            if (!validClaims.containsKey(claimName)) {
+                throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES,
+                        "Attribute '" + claimName + "' is not part of the original VC");
+            }
+
+            // verify the hash matches
+            String sharedHash = HashUtil.sha256(String.valueOf(claimValue));
+            String originalHash = validClaims.get(claimName);
+
+            if (!sharedHash.equals(originalHash)) {
+                throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES,
+                        "Attribute '" + claimName + "' value does not match the VC");
+            }
+        }
+    }
+
     private AddressDto mapToAddressDto(CitizenUser user) {
         return AddressDto.builder()
                 .street(user.getAddress().getStreet())
@@ -429,6 +804,7 @@ public class VerifiableCredentialService {
                 .nic(user.getNic())
                 .age(user.getAge())
                 .dateOfBirth(user.getDateOfBirth().toString())
+                .profilePhotoHash(user.getProfilePhotoIpfsHash())
                 .citizenship(user.getCitizenship())
                 .gender(user.getGender())
                 .nationality(user.getNationality())
@@ -495,31 +871,9 @@ public class VerifiableCredentialService {
         log.info("IPFS content recorded for user {}. Hash: {}", userId, ipfsHash);
     }
 
-    private CitizenUser validateCitizenForDrivingLicense(String did) {
-        String id = "did:sludi:" + did;
-        CitizenUser citizen = userRepository.findByAnyHash(
-                null, null, HashUtil.sha256(id));
-
-        if (citizen == null) {
-            throw new SludiException(ErrorCodes.USER_NOT_FOUND);
-        }
-
-        VerifiableCredential verifiableCredential = verifiableCredentialRepository.findBySubjectDidAndCredentialType(
-                citizen.getDidId(), CredentialsType.IDENTITY.toString()).orElseThrow(() -> new SludiException(ErrorCodes.IDENTITY_CREDENTIAL_REQUIRED)
-        );
-
-        // Age verification (must be 18+)
-        if (citizen.getAge() < 18) {
-            throw new SludiException(
-                    ErrorCodes.AGE_REQUIREMENT_NOT_MET,
-                    "Must be 18 or older to obtain driving license");
-        }
-
-        return citizen;
-    }
-
     private void validateDrivingLicenseRequirements(
-            IssueDrivingLicenseVCRequestDto request) {
+            IssueDrivingLicenseVCRequestDto request,
+            PresentationRequest presentationRequest) {
 
         // Validate vehicle categories
         if (request.getVehicleCategories() == null ||
@@ -533,17 +887,53 @@ public class VerifiableCredentialService {
             throw new SludiException(
                     ErrorCodes.REQUIRED_DOCUMENT_MISSING);
         }
+
+        Map<String, Object> attrs = presentationRequest.getSharedAttributes();
+
+        Object ageObj = attrs.get("age");
+
+        if (ageObj == null) {
+            throw new SludiException(ErrorCodes.AGE_INFORMATION_MISSING);
+        }
+
+        // Convert age to integer safely
+        int age;
+        if (ageObj instanceof Number) {
+            age = ((Number) ageObj).intValue();
+        } else {
+            try {
+                age = Integer.parseInt(ageObj.toString());
+            } catch (NumberFormatException e) {
+                throw new SludiException(ErrorCodes.INVALID_AGE_FORMAT);
+            }
+        }
+
+        // Age verification
+        if (age < 18) {
+            throw new SludiException(ErrorCodes.AGE_REQUIREMENT_NOT_MET);
+        }
     }
 
     private DrivingLicenseCredentialSubject buildDrivingLicenseCredentialSubject(
-            CitizenUser citizen,
             IssueDrivingLicenseVCRequestDto request,
+            PresentationRequest presentationRequest,
             String licenseNumber,
             String issueDate,
             String expiryDate) {
 
-        // Build address string
-        String fullAddress = buildFullAddress(citizen.getAddress());
+        Map<String, Object> attrs = presentationRequest.getSharedAttributes();
+
+        if (attrs == null || attrs.isEmpty()) {
+            throw new SludiException(ErrorCodes.ATTRIBUTE_MISSING);
+        }
+
+        String fullName = (String) attrs.get("full_name");
+        String nic = (String) attrs.get("nic");
+        String dob = attrs.get("dob") != null ? attrs.get("dob").toString() : null;
+        String bloodGroup = (String) attrs.get("blood_group");
+        String did = (String) attrs.get("did");
+        String profilePhoto = (String) attrs.get("profile_photo");
+        String address = (String) attrs.get("address");
 
         // Map vehicle categories from request
         List<VehicleCategory> authorizedVehicles = request.getVehicleCategories().stream()
@@ -551,21 +941,24 @@ public class VerifiableCredentialService {
                 .collect(Collectors.toList());
 
         return DrivingLicenseCredentialSubject.builder()
-                .id(citizen.getDidId())
-                .fullName(citizen.getFullName())
-                .nic(citizen.getNic())
-                .dateOfBirth(citizen.getDateOfBirth().toString())
-                .address(fullAddress)
-                .profilePhoto(citizen.getProfilePhotoIpfsHash())
+                .id(did)
+                .fullName(fullName)
+                .nic(nic)
+                .dateOfBirth(dob)
+                .address(address)
+                .profilePhoto(profilePhoto)
                 .licenseNumber(licenseNumber)
                 .issueDate(issueDate)
                 .expiryDate(expiryDate)
                 .authorizedVehicles(authorizedVehicles)
-                .issuingAuthority(request.getIssuingAuthority() != null ?
-                        request.getIssuingAuthority() : "Department of Motor Traffic, Sri Lanka")
+                .issuingAuthority(
+                        request.getIssuingAuthority() != null
+                                ? request.getIssuingAuthority()
+                                : "Department of Motor Traffic, Sri Lanka"
+                )
                 .restrictions(request.getRestrictions())
                 .endorsements(request.getEndorsements())
-                .bloodGroup(citizen.getBloodGroup())
+                .bloodGroup(bloodGroup)
                 .build();
     }
 
@@ -630,7 +1023,7 @@ public class VerifiableCredentialService {
     }
 
     /**
-     * Check if the vehicle categories include heavy vehicles
+     * Check if the vehicle categories include heavy vehicle
      * Heavy vehicles include categories C, C1, D, D1, CE, C1E, DE, D1E
      */
     private boolean containsHeavyVehicle(List<VehicleCategoryRequestDto> vehicleCategories) {

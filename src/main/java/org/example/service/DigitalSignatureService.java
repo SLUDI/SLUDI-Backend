@@ -1,16 +1,21 @@
 package org.example.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dto.CredentialSignatureRequestDto;
-import org.example.dto.CredentialVerificationRequestDto;
-import org.example.dto.CredentialVerificationResponseDto;
+import org.example.dto.*;
+import org.example.entity.CitizenUser;
 import org.example.entity.OrganizationOnboarding;
 import org.example.entity.ProofData;
 import org.example.entity.OrganizationUser;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
+import org.example.repository.CitizenUserRepository;
 import org.example.repository.OrganizationOnboardingRepository;
+import org.example.security.CryptographyService;
+import org.example.utils.HashUtil;
 import org.hyperledger.fabric.client.identity.Identity;
 import org.hyperledger.fabric.client.identity.Signer;
 import org.hyperledger.fabric.client.identity.X509Identity;
@@ -21,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
@@ -36,12 +42,6 @@ import java.util.*;
 @Slf4j
 @Service
 public class DigitalSignatureService {
-
-    @Value("${sludi.organization.msp-id}")
-    private String mspId;
-
-    @Value("${sludi.issuer-did}")
-    private String issuerDid;
 
     @Value("${sludi.signature.proof-type:Ed25519Signature2018}")
     private String proofType;
@@ -59,22 +59,27 @@ public class DigitalSignatureService {
     private FabricCAService fabricCAService;
 
     @Autowired
+    private CryptographyService cryptographyService;
+
+    @Autowired
     private OrganizationOnboardingRepository onboardingRepository;
 
-    // Certificate extracted from Fabric identity
-    private X509Certificate organizationCertificate;
+    @Autowired
+    private CitizenUserRepository userRepository;
 
     // Cache for organization signers (by MSP ID)
     private final Map<String, Signer> organizationSignerCache = new HashMap<>();
     private final Map<String, X509Certificate> organizationCertCache = new HashMap<>();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostConstruct
     public void initializeFromFabricIdentity() {
         try {
-            log.info("Initializing DigitalSignatureService with Fabric identity [MSP={}]", mspId);
+            log.info("Initializing DigitalSignatureService with Fabric identity");
 
             if (fabricIdentity instanceof X509Identity x509Identity) {
-                this.organizationCertificate = x509Identity.getCertificate();
+                // Certificate extracted from Fabric identity
+                X509Certificate organizationCertificate = x509Identity.getCertificate();
 
                 log.info("Successfully extracted certificate. Subject: {}",
                         organizationCertificate.getSubjectX500Principal().getName()
@@ -110,14 +115,7 @@ public class DigitalSignatureService {
             Signer signer = getOrganizationSigner(mspId);
             String issuerDid = buildIssuerDid(mspId);
 
-            String signatureValue = signData(
-                    didDocument,
-                    did,
-                    timestamp,
-                    purpose,
-                    signer,
-                    mspId
-            );
+            String signatureValue = signData(didDocument, signer);
 
             ProofData proofData = ProofData.builder()
                     .proofType(proofType)
@@ -142,7 +140,6 @@ public class DigitalSignatureService {
 
     /**
      * Sign Verifiable Credential
-     * Used for: Citizen Registration, Police Records, Medical Records, etc.
      */
     public ProofData signVerifiableCredential(CredentialSignatureRequestDto request, OrganizationUser issuer) {
         try {
@@ -154,7 +151,6 @@ public class DigitalSignatureService {
             validateCredentialRequest(request);
 
             String timestamp = Instant.now().toString();
-            String purpose = determinePurpose(request.getCredentialType());
 
             // Get organization-specific signer
             OrganizationOnboarding onboarding = onboardingRepository
@@ -169,14 +165,7 @@ public class DigitalSignatureService {
             // Create canonical credential representation
             String credentialData = createCanonicalCredential(request, issuerDid, timestamp);
 
-            String signatureValue = signData(
-                    credentialData,
-                    request.getCredentialId(),
-                    timestamp,
-                    purpose,
-                    signer,
-                    mspId
-            );
+            String signatureValue = signData(credentialData, signer);
 
             ProofData proofData = ProofData.builder()
                     .proofType(proofType)
@@ -220,7 +209,6 @@ public class DigitalSignatureService {
 
             // Recreate the signed data
             String timestamp = request.getProof().getCreated();
-            String purpose = determinePurpose(request.getCredentialType());
             String credentialData = createCanonicalCredential(
                     convertVerificationRequestToSignatureRequest(request),
                     request.getProof().getIssuerDid(),
@@ -231,11 +219,7 @@ public class DigitalSignatureService {
             boolean isValid = verifySignature(
                     credentialData,
                     request.getCredentialId(),
-                    timestamp,
-                    purpose,
-                    request.getProof().getSignatureValue(),
-                    issuerCert,
-                    mspId
+                    issuerCert
             );
 
             // Additional validations
@@ -286,11 +270,7 @@ public class DigitalSignatureService {
             boolean isValid = verifySignature(
                     didDocument,
                     did,
-                    proof.getCreated(),
-                    "DIDCreation",
-                    proof.getSignatureValue(),
-                    issuerCert,
-                    mspId
+                    issuerCert
             );
 
             if (auditEnabled) {
@@ -306,24 +286,85 @@ public class DigitalSignatureService {
         }
     }
 
+    public boolean verifyVPSignature(VerifiablePresentationDto vpDto) {
+        try {
+            // Resolve citizen's public key from database
+            String publicKeyPem = resolveCitizenPublicKey(vpDto.getHolder());
+
+            if (publicKeyPem == null) {
+                log.error("Public key not found for holder: {}", vpDto.getHolder());
+                return false;
+            }
+
+            // Build canonical VP data
+            String vpData = buildCanonicalVP(vpDto);
+
+            // Verify ECDSA signature using CryptographyService
+            boolean isValid = cryptographyService.verifySignature(
+                    vpData,
+                    vpDto.getProof().getProofValue(),
+                    publicKeyPem
+            );
+
+            log.info("VP signature verification: {}", isValid);
+            return isValid;
+
+        } catch (Exception e) {
+            log.error("VP verification failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean verifyDIDOwnership(String holderDid, VPProofDto proof) {
+        // Check verification method matches DID
+        if (!proof.getVerificationMethod().startsWith(holderDid)) {
+            return false;
+        }
+
+        // Check proof timestamp
+        Instant proofCreated = Instant.parse(proof.getCreated());
+        long minutesSinceCreation = Duration.between(proofCreated, Instant.now()).toMinutes();
+
+        if (minutesSinceCreation > 15) {
+            return false; // Proof too old
+        }
+
+        // Check proof purpose
+        if (!"authentication".equalsIgnoreCase(proof.getProofPurpose())) {
+            return false;
+        }
+
+        // Verify signature on DID ownership challenge
+        String publicKeyPem = resolveCitizenPublicKey(holderDid);
+        String challengeData = String.format(
+                "did=%s&purpose=%s&timestamp=%s&method=%s",
+                holderDid,
+                proof.getProofPurpose(),
+                proof.getCreated(),
+                proof.getVerificationMethod()
+        );
+
+        return cryptographyService.verifySignature(
+                challengeData,
+                proof.getProofValue(),
+                publicKeyPem
+        );
+    }
+
     /**
      * Core signing method
      */
-    private String signData(String data, String id, String timestamp, String purpose,
-                            Signer signer, String mspId) throws Exception {
-        String canonicalInput = createCanonicalSignatureInput(data, id, timestamp, purpose, mspId);
-        byte[] signatureBytes = signer.sign(canonicalInput.getBytes(StandardCharsets.UTF_8));
+    private String signData(String data, Signer signer) throws Exception {
+        byte[] signatureBytes = signer.sign(data.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(signatureBytes);
     }
 
     /**
      * Core verification method
      */
-    private boolean verifySignature(String data, String id, String timestamp, String purpose,
-                                    String signatureValue, X509Certificate certificate, String mspId) {
+    private boolean verifySignature(String data, String signatureValue, X509Certificate certificate) {
         try {
-            String canonicalInput = createCanonicalSignatureInput(data, id, timestamp, purpose, mspId);
-            byte[] dataBytes = canonicalInput.getBytes(StandardCharsets.UTF_8);
+            byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
             byte[] signatureBytes = Base64.getDecoder().decode(signatureValue);
 
             PublicKey publicKey = certificate.getPublicKey();
@@ -343,53 +384,51 @@ public class DigitalSignatureService {
      * Get organization-specific signer
      */
     private Signer getOrganizationSigner(String mspId) throws Exception {
-        if (mspId.equals(this.mspId)) {
-            return fabricSigner;
-        }
-
-        if (organizationSignerCache.containsKey(mspId)) {
-            return organizationSignerCache.get(mspId);
-        }
-
-        // Load admin user for the organization
-        var adminUser = fabricCAService.getAdminUser(mspId);
-        var enrollment = adminUser.getEnrollment();
-
-        Signer signer = (digest) -> {
+        return organizationSignerCache.computeIfAbsent(mspId, key -> {
             try {
-                Signature signature = Signature.getInstance("SHA256withECDSA");
-                signature.initSign(enrollment.getKey());
-                signature.update(digest);
-                return signature.sign();
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to sign", e);
-            }
-        };
+                var adminUser = fabricCAService.getAdminUser(mspId);
+                var enrollment = adminUser.getEnrollment();
 
-        organizationSignerCache.put(mspId, signer);
-        return signer;
+                return (digest) -> {
+                    try {
+                        Signature signature = Signature.getInstance("SHA256withECDSA");
+                        signature.initSign(enrollment.getKey());
+                        signature.update(digest);
+                        return signature.sign();
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to sign", e);
+                    }
+                };
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to load organization signer", e);
+            }
+        });
     }
 
     /**
      * Get organization certificate
      */
     private X509Certificate getOrganizationCertificate(String mspId) throws Exception {
-        if (mspId.equals(this.mspId)) {
-            return organizationCertificate;
-        }
+        X509Certificate cert = organizationCertCache.computeIfAbsent(mspId, key -> {
+            try {
+                var adminUser = fabricCAService.getAdminUser(mspId);
+                var enrollment = adminUser.getEnrollment();
 
-        if (organizationCertCache.containsKey(mspId)) {
-            return organizationCertCache.get(mspId);
-        }
+                // Parse certificate from PEM
+                String certPem = enrollment.getCert();
+                X509Certificate parsedCert = parseCertificate(certPem);
 
-        var adminUser = fabricCAService.getAdminUser(mspId);
-        var enrollment = adminUser.getEnrollment();
+                // Validate certificate
+                parsedCert.checkValidity(); // Checks expiration
 
-        // Parse certificate from PEM
-        String certPem = enrollment.getCert();
-        X509Certificate cert = parseCertificate(certPem);
+                return parsedCert;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to load or validate organization certificate", e);
+            }
+        });
 
-        organizationCertCache.put(mspId, cert);
+        // Check validity on each access
+        cert.checkValidity();
         return cert;
     }
 
@@ -397,10 +436,8 @@ public class DigitalSignatureService {
      * Create canonical credential representation for signing
      */
     private String createCanonicalCredential(CredentialSignatureRequestDto request,
-                                             String issuerDid, String timestamp) {
+                                             String issuerDid, String timestamp) throws JsonProcessingException {
         // Sort claims by key for deterministic ordering
-        TreeMap<String, Object> sortedClaims = new TreeMap<>(request.getClaims());
-
         StringBuilder canonical = new StringBuilder();
         canonical.append("credentialId=").append(request.getCredentialId());
         canonical.append("&type=").append(request.getCredentialType());
@@ -412,23 +449,12 @@ public class DigitalSignatureService {
             canonical.append("&expirationDate=").append(request.getExpirationDate());
         }
 
-        canonical.append("&claims=");
-        sortedClaims.forEach((key, value) ->
-                canonical.append(key).append(":").append(value).append(";")
-        );
+        objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+        String claimsJson = objectMapper.writeValueAsString(request.getClaims());
+
+        canonical.append("&claims=").append(claimsJson);
 
         return canonical.toString();
-    }
-
-    /**
-     * Create canonical signature input
-     */
-    private String createCanonicalSignatureInput(String data, String id, String timestamp,
-                                                 String purpose, String mspId) {
-        return String.format(
-                "msp=%s&issuer=%s&data=%s&id=%s&timestamp=%s&purpose=%s",
-                mspId, buildIssuerDid(mspId), data, id, timestamp, purpose
-        );
     }
 
     /**
@@ -545,43 +571,35 @@ public class DigitalSignatureService {
         Objects.requireNonNull(request.getClaims(), "Claims cannot be null");
     }
 
-    /**
-     * Service health check
-     */
-    public boolean isInitialized() {
-        return fabricSigner != null &&
-                fabricIdentity != null &&
-                organizationCertificate != null &&
-                mspId != null &&
-                issuerDid != null;
-    }
-
-    /**
-     * Create generic proof data (legacy support)
-     */
-    public ProofData createProofData(String data, String id, String timestamp, String purpose) {
-        try {
-            validateInputs(data, id, purpose);
-
-            String signatureValue = signData(data, id, timestamp, purpose, fabricSigner, mspId);
-
-            return ProofData.builder()
-                    .proofType(proofType)
-                    .created(timestamp)
-                    .creator(issuerDid + "#key-1")
-                    .issuerDid(issuerDid)
-                    .signatureValue(signatureValue)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Failed to create ProofData for ID {}: {}", id, e.getMessage());
-            throw new SludiException(ErrorCodes.SIGNATURE_CREATION_FAILED, e.getMessage(), e);
-        }
-    }
-
     private void validateInputs(String data, String id, String purpose) {
         Objects.requireNonNull(data, "Data cannot be null");
         Objects.requireNonNull(id, "ID cannot be null");
         Objects.requireNonNull(purpose, "Purpose cannot be null");
+    }
+
+    private String resolveCitizenPublicKey(String did) {
+        CitizenUser citizen = userRepository.findByAnyHash(
+                null, null, HashUtil.sha256(did)
+        );
+
+        if (citizen == null) {
+            return null;
+        }
+
+        return citizen.getPublicKey(); // PEM format
+    }
+
+    private String buildCanonicalVP(VerifiablePresentationDto vpDto) {
+        StringBuilder canonical = new StringBuilder();
+        canonical.append("@context=").append(vpDto.getContext());
+        canonical.append("&type=").append(vpDto.getType());
+        canonical.append("&holder=").append(vpDto.getHolder());
+        canonical.append("&credentialId=").append(vpDto.getCredentialId());
+        canonical.append("&credentialAttributes=").append(vpDto.getAttributes());
+        canonical.append("&proofCreated=").append(vpDto.getProof().getCreated());
+        canonical.append("&proofPurpose=").append(vpDto.getProof().getProofPurpose());
+        canonical.append("&verificationMethod=").append(vpDto.getProof().getVerificationMethod());
+
+        return canonical.toString();
     }
 }

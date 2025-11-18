@@ -34,4 +34,11 @@ public class VerifiableCredential {
 
     @Column(name = "credential_sub_hash", columnDefinition = "TEXT")
     private String credentialSubjectHash;
+
+    @OneToMany(
+            mappedBy = "credential",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<CredentialClaim> claims;
 }

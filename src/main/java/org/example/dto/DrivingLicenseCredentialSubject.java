@@ -21,7 +21,7 @@ public class DrivingLicenseCredentialSubject {
     private String expiryDate;
     private List<VehicleCategory> authorizedVehicles;
     private String issuingAuthority;
-    private String restrictions;
-    private String endorsements;
+    private List<String> restrictions;
+    private List<String> endorsements;
     private String bloodGroup;
 }

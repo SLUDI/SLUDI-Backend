@@ -23,4 +23,5 @@ public class CredentialSubject {
     private String bloodGroup;
     private BiometricHashesDto biometricData;
     private AddressDto address;
+    private String profilePhotoHash;
 }

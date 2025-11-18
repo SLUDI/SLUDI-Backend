@@ -269,6 +269,46 @@ public class WalletController {
         }
     }
 
+    @GetMapping("/photo/{cid}")
+    @Operation(security = {@SecurityRequirement(name = "bearerAuth")})
+    public ResponseEntity<ApiResponseDto<byte[]>> getProfilePhoto(@PathVariable String cid) {
+
+        try {
+            // Retrieve image bytes
+            byte[] data = walletService.getProfilePhoto(cid);
+
+            return ResponseEntity.ok(
+                    ApiResponseDto.<byte[]>builder()
+                            .success(true)
+                            .message("Profile photo retrieved successfully")
+                            .data(data)
+                            .timestamp(java.time.Instant.now())
+                            .build()
+            );
+
+        } catch (SludiException e) {
+
+            return ResponseEntity
+                    .status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<byte[]>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(java.time.Instant.now())
+                            .build()
+                    );
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<byte[]>builder()
+                            .success(false)
+                            .message("Failed to retrieve profile photo")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(java.time.Instant.now())
+                            .build());
+        }
+    }
+
     private static String getString(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
             throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");

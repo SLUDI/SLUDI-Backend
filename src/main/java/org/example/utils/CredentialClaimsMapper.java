@@ -38,6 +38,7 @@ public class CredentialClaimsMapper {
         addClaimIfNotNull(claims, "gender", credentialSubject.getGender());
         addClaimIfNotNull(claims, "nationality", credentialSubject.getNationality());
         addClaimIfNotNull(claims, "bloodGroup", credentialSubject.getBloodGroup());
+        addClaimIfNotNull(claims, "profilePhoto", credentialSubject.getProfilePhotoHash());
 
         // Biometric data (as nested object)
         if (credentialSubject.getBiometricData() != null) {
@@ -153,113 +154,6 @@ public class CredentialClaimsMapper {
         if (value != null) {
             claims.put(key, value);
         }
-    }
-
-    /**
-     * Alternative: Flatten nested structures into single-level claims
-     * Useful for simpler claim structures
-     */
-    public Map<String, Object> convertToFlatClaimsMap(CredentialSubject credentialSubject) {
-        log.debug("Converting CredentialSubject to flat claims map");
-
-        Map<String, Object> claims = new HashMap<>();
-
-        // Basic identity claims
-        addClaimIfNotNull(claims, "id", credentialSubject.getId());
-        addClaimIfNotNull(claims, "fullName", credentialSubject.getFullName());
-        addClaimIfNotNull(claims, "nic", credentialSubject.getNic());
-        addClaimIfNotNull(claims, "age", credentialSubject.getAge());
-        addClaimIfNotNull(claims, "dateOfBirth", credentialSubject.getDateOfBirth());
-        addClaimIfNotNull(claims, "citizenship", credentialSubject.getCitizenship());
-        addClaimIfNotNull(claims, "gender", credentialSubject.getGender());
-        addClaimIfNotNull(claims, "nationality", credentialSubject.getNationality());
-        addClaimIfNotNull(claims, "bloodGroup", credentialSubject.getBloodGroup());
-
-        // Flatten biometric data
-        if (credentialSubject.getBiometricData() != null) {
-            addClaimIfNotNull(claims, "fingerprintHash",
-                    credentialSubject.getBiometricData().getFingerprintHash());
-            addClaimIfNotNull(claims, "faceImageHash",
-                    credentialSubject.getBiometricData().getFaceImageHash());
-        }
-
-        // Flatten address data with prefixes
-        if (credentialSubject.getAddress() != null) {
-            AddressDto addr = credentialSubject.getAddress();
-            addClaimIfNotNull(claims, "address_street", addr.getStreet());
-            addClaimIfNotNull(claims, "address_city", addr.getCity());
-            addClaimIfNotNull(claims, "address_district", addr.getDistrict());
-            addClaimIfNotNull(claims, "address_postalCode", addr.getPostalCode());
-            addClaimIfNotNull(claims, "address_divisionalSecretariat", addr.getDivisionalSecretariat());
-            addClaimIfNotNull(claims, "address_gramaNiladhariDivision", addr.getGramaNiladhariDivision());
-            addClaimIfNotNull(claims, "address_province", addr.getProvince());
-        }
-
-        log.debug("Converted {} flat claims from CredentialSubject", claims.size());
-        return claims;
-    }
-
-    /**
-     * Create minimal claims (only essential information)
-     * Useful for privacy-preserving scenarios
-     */
-    public Map<String, Object> convertToMinimalClaimsMap(CredentialSubject credentialSubject) {
-        Map<String, Object> claims = new HashMap<>();
-
-        // Only essential identity fields
-        addClaimIfNotNull(claims, "id", credentialSubject.getId());
-        addClaimIfNotNull(claims, "nic", credentialSubject.getNic());
-        addClaimIfNotNull(claims, "fullName", credentialSubject.getFullName());
-        addClaimIfNotNull(claims, "dateOfBirth", credentialSubject.getDateOfBirth());
-        addClaimIfNotNull(claims, "nationality", credentialSubject.getNationality());
-
-        return claims;
-    }
-
-    /**
-     * Convert claims map back to CredentialSubject
-     * Useful for verification
-     */
-    public CredentialSubject convertFromClaimsMap(Map<String, Object> claims) {
-        CredentialSubject.CredentialSubjectBuilder builder = CredentialSubject.builder();
-
-        // Extract basic fields
-        builder.id(getStringClaim(claims, "id"));
-        builder.fullName(getStringClaim(claims, "fullName"));
-        builder.nic(getStringClaim(claims, "nic"));
-        builder.age(getIntegerClaim(claims, "age"));
-        builder.dateOfBirth(getStringClaim(claims, "dateOfBirth"));
-        builder.citizenship(getStringClaim(claims, "citizenship"));
-        builder.gender(getStringClaim(claims, "gender"));
-        builder.nationality(getStringClaim(claims, "nationality"));
-        builder.bloodGroup(getStringClaim(claims, "bloodGroup"));
-
-        // Extract biometric data if present
-        if (claims.containsKey("biometricData")) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> bioData = (Map<String, String>) claims.get("biometricData");
-            builder.biometricData(BiometricHashesDto.builder()
-                    .fingerprintHash(bioData.get("fingerprintHash"))
-                    .faceImageHash(bioData.get("faceImageHash"))
-                    .build());
-        }
-
-        // Extract address if present
-        if (claims.containsKey("address")) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> addrData = (Map<String, String>) claims.get("address");
-            builder.address(AddressDto.builder()
-                    .street(addrData.get("street"))
-                    .city(addrData.get("city"))
-                    .district(addrData.get("district"))
-                    .postalCode(addrData.get("postalCode"))
-                    .divisionalSecretariat(addrData.get("divisionalSecretariat"))
-                    .gramaNiladhariDivision(addrData.get("gramaNiladhariDivision"))
-                    .province(addrData.get("province"))
-                    .build());
-        }
-
-        return builder.build();
     }
 
     // Helper methods for type-safe extraction
