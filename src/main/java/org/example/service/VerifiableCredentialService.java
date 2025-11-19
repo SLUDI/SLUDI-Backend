@@ -1,5 +1,6 @@
 package org.example.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -20,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -128,7 +131,7 @@ public class VerifiableCredentialService {
                     .credentialId(credentialId)
                     .credentialType(request.getCredentialType())
                     .subjectDid(did)
-                    .claims(claims)
+                    .signData(credentialSubjectHash)
                     .expirationDate(expireDate)
                     .build();
 
@@ -179,13 +182,13 @@ public class VerifiableCredentialService {
                     .map(entry -> {
                         try {
                             String claimName = entry.getKey();
-                            String claimValue = String.valueOf(entry.getValue());
-                            String claimHash = HashUtil.sha256(claimValue); // hash the claim value
+                            String normalized = normalizeValue(entry.getValue());
+                            String claimHash = HashUtil.sha256(normalized);
 
                             return CredentialClaim.builder()
                                     .claimName(claimName)
                                     .claimHash(claimHash)
-                                    .credential(vc) // will set parent reference
+                                    .credential(vc)
                                     .build();
                         } catch (Exception e) {
                             throw new RuntimeException("Failed to hash claim: " + entry.getKey(), e);
@@ -322,7 +325,7 @@ public class VerifiableCredentialService {
                             "age",
                             "address",
                             "bloodGroup",
-                            "did",
+                            "id",
                             "nic",
                             "profilePhoto"
                     ))
@@ -337,7 +340,7 @@ public class VerifiableCredentialService {
 
             // Generate QR code URL
             String requestUrl = String.format(
-                    "%s/api/vc/driving-license/request/%s",
+                    "%s/api/wallet/driving-license/request/%s",
                     baseUrl,
                     sessionId
             );
@@ -516,6 +519,19 @@ public class VerifiableCredentialService {
         }
     }
 
+    public List<PresentationRequestResponseDto> getAllLicenseRequest() {
+        try {
+            List<PresentationRequest> presentationRequestList = presentationRequestRepository.findAll();
+
+            return presentationRequestList.stream()
+                    .map(this::mapPresentationRequestToDto)
+                    .toList();
+
+        } catch (Exception e) {
+            throw new SludiException(ErrorCodes.FAILED_TO_GET_PRESENTATIONS, e.getMessage());
+        }
+    }
+
     /**
      * Issues the driving license credential after verifying citizen data through VP
      */
@@ -607,7 +623,7 @@ public class VerifiableCredentialService {
                             .credentialId(credentialId)
                             .credentialType(CredentialsType.DRIVING_LICENSE.toString())
                             .subjectDid(did)
-                            .claims(claims)
+                            .signData(credentialSubjectHash)
                             .expirationDate(expireDate)
                             .build();
 
@@ -713,7 +729,8 @@ public class VerifiableCredentialService {
                     .credentialId(credential.getId())
                     .credentialType(credential.getCredentialType())
                     .subjectDid(credential.getSubjectDid())
-                    .claims(claims)
+                    .signData(credential.getCredentialSubjectHash())
+                    .expirationDate(credential.getExpirationDate())
                     .proof(proofDataDto)
                     .build();
 
@@ -726,6 +743,28 @@ public class VerifiableCredentialService {
             return false;
         }
     }
+
+    private PresentationRequestResponseDto mapPresentationRequestToDto(PresentationRequest entity) {
+        return PresentationRequestResponseDto.builder()
+                .id(entity.getId())
+                .sessionId(entity.getSessionId())
+                .requesterId(entity.getRequesterId())
+                .requesterName(entity.getRequesterName())
+                .requestedAttributes(entity.getRequestedAttributes())
+                .purpose(entity.getPurpose())
+                .status(entity.getStatus())
+                .createdAt(entity.getCreatedAt())
+                .expiresAt(entity.getExpiresAt())
+                .fulfilledAt(entity.getFulfilledAt())
+                .completedAt(entity.getCompletedAt())
+                .createdBy(entity.getCreatedBy())
+                .holderDid(entity.getHolderDid())
+                .sharedAttributes(entity.getSharedAttributes())
+                .issuedCredentialId(entity.getIssuedCredentialId())
+                .errorMessage(entity.getErrorMessage())
+                .build();
+    }
+
 
     /**
      * Verify that all requested attributes are present in the VerifiablePresentationDto.
@@ -754,7 +793,7 @@ public class VerifiableCredentialService {
      * Verify that all attributes shared in the VP exist in the original Verifiable Credential.
      * Throws exception if any attribute is invalid.
      */
-    public static void verifySharedAttributes(VerifiablePresentationDto vpDto, VerifiableCredential credential) {
+    public static void verifySharedAttributes(VerifiablePresentationDto vpDto, VerifiableCredential credential) throws JsonProcessingException {
         if (vpDto.getAttributes() == null || vpDto.getAttributes().isEmpty()) {
             throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES);
         }
@@ -763,18 +802,16 @@ public class VerifiableCredentialService {
         Map<String, String> validClaims = credential.getClaims().stream()
                 .collect(Collectors.toMap(CredentialClaim::getClaimName, CredentialClaim::getClaimHash));
 
+        log.info("Attributes: {}", vpDto.getAttributes());
         // Check each shared attribute
         for (Map.Entry<String, Object> entry : vpDto.getAttributes().entrySet()) {
+
             String claimName = entry.getKey();
             Object claimValue = entry.getValue();
 
-            if (!validClaims.containsKey(claimName)) {
-                throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES,
-                        "Attribute '" + claimName + "' is not part of the original VC");
-            }
+            String normalizedSharedValue = normalizeValue(claimValue);
+            String sharedHash = HashUtil.sha256(normalizedSharedValue);
 
-            // verify the hash matches
-            String sharedHash = HashUtil.sha256(String.valueOf(claimValue));
             String originalHash = validClaims.get(claimName);
 
             if (!sharedHash.equals(originalHash)) {
@@ -1048,7 +1085,21 @@ public class VerifiableCredentialService {
     }
 
     private String getExpirationDate(LocalDateTime dateTime, int validYear) {
-        dateTime = dateTime.plusYears(validYear);
-        return dateTime.toString();
+        return dateTime
+                .plusYears(validYear)
+                .atZone(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MILLIS)
+                .toInstant()
+                .toString();
+    }
+
+    private static String normalizeValue(Object value) throws JsonProcessingException {
+        if (value instanceof Map) {
+            // sort keys to ensure deterministic order
+            Map<String, Object> sorted = new TreeMap<>((Map) value);
+
+            return new ObjectMapper().writeValueAsString(sorted);
+        }
+        return String.valueOf(value);
     }
 }

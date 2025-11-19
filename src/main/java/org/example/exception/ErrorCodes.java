@@ -84,6 +84,7 @@ public enum ErrorCodes {
     PRESENTATION_NOT_FULFILLED("2063", "Citizen must first submit data via wallet"),
     AGE_INFORMATION_MISSING("2064", "Age attribute is missing"),
     INVALID_AGE_FORMAT("2065", "Invalid age format"),
+    FAILED_TO_GET_PRESENTATIONS("2066", "Failed to retrieve license requests:"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),

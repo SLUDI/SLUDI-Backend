@@ -19,7 +19,7 @@ public class CredentialVerificationRequestDto {
 
     private String subjectDid;
 
-    private Map<String, Object> claims;
+    private String signData;
 
     private String expirationDate;
 

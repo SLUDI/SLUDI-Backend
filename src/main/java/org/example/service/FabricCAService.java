@@ -95,68 +95,57 @@ public class FabricCAService {
      * This method will enroll admin with CA if not already enrolled
      */
     public User getAdminUser(String mspId) throws Exception {
+
         if (adminUserCache.containsKey(mspId)) {
             return adminUserCache.get(mspId);
         }
 
-        log.info("Loading admin user for MSP: {}", mspId);
+        FabricOrgConfig config = getFabricConfig(mspId);
 
-        FabricOrgConfig fabricConfig = getFabricConfig(mspId);
-        String orgShortName = mspId.replace("MSP", "").toLowerCase();
+        Path certPath = getAdminCertPath(config);
+        Path keyPath = getAdminKeyPath(config);
 
-        // Try to load existing admin from filesystem first
-        Path adminCertPath = getAdminCertPath(fabricConfig);
-        Path adminKeyPath = getAdminKeyPath(fabricConfig);
+        if (Files.exists(certPath) && Files.exists(keyPath)) {
 
-        // Check if we need to enroll admin with CA
-        // The filesystem admin might not have CA enrollment, so we enroll it
-        try {
-            log.info("Attempting to enroll admin with CA for MSP: {}", mspId);
+            log.info("Loading admin from file system (NO re-enroll)");
 
-            HFCAClient caClient = getCaClient(mspId);
-
-            // Enroll admin with default credentials
-            Enrollment adminEnrollment = caClient.enroll("admin", "adminpw");
-
-            log.info("Admin enrolled successfully with CA");
-
-            // Create admin user with CA enrollment
-            AdminUser adminUser = new AdminUser(
-                    "admin",
-                    orgShortName + ".department1",
-                    mspId,
-                    adminEnrollment.getCert(),
-                    adminEnrollment.getKey()
-            );
-
-            adminUserCache.put(mspId, adminUser);
-
-            log.info("Admin user loaded successfully for: {} with affiliation: {}",
-                    mspId, adminUser.getAffiliation());
-
-            return adminUser;
-
-        } catch (Exception e) {
-            log.error("Failed to enroll admin with CA: {}", e.getMessage());
-
-            // Fallback: try to use filesystem admin (might not work for registration)
-            log.warn("Falling back to filesystem admin credentials (may not have CA authority)");
-
-            String certificate = Files.readString(adminCertPath);
-            PrivateKey privateKey = loadPrivateKey(adminKeyPath);
+            String cert = Files.readString(certPath);
+            PrivateKey privateKey = loadPrivateKey(keyPath);
 
             AdminUser adminUser = new AdminUser(
                     "admin",
-                    orgShortName + ".department1",
+                    mspId.toLowerCase() + ".department1",
                     mspId,
-                    certificate,
+                    cert,
                     privateKey
             );
 
             adminUserCache.put(mspId, adminUser);
             return adminUser;
         }
+
+        // Only if no cert/key exist → do enrollment ONCE
+        log.info("No admin cert found. Enrolling admin from CA...");
+
+        HFCAClient caClient = getCaClient(mspId);
+
+        Enrollment enrollment = caClient.enroll("admin", "adminpw");
+
+        // Save enrollment for future runs
+        storeUserEnrollment(mspId, "admin", enrollment);
+
+        AdminUser adminUser = new AdminUser(
+                "admin",
+                mspId.toLowerCase() + ".department1",
+                mspId,
+                enrollment.getCert(),
+                enrollment.getKey()
+        );
+
+        adminUserCache.put(mspId, adminUser);
+        return adminUser;
     }
+
 
     /**
      * Concrete implementation of User interface for Admin

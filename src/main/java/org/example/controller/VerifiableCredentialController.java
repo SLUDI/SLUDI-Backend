@@ -166,6 +166,7 @@ public class VerifiableCredentialController {
                     .success(true)
                     .message("Driving license request initiated successfully")
                     .data(response)
+                    .timestamp(java.time.Instant.now())
                     .build();
 
             return ResponseEntity.ok(apiResponse);
@@ -174,6 +175,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<DrivingLicenseRequestResponseDto> errorResponse = ApiResponseDto.<DrivingLicenseRequestResponseDto>builder()
                     .success(false)
                     .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 
@@ -181,6 +183,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<DrivingLicenseRequestResponseDto> errorResponse = ApiResponseDto.<DrivingLicenseRequestResponseDto>builder()
                     .success(false)
                     .message("Failed to initiate driving license request")
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
@@ -206,6 +209,7 @@ public class VerifiableCredentialController {
                     .success(true)
                     .message("Presentation status retrieved successfully")
                     .data(status)
+                    .timestamp(java.time.Instant.now())
                     .build();
 
             return ResponseEntity.ok(apiResponse);
@@ -214,6 +218,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<PresentationStatusDto> errorResponse = ApiResponseDto.<PresentationStatusDto>builder()
                     .success(false)
                     .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 
@@ -221,7 +226,55 @@ public class VerifiableCredentialController {
             ApiResponseDto<PresentationStatusDto> errorResponse = ApiResponseDto.<PresentationStatusDto>builder()
                     .success(false)
                     .message("Failed to check presentation status")
+                    .timestamp(java.time.Instant.now())
                     .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get All License Presentation Requests
+     * GET /api/vc/driving-license/request/all
+     */
+    @GetMapping("/driving-license/request/all")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<List<PresentationRequestResponseDto>>> getAllLicenseRequests() {
+
+        log.info("Received request to fetch all license presentation requests");
+
+        try {
+            List<PresentationRequestResponseDto> requests = verifiableCredentialService.getAllLicenseRequest();
+
+            ApiResponseDto<List<PresentationRequestResponseDto>> apiResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(true)
+                            .message("License presentation requests retrieved successfully")
+                            .data(requests)
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<List<PresentationRequestResponseDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<List<PresentationRequestResponseDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(false)
+                            .message("Failed to retrieve license presentation requests")
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
@@ -300,6 +353,7 @@ public class VerifiableCredentialController {
                     .success(true)
                     .message("Driving License Verifiable Credential issued successfully")
                     .data(response)
+                    .timestamp(java.time.Instant.now())
                     .build();
 
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
@@ -308,6 +362,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
                     .success(false)
                     .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 
@@ -315,6 +370,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
                     .success(false)
                     .message("Failed to issue Driving License Verifiable Credential")
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
@@ -339,6 +395,7 @@ public class VerifiableCredentialController {
                     .success(true)
                     .message("Vehicle category descriptions retrieved successfully")
                     .data(categories)
+                    .timestamp(java.time.Instant.now())
                     .build();
 
             return ResponseEntity.ok(apiResponse);
@@ -347,6 +404,7 @@ public class VerifiableCredentialController {
             ApiResponseDto<Map<String, String>> errorResponse = ApiResponseDto.<Map<String, String>>builder()
                     .success(false)
                     .message("Failed to retrieve vehicle category descriptions")
+                    .timestamp(java.time.Instant.now())
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
