@@ -47,6 +47,8 @@ public class VerifiableCredentialService {
     private final CitizenUserRepository userRepository;
     private final IPFSContentRepository ipfsContentRepository;
     private final PresentationRequestRepository presentationRequestRepository;
+    private final WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
+    private final WalletRepository walletRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -62,7 +64,9 @@ public class VerifiableCredentialService {
             CredentialClaimsMapper claimsMapper,
             OrganizationUserService organizationUserService,
             OrganizationUserRepository organizationUserRepository,
-            PresentationRequestRepository presentationRequestRepository
+            PresentationRequestRepository presentationRequestRepository,
+            WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
+            WalletRepository walletRepository
     ) {
         this.hyperledgerService = hyperledgerService;
         this.cryptographyService = cryptographyService;
@@ -77,6 +81,8 @@ public class VerifiableCredentialService {
         this.organizationUserService = organizationUserService;
         this.organizationUserRepository = organizationUserRepository;
         this.presentationRequestRepository = presentationRequestRepository;
+        this.walletVerifiableCredentialRepository = walletVerifiableCredentialRepository;
+        this.walletRepository = walletRepository;
     }
 
     public VCIssuedResponseDto issueIdentityVC(IssueVCRequestDto request, String userName) {
@@ -569,9 +575,8 @@ public class VerifiableCredentialService {
 
             // Validate citizen and existing identity VC
             String citizenDid = presentationRequest.getHolderDid();
-            String did = "did:sludi:" + citizenDid;
 
-            CitizenUser citizen = userRepository.findByAnyHash(null, null, HashUtil.sha256(did));
+            CitizenUser citizen = userRepository.findByAnyHash(null, null, HashUtil.sha256(citizenDid));
 
             if (citizen == null) {
                 log.error("User not found for DID: {}", citizenDid);
@@ -584,7 +589,7 @@ public class VerifiableCredentialService {
             // Check for existing driving license
             if (
                     verifiableCredentialRepository.findBySubjectDidAndCredentialType(
-                            did, CredentialsType.DRIVING_LICENSE.toString()).isPresent()
+                            citizenDid, CredentialsType.DRIVING_LICENSE.toString()).isPresent()
             ) {
                 throw new SludiException(ErrorCodes.DRIVING_LICENSE_ALREADY_EXISTS);
             }
@@ -622,7 +627,7 @@ public class VerifiableCredentialService {
                     CredentialSignatureRequestDto.builder()
                             .credentialId(credentialId)
                             .credentialType(CredentialsType.DRIVING_LICENSE.toString())
-                            .subjectDid(did)
+                            .subjectDid(citizenDid)
                             .signData(credentialSubjectHash)
                             .expirationDate(expireDate)
                             .build();
@@ -651,7 +656,40 @@ public class VerifiableCredentialService {
                     .credentialSubjectHash(result.getCredentialSubjectHash())
                     .build();
 
+            List<CredentialClaim> claimEntities = claims.entrySet().stream()
+                    .map(entry -> {
+                        try {
+                            String claimName = entry.getKey();
+                            String normalized = normalizeValue(entry.getValue());
+                            String claimHash = HashUtil.sha256(normalized);
+
+                            return CredentialClaim.builder()
+                                    .claimName(claimName)
+                                    .claimHash(claimHash)
+                                    .credential(vc)
+                                    .build();
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to hash claim: " + entry.getKey(), e);
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+            vc.setClaims(claimEntities);
+
             verifiableCredentialRepository.save(vc);
+
+            Wallet wallet = walletRepository.findByDidId(citizenDid)
+                    .orElseThrow(() -> new SludiException(ErrorCodes.WALLET_NOT_FOUND));
+
+            WalletVerifiableCredential walletVerifiableCredential = WalletVerifiableCredential.builder()
+                    .encryptedCredential(vc.getCredentialSubjectHash())
+                    .verifiableCredential(vc)
+                    .addedAt(LocalDateTime.now())
+                    .wallet(wallet)
+                    .verified(true)
+                    .build();
+
+            walletVerifiableCredentialRepository.save(walletVerifiableCredential);
 
             log.info("Driving license VC issued successfully. CredentialId: {}",
                     result.getId());
@@ -955,7 +993,7 @@ public class VerifiableCredentialService {
             PresentationRequest presentationRequest,
             String licenseNumber,
             String issueDate,
-            String expiryDate) {
+            String expiryDate) throws JsonProcessingException {
 
         Map<String, Object> attrs = presentationRequest.getSharedAttributes();
 
@@ -963,13 +1001,22 @@ public class VerifiableCredentialService {
             throw new SludiException(ErrorCodes.ATTRIBUTE_MISSING);
         }
 
-        String fullName = (String) attrs.get("full_name");
-        String nic = (String) attrs.get("nic");
+        String fullName = String.valueOf(attrs.get("full_name"));
+        String nic = String.valueOf(attrs.get("nic"));
         String dob = attrs.get("dob") != null ? attrs.get("dob").toString() : null;
-        String bloodGroup = (String) attrs.get("blood_group");
-        String did = (String) attrs.get("did");
-        String profilePhoto = (String) attrs.get("profile_photo");
-        String address = (String) attrs.get("address");
+        String bloodGroup = String.valueOf(attrs.get("blood_group"));
+        String did = String.valueOf(attrs.get("did"));
+
+        Object profilePhotoObj = attrs.get("profile_photo");
+        String profilePhoto = profilePhotoObj instanceof String
+                ? (String) profilePhotoObj
+                : objectMapper.writeValueAsString(profilePhotoObj);
+
+        Object addressObj = attrs.get("address");
+        String address = addressObj instanceof String
+                ? (String) addressObj
+                : objectMapper.writeValueAsString(addressObj);
+
 
         // Map vehicle categories from request
         List<VehicleCategory> authorizedVehicles = request.getVehicleCategories().stream()
@@ -1021,12 +1068,19 @@ public class VerifiableCredentialService {
      * Map VehicleCategoryRequestDto to VehicleCategory for credential subject
      */
     private VehicleCategory mapToVehicleCategory(VehicleCategoryRequestDto dto) {
-        return VehicleCategory.builder()
+
+        VehicleCategory category = VehicleCategory.builder()
                 .category(dto.getCategory().toUpperCase())
                 .validFrom(dto.getValidFrom() != null ? dto.getValidFrom().toString() : LocalDate.now().toString())
-                .validUntil(dto.getValidUntil().toString())
                 .restrictions(dto.getRestrictions())
                 .build();
+
+        LocalDate validUntil = dto.getValidUntil() != null
+                ? dto.getValidUntil()
+                : LocalDate.now().plusYears(5);
+        category.setValidUntil(validUntil.toString());
+
+        return category;
     }
 
     private CredentialIssuanceRequestDto buildIssuanceRequest(

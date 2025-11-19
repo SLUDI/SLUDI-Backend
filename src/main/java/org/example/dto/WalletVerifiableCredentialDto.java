@@ -13,7 +13,8 @@ public class WalletVerifiableCredentialDto {
     private String issuanceDate;
     private String expirationDate;
     private String credentialId;
-    private CredentialSubject credentialSubject;
+    private String credentialType;
+    private Object credentialSubject;
 
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;

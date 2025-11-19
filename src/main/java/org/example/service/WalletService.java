@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.CredentialsType;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
 import org.example.integration.IPFSIntegration;
@@ -220,11 +221,27 @@ public class WalletService {
             // Decrypt VCs in stores wallet
             List<WalletVerifiableCredentialDto> walletVerifiableCredentialDtos = new ArrayList<>();
 
-            for (WalletVerifiableCredential walletVerifiableCredential : walletVerifiableCredentialList) {
-                String credentialSubjectJson = cryptoService.decryptData(walletVerifiableCredential.getEncryptedCredential());
-                CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
+            for (WalletVerifiableCredential walletVC : walletVerifiableCredentialList) {
 
-                ProofData proofData = walletVerifiableCredential.getVerifiableCredential().getProof();
+                VerifiableCredential vc = walletVC.getVerifiableCredential();
+
+                // Decrypt stored subject JSON
+                String decryptedJson = cryptoService.decryptData(walletVC.getEncryptedCredential());
+
+                Object subjectObj;
+
+                // Decide type based on credentialType
+                if (vc.getCredentialType().equals(CredentialsType.IDENTITY.toString())) {
+                    subjectObj = objectMapper.readValue(decryptedJson, CredentialSubject.class);
+                }
+                else if (vc.getCredentialType().equals(CredentialsType.DRIVING_LICENSE.toString())) {
+                    subjectObj = objectMapper.readValue(decryptedJson, DrivingLicenseCredentialSubject.class);
+                }
+                else {
+                    subjectObj = decryptedJson;
+                }
+
+                ProofData proofData = vc.getProof();
                 ProofDataDto proofDataDto = ProofDataDto.builder()
                         .proofType(proofData.getProofType())
                         .created(proofData.getCreated())
@@ -233,18 +250,19 @@ public class WalletService {
                         .signatureValue(proofData.getSignatureValue())
                         .build();
 
-                WalletVerifiableCredentialDto walletVerifiableCredentialDto = WalletVerifiableCredentialDto.builder()
-                        .issuanceDate(walletVerifiableCredential.getVerifiableCredential().getIssuanceDate())
-                        .expirationDate(walletVerifiableCredential.getVerifiableCredential().getExpirationDate())
-                        .credentialId(walletVerifiableCredential.getVerifiableCredential().getId())
-                        .status(walletVerifiableCredential.getVerifiableCredential().getStatus())
-                        .credentialSubject(credentialSubject)
+                WalletVerifiableCredentialDto dto = WalletVerifiableCredentialDto.builder()
+                        .issuanceDate(vc.getIssuanceDate())
+                        .expirationDate(vc.getExpirationDate())
+                        .credentialId(vc.getId())
+                        .credentialType(vc.getCredentialType())
+                        .status(vc.getStatus())
+                        .credentialSubject(subjectObj)
                         .proof(proofDataDto)
-                        .blockchainTxId(walletVerifiableCredential.getVerifiableCredential().getBlockchainTxId())
-                        .blockNumber(walletVerifiableCredential.getVerifiableCredential().getBlockNumber())
+                        .blockchainTxId(vc.getBlockchainTxId())
+                        .blockNumber(vc.getBlockNumber())
                         .build();
 
-                walletVerifiableCredentialDtos.add(walletVerifiableCredentialDto);
+                walletVerifiableCredentialDtos.add(dto);
             }
 
             // pdate last accessed timestamp
