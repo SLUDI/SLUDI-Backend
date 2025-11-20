@@ -39,14 +39,12 @@ public class VerifiableCredentialController {
      * Issue Identity VC
      * POST /api/vc/identity/credential
      */
-    @PostMapping(value = "/identity/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/identity/credential/{did}")
     @Operation(
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> createVCIdentity(
-            @RequestParam("did") @Valid String did,
-            @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
-            @RequestParam(value = "documentTypes", required = false) List<String> documentTypes) {
+            @PathVariable("did") @Valid String did) {
 
         log.info("Received request to issue identity VC for DID: {}", did);
 
@@ -55,26 +53,12 @@ public class VerifiableCredentialController {
 
             IssueVCRequestDto issueVCRequestDto = IssueVCRequestDto.builder()
                     .did(did)
-                    .credentialType(CredentialsType.IDENTITY.toString())
+                    .credentialType(CredentialsType.IDENTITY.name())
                     .build();
 
             // Attach uploaded files to DTO
-            if (files != null && !files.isEmpty()) {
-                List<SupportingDocumentRequestDto> docs = new ArrayList<>();
-                for (int i = 0; i < files.size(); i++) {
-                    MultipartFile file = files.get(i);
-                    String docType = (documentTypes != null && documentTypes.size() > i)
-                            ? documentTypes.get(i)
-                            : "UNKNOWN";
-
-                    docs.add(SupportingDocumentRequestDto.builder()
-                            .name(file.getOriginalFilename())
-                            .type(docType) // e.g., NIC, Birth Certificate
-                            .file(file)
-                            .build());
-                }
-                issueVCRequestDto.setSupportingDocuments(docs);
-            }
+            List<SupportingDocumentRequestDto> docs = new ArrayList<>();
+            issueVCRequestDto.setSupportingDocuments(docs);
 
             VCIssuedResponseDto response = verifiableCredentialService.issueIdentityVC(issueVCRequestDto, userName);
 
@@ -409,6 +393,41 @@ public class VerifiableCredentialController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+    /**
+     * Get driving license stats
+     * GET /api/vc/driving-license/stats
+     */
+    @GetMapping("/driving-license/stats")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<DrivingLicenseStatsResponse>> getDrivingLicenseStats() {
+
+        log.info("Received request to get driving license stats");
+
+        try {
+            DrivingLicenseStatsResponse stats = verifiableCredentialService.getDrivingLicenseStats();
+
+            ApiResponseDto<DrivingLicenseStatsResponse> apiResponse = ApiResponseDto.<DrivingLicenseStatsResponse>builder()
+                    .success(true)
+                    .message("Vehicle category descriptions retrieved successfully")
+                    .data(stats)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<DrivingLicenseStatsResponse> errorResponse = ApiResponseDto.<DrivingLicenseStatsResponse>builder()
+                    .success(false)
+                    .message("Failed to retrieve vehicle category descriptions")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
     // Helper method to get current authenticated username
     private String getCurrentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

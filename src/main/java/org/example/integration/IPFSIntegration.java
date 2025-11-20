@@ -2,6 +2,7 @@ package org.example.integration;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
@@ -27,9 +28,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 @Service
+@Slf4j
 public class IPFSIntegration {
-
-    private static final Logger LOGGER = Logger.getLogger(IPFSIntegration.class.getName());
 
     @Value("${ipfs.api.host}")
     private String ipfsHost;
@@ -68,7 +68,7 @@ public class IPFSIntegration {
     @PostConstruct
     public void initialize() {
         try {
-            LOGGER.info("Initializing IPFS service with host: " + ipfsHost + ":" + ipfsPort);
+            log.info("Initializing IPFS service with host: {}:{}", ipfsHost, ipfsPort);
 
             ipfs = new IPFS(ipfsHost, ipfsPort);
             hashPathCache = new ConcurrentHashMap<>();
@@ -77,10 +77,10 @@ public class IPFSIntegration {
             // Test IPFS connection
             testConnection();
 
-            LOGGER.info("IPFS service initialized successfully");
+            log.info("IPFS service initialized successfully");
 
         } catch (Exception e) {
-            LOGGER.severe("Failed to initialize IPFS service: " + e.getMessage());
+            log.error("Failed to initialize IPFS service: {}", e.getMessage());
             throw new SludiException(ErrorCodes.IPFS_INITIALIZATION_FAILED, e);
         }
     }
@@ -93,10 +93,10 @@ public class IPFSIntegration {
         try {
             if (ipfs != null) {
                 // Cleanup any resources if needed
-                LOGGER.info("IPFS service cleanup completed");
+                log.info("IPFS service cleanup completed");
             }
         } catch (Exception e) {
-            LOGGER.warning("Error during IPFS cleanup: " + e.getMessage());
+            log.error("Error during IPFS cleanup: {}", e.getMessage());
         }
     }
 
@@ -195,37 +195,50 @@ public class IPFSIntegration {
      * @return IPFS hash of the stored biometric data
      * @throws SludiException if storage fails or encryption fails
      */
-    public String storeBiometricData(String userId, String biometricType, byte[] biometricData) {
+    public String storeBiometricData(String userId, String biometricType, String biometricData) {
         try {
-            LOGGER.info("Storing biometric data for user: " + userId + ", type: " + biometricType);
+            log.info("Storing biometric data for user: {}, type: {}", userId, biometricType);
 
             // Create metadata
             BiometricMetadata metadata = BiometricMetadata.builder()
                     .userId(userId)
                     .biometricType(biometricType)
                     .timestamp(System.currentTimeMillis())
-                    .originalSize(biometricData.length)
                     .encrypted(encryptionEnabled)
                     .build();
 
-            // Encrypt biometric data if encryption is enabled
-            byte[] processedData = encryptionEnabled ?
-                    cryptographyService.encryptBiometricData(biometricData) : biometricData;
+            // RAW input → bytes
+            byte[] rawDataBytes = biometricData.getBytes(StandardCharsets.UTF_8);
 
-            // Create container with metadata and data
+            // Compute checksum on RAW data only
+            String checksum = generateChecksum(rawDataBytes);
+
+            // Encrypt if enabled
+            byte[] dataToStore;
+            if (encryptionEnabled) {
+                dataToStore = cryptographyService.encryptBiometricData(rawDataBytes);
+            } else {
+                dataToStore = rawDataBytes;
+            }
+
+            // Convert to Base64 for JSON storage
+            String dataBase64 = Base64.getEncoder().encodeToString(dataToStore);
+
+            // Create container
             BiometricContainer container = BiometricContainer.builder()
                     .metadata(metadata)
-                    .data(Base64.getEncoder().encodeToString(processedData))
-                    .checksum(generateChecksum(biometricData))
+                    .data(dataBase64)
+                    .checksum(checksum)
                     .build();
 
-            // Store container as JSON
+            // Store JSON file in IPFS
             String path = String.format("biometric/users/%s/%s/data_%d.json",
                     userId, biometricType, System.currentTimeMillis());
 
             return storeJsonData(path, container);
 
         } catch (Exception e) {
+            log.error("Failed storing biometric data", e);
             throw new SludiException(ErrorCodes.BIOMETRIC_STORAGE_FAILED, e);
         }
     }
@@ -239,7 +252,7 @@ public class IPFSIntegration {
      */
     public byte[] retrieveBiometricData(String ipfsHash, String expectedUserId) {
         try {
-            LOGGER.info("Retrieving biometric data from hash: " + ipfsHash);
+            log.info("Retrieving biometric data from hash: {}", ipfsHash);
 
             // Retrieve container
             BiometricContainer container = retrieveJsonData(ipfsHash, BiometricContainer.class);
@@ -262,7 +275,7 @@ public class IPFSIntegration {
                 throw new SludiException(ErrorCodes.DATA_INTEGRITY_FAILED);
             }
 
-            LOGGER.info("Successfully retrieved and verified biometric data");
+            log.info("Successfully retrieved and verified biometric data");
             return originalData;
 
         } catch (Exception e) {
@@ -284,7 +297,7 @@ public class IPFSIntegration {
                                                    byte[] documentData, String fileName,
                                                    String mimeType) {
         try {
-            LOGGER.info("Storing document for user: " + userId + ", type: " + documentType);
+            log.info("Storing document for user: {}, type: {}", userId, documentType);
 
             // Create document metadata
             DocumentMetadata metadata = DocumentMetadata.builder()
@@ -342,7 +355,7 @@ public class IPFSIntegration {
     public DocumentRetrievalResult retrieveUserDocument(String documentHash, String metadataHash,
                                                         String expectedUserId) {
         try {
-            LOGGER.info("Retrieving document with hash: " + documentHash);
+            log.info("Retrieving document with hash: {}", documentHash);
 
             // Retrieve metadata first
             DocumentMetadata metadata = retrieveJsonData(metadataHash, DocumentMetadata.class);
@@ -394,7 +407,7 @@ public class IPFSIntegration {
                         results.put(entry.getKey(), hash);
                     }
                 } catch (Exception e) {
-                    LOGGER.warning("Failed to store file in batch: " + entry.getKey());
+                    log.error("Failed to store file in batch: {}", entry.getKey());
                     synchronized (results) {
                         results.put(entry.getKey(), "ERROR: " + e.getMessage());
                     }
@@ -429,7 +442,7 @@ public class IPFSIntegration {
                         results.put(hash, data);
                     }
                 } catch (Exception e) {
-                    LOGGER.warning("Failed to retrieve file in batch: " + hash);
+                    log.error("Failed to retrieve file in batch: {}", hash);
                     synchronized (results) {
                         results.put(hash, null);
                     }
@@ -457,10 +470,10 @@ public class IPFSIntegration {
             if (pinningEnabled) {
                 Multihash multihash = Multihash.fromBase58(ipfsHash);
                 ipfs.pin.add(multihash);
-                LOGGER.info("Pinned file: " + ipfsHash);
+                log.info("Pinned file: {}", ipfsHash);
             }
         } catch (Exception e) {
-            LOGGER.warning("Failed to pin file: " + ipfsHash + " - " + e.getMessage());
+            log.error("Failed to pin file: {} - {}", ipfsHash, e.getMessage());
         }
     }
 
@@ -472,9 +485,9 @@ public class IPFSIntegration {
         try {
             Multihash multihash = Multihash.fromBase58(ipfsHash);
             ipfs.pin.rm(multihash);
-            LOGGER.info("Unpinned file: " + ipfsHash);
+            log.info("Unpinned file: {}", ipfsHash);
         } catch (Exception e) {
-            LOGGER.warning("Failed to unpin file: " + ipfsHash + " - " + e.getMessage());
+            log.error("Failed to unpin file: {} - {}", ipfsHash, e.getMessage());
         }
     }
 
@@ -496,7 +509,7 @@ public class IPFSIntegration {
                     .build();
 
         } catch (Exception e) {
-            LOGGER.warning("Failed to get file info: " + ipfsHash + " -> " + e.getMessage());
+            log.error("Failed to get file info: {} -> {}", ipfsHash, e.getMessage());
             return IPFSFileInfo.builder()
                     .hash(ipfsHash)
                     .exists(false)
@@ -535,7 +548,7 @@ public class IPFSIntegration {
      */
     private String storeFileWithRetry(String path, byte[] content, int attemptsLeft) {
         try {
-            LOGGER.info("Storing file: " + path + " (size: " + content.length + " bytes)");
+            log.info("Storing file: {} (size: {} bytes)", path, content.length);
 
             // Create named streamable for the content
             NamedStreamable.ByteArrayWrapper wrapper =
@@ -559,12 +572,12 @@ public class IPFSIntegration {
                 pinFile(hash);
             }
 
-            LOGGER.info("Successfully stored file: " + path + " with hash: " + hash);
+            log.info("Successfully stored file: {} with hash: {}", path, hash);
             return hash;
 
         } catch (Exception e) {
             if (attemptsLeft > 1) {
-                LOGGER.warning("Failed to store file, retrying. Attempts left: " + (attemptsLeft - 1));
+                log.error("Failed to store file, retrying. Attempts left: {}", attemptsLeft - 1);
                 try {
                     Thread.sleep(1000); // Wait 1 second before retry
                 } catch (InterruptedException ie) {
@@ -572,7 +585,7 @@ public class IPFSIntegration {
                 }
                 return storeFileWithRetry(path, content, attemptsLeft - 1);
             } else {
-                LOGGER.severe("Failed to store file after all retry attempts: " + path);
+                log.error("Failed to store file after all retry attempts: {}", path);
                 throw new SludiException(ErrorCodes.IPFS_STORAGE_FAILED,
                         "Failed to store file in IPFS: " + path, e);
             }
@@ -587,7 +600,7 @@ public class IPFSIntegration {
      */
     private byte[] retrieveFileWithRetry(String ipfsHash, int attemptsLeft) {
         try {
-            LOGGER.info("Retrieving file with hash: " + ipfsHash);
+            log.info("Retrieving file with hash: {}", ipfsHash);
 
             Multihash multihash = Multihash.fromBase58(ipfsHash);
             byte[] content = ipfs.cat(multihash);
@@ -596,12 +609,12 @@ public class IPFSIntegration {
                 throw new SludiException(ErrorCodes.IPFS_FILE_NOT_FOUND, ipfsHash);
             }
 
-            LOGGER.info("Successfully retrieved file: " + ipfsHash + " (size: " + content.length + " bytes)");
+            log.info("Successfully retrieved file: {} (size: {} bytes)", ipfsHash, content.length);
             return content;
 
         } catch (Exception e) {
             if (attemptsLeft > 1) {
-                LOGGER.warning("Failed to retrieve file, retrying. Attempts left: " + (attemptsLeft - 1));
+                log.error("Failed to retrieve file, retrying. Attempts left: {}", attemptsLeft - 1);
                 try {
                     Thread.sleep(1000); // Wait 1 second before retry
                 } catch (InterruptedException ie) {
@@ -609,7 +622,7 @@ public class IPFSIntegration {
                 }
                 return retrieveFileWithRetry(ipfsHash, attemptsLeft - 1);
             } else {
-                LOGGER.severe("Failed to retrieve file after all retry attempts: " + ipfsHash);
+                log.error("Failed to retrieve file after all retry attempts: {}", ipfsHash);
                 throw new SludiException(ErrorCodes.IPFS_RETRIEVAL_FAILED, ipfsHash, e);
             }
         }
@@ -621,7 +634,7 @@ public class IPFSIntegration {
     private void testConnection() {
         try {
             Map<String, Object> nodeInfo = ipfs.id();
-            LOGGER.info("IPFS connection successful. Node ID: " + nodeInfo.get("ID"));
+            log.info("IPFS connection successful. Node ID: {}", nodeInfo.get("ID"));
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.IPFS_CONNECTION_FAILED,
                     "Failed to connect to IPFS node", e);

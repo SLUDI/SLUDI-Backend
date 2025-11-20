@@ -13,6 +13,5 @@ public class BiometricMetadata {
     private String userId;
     private String biometricType;
     private long timestamp;
-    private int originalSize;
     private boolean encrypted;
 }

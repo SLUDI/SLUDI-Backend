@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
 import org.example.enums.CredentialsType;
+import org.example.enums.PresentationStatus;
 import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
@@ -336,7 +337,7 @@ public class VerifiableCredentialService {
                             "profilePhoto"
                     ))
                     .purpose("Driving License Issuance")
-                    .status("PENDING")
+                    .status(PresentationStatus.PENDING.name())
                     .createdAt(LocalDateTime.now())
                     .expiresAt(LocalDateTime.now().plusMinutes(15))
                     .createdBy(officer.getUsername())
@@ -383,13 +384,13 @@ public class VerifiableCredentialService {
 
             // Check if expired
             if (request.getExpiresAt().isBefore(LocalDateTime.now())) {
-                request.setStatus("EXPIRED");
+                request.setStatus(PresentationStatus.EXPIRED.name());
                 presentationRequestRepository.save(request);
                 throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_EXPIRED);
             }
 
             // Check if already fulfilled
-            if ("FULFILLED".equals(request.getStatus())) {
+            if (PresentationStatus.FULFILLED.name().equals(request.getStatus())) {
                 throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_ALREADY_FULFILLED);
             }
 
@@ -431,7 +432,7 @@ public class VerifiableCredentialService {
                 throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_EXPIRED);
             }
 
-            if ("FULFILLED".equals(request.getStatus())) {
+            if (PresentationStatus.FULFILLED.name().equals(request.getStatus())) {
                 throw new SludiException(ErrorCodes.PRESENTATION_REQUEST_ALREADY_FULFILLED);
             }
 
@@ -469,7 +470,7 @@ public class VerifiableCredentialService {
             verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
 
             // Store presentation data
-            request.setStatus("FULFILLED");
+            request.setStatus(PresentationStatus.FULFILLED.name());
             request.setFulfilledAt(LocalDateTime.now());
             request.setHolderDid(vpDto.getHolder());
             request.setSharedAttributes(vpDto.getAttributes());
@@ -502,7 +503,7 @@ public class VerifiableCredentialService {
                     .findBySessionId(sessionId)
                     .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
 
-            boolean canProceed = "FULFILLED".equals(request.getStatus()) ||
+            boolean canProceed = PresentationStatus.FULFILLED.name().equals(request.getStatus()) ||
                     "COMPLETED".equals(request.getStatus());
 
             Map<String, Object> sharedAttributes = Collections.emptyMap();
@@ -569,7 +570,7 @@ public class VerifiableCredentialService {
                     .findBySessionId(request.getSessionId())
                     .orElseThrow(() -> new SludiException(ErrorCodes.PRESENTATION_REQUEST_NOT_FOUND));
 
-            if (!"FULFILLED".equals(presentationRequest.getStatus())) {
+            if (!PresentationStatus.FULFILLED.name().equals(presentationRequest.getStatus())) {
                 throw new SludiException(ErrorCodes.PRESENTATION_NOT_FULFILLED);
             }
 
@@ -616,8 +617,11 @@ public class VerifiableCredentialService {
                     cryptographyService.encryptData(credentialSubjectJson);
 
             // Generate credential ID
-            String credentialId = String.format("credential:%s:%s:%s",CredentialsType.DRIVING_LICENSE,
-                    citizenDid , drivingLicenseNumber);
+            String credentialId = String.format(
+                    "credential:%s:%s",
+                    CredentialsType.DRIVING_LICENSE.name().toLowerCase(),
+                    drivingLicenseNumber
+            );
 
             // Convert to claims and create proof
             Map<String, Object> claims =
@@ -691,6 +695,9 @@ public class VerifiableCredentialService {
 
             walletVerifiableCredentialRepository.save(walletVerifiableCredential);
 
+            presentationRequest.setStatus(PresentationStatus.COMPLETED.name());
+            presentationRequestRepository.save(presentationRequest);
+
             log.info("Driving license VC issued successfully. CredentialId: {}",
                     result.getId());
 
@@ -741,6 +748,51 @@ public class VerifiableCredentialService {
         categories.put("K", "Mowing machine or pedestrian controlled vehicle");
 
         return categories;
+    }
+
+    public DrivingLicenseStatsResponse getDrivingLicenseStats() {
+
+        // Load all driving license credentials
+        List<VerifiableCredential> licenses =
+                verifiableCredentialRepository.getAllByCredentialType(CredentialsType.DRIVING_LICENSE.name());
+
+        int total = licenses.size();
+
+        int active = (int) licenses.stream()
+                .filter(vc -> "active".equalsIgnoreCase(vc.getStatus()))
+                .count();
+
+        int deactivated = (int) licenses.stream()
+                .filter(vc ->
+                        "deactivated".equalsIgnoreCase(vc.getStatus()) ||
+                                "revoked".equalsIgnoreCase(vc.getStatus())
+                )
+                .count();
+
+        // Expire within next 30 days
+        LocalDate today = LocalDate.now();
+        LocalDate soon = today.plusDays(30);
+
+        int expireSoon = (int) licenses.stream()
+                .map(VerifiableCredential::getExpirationDate)
+                .filter(Objects::nonNull)
+                .map(dateStr -> {
+                    try {
+                        return LocalDate.parse(dateStr); // expects YYYY-MM-DD
+                    } catch (Exception e) {
+                        return null; // invalid date format skip
+                    }
+                })
+                .filter(Objects::nonNull)
+                .filter(exp -> exp.isAfter(today) && exp.isBefore(soon))
+                .count();
+
+        return DrivingLicenseStatsResponse.builder()
+                .totalDrivingLicense(total)
+                .activeDrivingLicense(active)
+                .deactivateDrivingLicense(deactivated)
+                .expireSoon(expireSoon)
+                .build();
     }
 
     /**
@@ -1001,13 +1053,13 @@ public class VerifiableCredentialService {
             throw new SludiException(ErrorCodes.ATTRIBUTE_MISSING);
         }
 
-        String fullName = String.valueOf(attrs.get("full_name"));
+        String fullName = String.valueOf(attrs.get("fullName"));
         String nic = String.valueOf(attrs.get("nic"));
         String dob = attrs.get("dob") != null ? attrs.get("dob").toString() : null;
-        String bloodGroup = String.valueOf(attrs.get("blood_group"));
-        String did = String.valueOf(attrs.get("did"));
+        String bloodGroup = String.valueOf(attrs.get("bloodGroup"));
+        String id = String.valueOf(attrs.get("id"));
 
-        Object profilePhotoObj = attrs.get("profile_photo");
+        Object profilePhotoObj = attrs.get("profilePhoto");
         String profilePhoto = profilePhotoObj instanceof String
                 ? (String) profilePhotoObj
                 : objectMapper.writeValueAsString(profilePhotoObj);
@@ -1024,7 +1076,7 @@ public class VerifiableCredentialService {
                 .collect(Collectors.toList());
 
         return DrivingLicenseCredentialSubject.builder()
-                .id(did)
+                .id(id)
                 .fullName(fullName)
                 .nic(nic)
                 .dateOfBirth(dob)

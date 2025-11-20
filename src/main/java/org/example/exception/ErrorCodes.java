@@ -128,6 +128,7 @@ public enum ErrorCodes {
     REQUIRED_DOCUMENT_MISSING("3038", "Required document are missing"),
     DRIVING_LICENSE_ALREADY_EXISTS("3039", "Driving license already exists"),
     FAILED_TO_ISSUE_DRIVING_LICENSE_VC("3040", "Failed to issued driving license verifiable credential"),
+    UNKNOWN_CREDENTIAL_TYPE("3041", "Unknown credential type "),
     
     // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),

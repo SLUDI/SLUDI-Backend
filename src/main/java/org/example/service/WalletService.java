@@ -215,34 +215,21 @@ public class WalletService {
             Wallet wallet = walletRepository.findByDidId(did)
                     .orElseThrow(() -> new SludiException(ErrorCodes.WALLET_NOT_FOUND));
 
-            // Get All Wallet VerifiableCredential
-            List<WalletVerifiableCredential> walletVerifiableCredentialList = walletVerifiableCredentialRepository.findAllByWallet(wallet);
+            // Get all stored wallet verifiable credentials
+            List<WalletVerifiableCredential> walletVCList =
+                    walletVerifiableCredentialRepository.findAllByWallet(wallet);
 
-            // Decrypt VCs in stores wallet
-            List<WalletVerifiableCredentialDto> walletVerifiableCredentialDtos = new ArrayList<>();
+            List<WalletVerifiableCredentialDto> vcDtoList = new ArrayList<>();
 
-            for (WalletVerifiableCredential walletVC : walletVerifiableCredentialList) {
+            for (WalletVerifiableCredential walletVC : walletVCList) {
 
                 VerifiableCredential vc = walletVC.getVerifiableCredential();
-
-                // Decrypt stored subject JSON
                 String decryptedJson = cryptoService.decryptData(walletVC.getEncryptedCredential());
 
-                Object subjectObj;
-
-                // Decide type based on credentialType
-                if (vc.getCredentialType().equals(CredentialsType.IDENTITY.toString())) {
-                    subjectObj = objectMapper.readValue(decryptedJson, CredentialSubject.class);
-                }
-                else if (vc.getCredentialType().equals(CredentialsType.DRIVING_LICENSE.toString())) {
-                    subjectObj = objectMapper.readValue(decryptedJson, DrivingLicenseCredentialSubject.class);
-                }
-                else {
-                    subjectObj = decryptedJson;
-                }
+                Object subjectObj = mapSubject(vc.getCredentialType(), decryptedJson);
 
                 ProofData proofData = vc.getProof();
-                ProofDataDto proofDataDto = ProofDataDto.builder()
+                ProofDataDto proofDto = ProofDataDto.builder()
                         .proofType(proofData.getProofType())
                         .created(proofData.getCreated())
                         .creator(proofData.getCreator())
@@ -257,31 +244,28 @@ public class WalletService {
                         .credentialType(vc.getCredentialType())
                         .status(vc.getStatus())
                         .credentialSubject(subjectObj)
-                        .proof(proofDataDto)
+                        .proof(proofDto)
                         .blockchainTxId(vc.getBlockchainTxId())
                         .blockNumber(vc.getBlockNumber())
                         .build();
 
-                walletVerifiableCredentialDtos.add(dto);
+                vcDtoList.add(dto);
             }
 
-            // pdate last accessed timestamp
+            // Update last accessed
             wallet.setLastAccessed(LocalDateTime.now());
             walletRepository.save(wallet);
 
-            // Build and return WalletDto
             return WalletDto.builder()
                     .id(wallet.getId())
                     .citizenUserId(String.valueOf(wallet.getCitizenUser().getId()))
-                    .walletVerifiableCredentials(walletVerifiableCredentialDtos)
                     .didId(wallet.getDidId())
+                    .walletVerifiableCredentials(vcDtoList)
                     .build();
 
         } catch (SludiException e) {
-            // Pass through known exceptions
             throw e;
         } catch (Exception e) {
-            // Wrap all other exceptions
             throw new SludiException(ErrorCodes.WALLET_RETRIEVAL_FAILED, e);
         }
     }
@@ -352,6 +336,18 @@ public class WalletService {
             walletVerifiableCredentialRepository.save(walletVerifiableCredential);
         }
         walletRepository.save(wallet);
+    }
+
+    private Object mapSubject(String credentialType, String decryptedJson) throws Exception {
+        if (credentialType.equals(CredentialsType.IDENTITY.toString())) {
+            return objectMapper.readValue(decryptedJson, CredentialSubject.class);
+        }
+        else if (credentialType.equals(CredentialsType.DRIVING_LICENSE.toString())) {
+            return objectMapper.readValue(decryptedJson, DrivingLicenseCredentialSubject.class);
+        }
+        else {
+            throw new SludiException(ErrorCodes.UNKNOWN_CREDENTIAL_TYPE);
+        }
     }
 
 }

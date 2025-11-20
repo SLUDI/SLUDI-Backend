@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.CredentialsType;
 import org.example.enums.ProofPurpose;
 import org.example.enums.UserStatus;
 import org.example.exception.ErrorCodes;
@@ -352,70 +353,6 @@ public class DIDDocumentService {
         if (!nic.matches("\\d{12}") && !nic.matches("\\d{9}[VX]")) {
             throw new SludiException(ErrorCodes.INVALID_NIC, "Invalid NIC format");
         }
-    }
-
-    private BiometricVerificationResult verifyBiometricAuthenticity(BiometricDataDto biometric) {
-        // AI deepfake detection for face image
-        if (biometric.getFaceImage() != null) {
-            AIDetectionResult faceResult = aiIntegration.detectDeepfake(biometric.getFaceImage(), "face");
-            if (!faceResult.isAuthentic()) {
-                return BiometricVerificationResult.failed("Face image failed deepfake detection");
-            }
-        }
-
-        // Liveness detection for fingerprint
-        if (biometric.getFingerprint() != null) {
-            AIDetectionResult fingerprintResult = aiIntegration.performLivenessCheck(biometric.getFingerprint(), "fingerprint");
-            if (!fingerprintResult.isAuthentic()) {
-                return BiometricVerificationResult.failed("Fingerprint failed liveness detection");
-            }
-        }
-
-        return BiometricVerificationResult.success();
-    }
-
-
-    private CompletableFuture<BiometricIPFSHashes> storeBiometricDataAsync(UUID userId, BiometricDataDto biometric) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // Store fingerprint
-                String fingerprintPath = String.format("biometric/users/%s/fingerprint/fingerprint.jpg", userId);
-                String fingerprintHash = ipfsIntegration.storeBiometricData(
-                        userId.toString(), "fingerprint", biometric.getFingerprint()
-                );
-
-                // Store face image
-                String facePath = String.format("biometric/users/%s/face/face_image.jpg", userId);
-                String faceHash = ipfsIntegration.storeBiometricData(
-                        userId.toString(), "face", biometric.getFaceImage()
-                );
-
-                // Store signature if provided
-                String signatureHash = null;
-                if (biometric.getSignature() != null) {
-                    String signaturePath = String.format("biometric/users/%s/signature/signature.png", userId);
-                    signatureHash = ipfsIntegration.storeBiometricData(
-                            userId.toString(), "fingerprint", biometric.getSignature()
-                    );
-                }
-
-                // Record IPFS content metadata
-                recordIPFSContent(userId, fingerprintHash, "biometric", "fingerprint", "image/jpeg");
-                recordIPFSContent(userId, faceHash, "biometric", "face", "image/jpeg");
-                if (signatureHash != null) {
-                    recordIPFSContent(userId, signatureHash, "biometric", "signature", "image/png");
-                }
-
-                return BiometricIPFSHashes.builder()
-                        .fingerprintHash(fingerprintHash)
-                        .faceImageHash(faceHash)
-                        .signatureHash(signatureHash)
-                        .build();
-
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to store biometric data: " + e.getMessage(), e);
-            }
-        });
     }
 
     private void recordIPFSContent(UUID userId, String ipfsHash, String category, String subcategory, String mimeType) {
