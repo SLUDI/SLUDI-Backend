@@ -82,7 +82,7 @@ services:
       # Org1 Configuration
       FABRIC_ORG1_MSP_ID: Org1MSP
       FABRIC_ORG1_CHANNEL_NAME: sludi-channel
-      FABRIC_ORG1_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_ORG1_CHAINCODE_NAME: sludiChaincode
       FABRIC_ORG1_PEER_ENDPOINT: peer0.org1.example.com:7051
       FABRIC_ORG1_ORDERER_ENDPOINT: orderer.example.com:7050
       FABRIC_ORG1_CA_ENDPOINT: 192.168.8.100:7054
@@ -90,7 +90,7 @@ services:
       # Org2 Configuration
       FABRIC_ORG2_MSP_ID: Org2MSP
       FABRIC_ORG2_CHANNEL_NAME: sludi-channel
-      FABRIC_ORG2_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_ORG2_CHAINCODE_NAME: sludiChaincode
       FABRIC_ORG2_PEER_ENDPOINT: peer0.org2.example.com:9051
       FABRIC_ORG2_ORDERER_ENDPOINT: orderer.example.com:7050
       FABRIC_ORG2_CA_ENDPOINT: 192.168.8.100:8054
@@ -98,7 +98,7 @@ services:
       # ==== Fabric (Injected via mounted volume) ====
       FABRIC_MSP_ID: Org1MSP
       FABRIC_CHANNEL_NAME: sludi-channel
-      FABRIC_CHAINCODE_NAME: sludi-Chaincode
+      FABRIC_CHAINCODE_NAME: sludiChaincode
       FABRIC_CRYPTO_PATH: /organizations/peerOrganizations/org1.example.com
       FABRIC_PEER_ENDPOINT: peer0.org1.example.com:7051
       FABRIC_OVERRIDE_AUTH: peer0.org1.example.com

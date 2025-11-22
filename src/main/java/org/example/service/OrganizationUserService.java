@@ -308,7 +308,7 @@ public class OrganizationUserService {
     }
 
     /**
-     * Register user with Fabric CA (Node.js style with proper affiliation)
+     * Register user with Fabric CA
      */
     private String registerUserWithCA(OrganizationUser user, String mspId, String orgShortName) throws Exception {
         log.info("Registering user with Fabric CA: {} for MSP: {}", user.getUsername(), mspId);
@@ -318,7 +318,7 @@ public class OrganizationUserService {
         User adminUser = fabricCAService.getAdminUser(mspId);
 
         // The admin's affiliation must match for authorization to work
-        String affiliation = adminUser.getAffiliation();
+        String affiliation = "";
 
         log.info("Using affiliation: {} (from admin user)", affiliation);
 
@@ -330,10 +330,13 @@ public class OrganizationUserService {
         registrationRequest.setType("client");
         registrationRequest.setMaxEnrollments(-1); // Unlimited re-enrollment
 
+        String requestedAffiliation = orgShortName + ".department1";
+
         // Add attributes for certificate
         registrationRequest.addAttribute(new Attribute("role", user.getAssignedRole().getRoleCode(), true));
         registrationRequest.addAttribute(new Attribute("orgCode", user.getOrganization().getOrgCode(), true));
         registrationRequest.addAttribute(new Attribute("email", user.getEmail(), true));
+        registrationRequest.addAttribute(new Attribute("requestedAffiliation", requestedAffiliation, false));
 
         try {
             // Register user and get enrollment secret
@@ -349,7 +352,7 @@ public class OrganizationUserService {
     }
 
     /**
-     * Enroll user to get X.509 certificate (Node.js style)
+     * Enroll user to get X.509 certificate
      */
     private Enrollment enrollUserWithCA(String fabricUserId, String secret, String mspId) throws Exception {
         log.info("Enrolling user to get certificate: {}", fabricUserId);
