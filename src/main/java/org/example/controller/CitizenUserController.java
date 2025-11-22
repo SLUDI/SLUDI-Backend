@@ -1,6 +1,8 @@
 package org.example.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -63,6 +65,7 @@ public class CitizenUserController {
             @Valid @RequestParam("os") String os,
             @Valid @RequestParam("ipAddress") String ipAddress,
             @Valid @RequestParam("location") String location,
+            @RequestParam(value = "profilePhoto") MultipartFile profilePhoto,
             @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
             @RequestParam(value = "documentTypes") List<String> documentTypes,
             @RequestParam(value = "documentSides") List<String> documentSides) {
@@ -89,6 +92,7 @@ public class CitizenUserController {
                     .nationality(nationality)
                     .bloodGroup(bloodGroup)
                     .address(addressDto)
+                    .profilePhoto(profilePhoto)
                     .build();
 
             ContactInfoDto contactInfoDto = ContactInfoDto.builder()
@@ -180,6 +184,9 @@ public class CitizenUserController {
      * GET /api/citizen-user/profile
      */
     @GetMapping("/profile")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<GetCitizenUserProfileResponseDto>> getUserProfile(
             @RequestParam("id") UUID id,
             @RequestParam("deviceId") String deviceId,
@@ -232,6 +239,9 @@ public class CitizenUserController {
      * GET /api/citizen-user/profiles
      */
     @GetMapping("/profiles")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<List<GetCitizenUserProfileResponseDto>>> getAllUserProfiles() {
         log.info("Received request to fetch all citizen user profiles");
 
@@ -281,6 +291,9 @@ public class CitizenUserController {
      * GET /api/citizen-user/{id}/supporting-documents
      */
     @GetMapping("/{id}/supporting-documents")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<List<GetSupportingDocumentResponseDto>>> getSupportingDocuments(
             @PathVariable("id") UUID id) {
 
@@ -330,15 +343,16 @@ public class CitizenUserController {
 
     /**
      * Upload profile photo
-     * POST /api/citizen-user/{did}/profile-photo
+     * POST /api/citizen-user/{id}/profile-photo
      */
-    @PostMapping(value = "/{did}/profile-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{id}/profile-photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<Map<String, String>>> uploadProfilePhoto(
-            @PathVariable String did,
+            @PathVariable UUID id,
             @RequestParam("photo") MultipartFile photo) {
         try {
-
-            String id = "did:sludi:" + did;
             // Validate file type and size
             validateImageFile(photo);
 
@@ -372,16 +386,17 @@ public class CitizenUserController {
 
     /**
      * Update user profile information
-     * PUT /api/did/{did}/profile
+     * PUT /api/citizen-user/{id}/profile
      */
-    @PutMapping("/{did}/profile")
+    @PutMapping("/{id}/profile")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<GetCitizenUserProfileResponseDto>> updateUserProfile(
-            @PathVariable String did,
+            @PathVariable UUID id,
             @Valid @RequestBody CitizenUserProfileUpdateRequestDto request) {
 
         try {
-            String id = "did:sludi:" + did;
-
             GetCitizenUserProfileResponseDto response = citizenUserService.updateUserProfile(id, request);
 
             return ResponseEntity.ok(ApiResponseDto.<GetCitizenUserProfileResponseDto>builder()
@@ -413,16 +428,18 @@ public class CitizenUserController {
 
     /**
      * Upload additional documents
-     * POST /api/did/{did}/documents
+     * POST /api/citizen-user/{id}/documents
      */
-    @PostMapping(value = "/{did}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> uploadDocuments(
-            @PathVariable String did,
+            @PathVariable UUID id,
             @Valid @RequestParam(value = "supportingDocuments") List<MultipartFile> files,
             @Valid @RequestParam(value = "documentTypes") List<String> documentTypes){
 
         try {
-            String id = "did:sludi:" + did;
 
             // Attach uploaded files to DTO
             List<SupportingDocumentRequestDto> docs = new ArrayList<>();
@@ -469,6 +486,46 @@ public class CitizenUserController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.<Map<String, Object>>builder()
+                            .success(false)
+                            .message("Failed to upload documents")
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build());
+        }
+    }
+
+    /**
+     * Upload additional documents
+     * POST /api/citizen-user/save-biometric
+     */
+    @PostMapping("/save-biometric")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<String>> saveBiometricData(
+            @RequestBody CitizenBiometricRequestDto request) {
+
+        try{
+            citizenUserService.saveBiometricData(request);
+
+            return ResponseEntity.ok(ApiResponseDto.<String>builder()
+                    .success(true)
+                    .message("Documents uploaded successfully")
+                    .timestamp(java.time.Instant.now())
+                    .build());
+
+        } catch (SludiException e) {
+            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                    .body(ApiResponseDto.<String>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .errorCode(e.getErrorCode())
+                            .timestamp(Instant.now())
+                            .build());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<String>builder()
                             .success(false)
                             .message("Failed to upload documents")
                             .errorCode("INTERNAL_ERROR")

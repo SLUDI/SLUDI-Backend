@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
 import org.example.entity.*;
+import org.example.enums.CredentialsType;
 import org.example.exception.ErrorCodes;
 import org.example.exception.SludiException;
+import org.example.integration.IPFSIntegration;
 import org.example.repository.*;
 import org.example.security.CryptographyService;
 import org.example.security.CitizenUserJwtService;
@@ -35,6 +37,7 @@ public class WalletService {
     private final VerifiableCredentialRepository verifiableCredentialRepository;
     private final StringRedisTemplate redisTemplate;
     private final CitizenUserJwtService citizenUserJwtService;
+    private final IPFSIntegration ipfsIntegration;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +52,8 @@ public class WalletService {
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
             VerifiableCredentialRepository verifiableCredentialRepository,
             StringRedisTemplate redisTemplate,
-            CitizenUserJwtService citizenUserJwtService
+            CitizenUserJwtService citizenUserJwtService,
+            IPFSIntegration ipfsIntegration
     ) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
@@ -63,6 +67,7 @@ public class WalletService {
         this.verifiableCredentialRepository = verifiableCredentialRepository;
         this.redisTemplate = redisTemplate;
         this.citizenUserJwtService = citizenUserJwtService;
+        this.ipfsIntegration = ipfsIntegration;
     }
 
     /**
@@ -210,18 +215,21 @@ public class WalletService {
             Wallet wallet = walletRepository.findByDidId(did)
                     .orElseThrow(() -> new SludiException(ErrorCodes.WALLET_NOT_FOUND));
 
-            // Get All Wallet VerifiableCredential
-            List<WalletVerifiableCredential> walletVerifiableCredentialList = walletVerifiableCredentialRepository.findAllByWallet(wallet);
+            // Get all stored wallet verifiable credentials
+            List<WalletVerifiableCredential> walletVCList =
+                    walletVerifiableCredentialRepository.findAllByWallet(wallet);
 
-            // Decrypt VCs in stores wallet
-            List<WalletVerifiableCredentialDto> walletVerifiableCredentialDtos = new ArrayList<>();
+            List<WalletVerifiableCredentialDto> vcDtoList = new ArrayList<>();
 
-            for (WalletVerifiableCredential walletVerifiableCredential : walletVerifiableCredentialList) {
-                String credentialSubjectJson = cryptoService.decryptData(walletVerifiableCredential.getEncryptedCredential());
-                CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
+            for (WalletVerifiableCredential walletVC : walletVCList) {
 
-                ProofData proofData = walletVerifiableCredential.getVerifiableCredential().getProof();
-                ProofDataDto proofDataDto = ProofDataDto.builder()
+                VerifiableCredential vc = walletVC.getVerifiableCredential();
+                String decryptedJson = cryptoService.decryptData(walletVC.getEncryptedCredential());
+
+                Object subjectObj = mapSubject(vc.getCredentialType(), decryptedJson);
+
+                ProofData proofData = vc.getProof();
+                ProofDataDto proofDto = ProofDataDto.builder()
                         .proofType(proofData.getProofType())
                         .created(proofData.getCreated())
                         .creator(proofData.getCreator())
@@ -229,38 +237,45 @@ public class WalletService {
                         .signatureValue(proofData.getSignatureValue())
                         .build();
 
-                WalletVerifiableCredentialDto walletVerifiableCredentialDto = WalletVerifiableCredentialDto.builder()
-                        .issuanceDate(walletVerifiableCredential.getVerifiableCredential().getIssuanceDate())
-                        .expirationDate(walletVerifiableCredential.getVerifiableCredential().getExpirationDate())
-                        .status(walletVerifiableCredential.getVerifiableCredential().getStatus())
-                        .credentialSubject(credentialSubject)
-                        .proof(proofDataDto)
-                        .blockchainTxId(walletVerifiableCredential.getVerifiableCredential().getBlockchainTxId())
-                        .blockNumber(walletVerifiableCredential.getVerifiableCredential().getBlockNumber())
+                WalletVerifiableCredentialDto dto = WalletVerifiableCredentialDto.builder()
+                        .issuanceDate(vc.getIssuanceDate())
+                        .expirationDate(vc.getExpirationDate())
+                        .credentialId(vc.getId())
+                        .credentialType(vc.getCredentialType())
+                        .status(vc.getStatus())
+                        .credentialSubject(subjectObj)
+                        .proof(proofDto)
+                        .blockchainTxId(vc.getBlockchainTxId())
+                        .blockNumber(vc.getBlockNumber())
                         .build();
 
-                walletVerifiableCredentialDtos.add(walletVerifiableCredentialDto);
+                vcDtoList.add(dto);
             }
 
-            // pdate last accessed timestamp
+            // Update last accessed
             wallet.setLastAccessed(LocalDateTime.now());
             walletRepository.save(wallet);
 
-            // Build and return WalletDto
             return WalletDto.builder()
                     .id(wallet.getId())
                     .citizenUserId(String.valueOf(wallet.getCitizenUser().getId()))
-                    .walletVerifiableCredentials(walletVerifiableCredentialDtos)
                     .didId(wallet.getDidId())
+                    .walletVerifiableCredentials(vcDtoList)
                     .build();
 
         } catch (SludiException e) {
-            // Pass through known exceptions
             throw e;
         } catch (Exception e) {
-            // Wrap all other exceptions
             throw new SludiException(ErrorCodes.WALLET_RETRIEVAL_FAILED, e);
         }
+    }
+
+    public byte[] getProfilePhoto(String cid) {
+        byte[] data = ipfsIntegration.retrieveFile(cid);
+        if (data == null || data.length == 0) {
+            throw new SludiException(ErrorCodes.FILE_READ_ERROR, "No data found for CID: " + cid);
+        }
+        return data;
     }
 
     private void validateWalletCreationInputs(String did, String publicKeyStr) {
@@ -321,6 +336,18 @@ public class WalletService {
             walletVerifiableCredentialRepository.save(walletVerifiableCredential);
         }
         walletRepository.save(wallet);
+    }
+
+    private Object mapSubject(String credentialType, String decryptedJson) throws Exception {
+        if (credentialType.equals(CredentialsType.IDENTITY.toString())) {
+            return objectMapper.readValue(decryptedJson, CredentialSubject.class);
+        }
+        else if (credentialType.equals(CredentialsType.DRIVING_LICENSE.toString())) {
+            return objectMapper.readValue(decryptedJson, DrivingLicenseCredentialSubject.class);
+        }
+        else {
+            throw new SludiException(ErrorCodes.UNKNOWN_CREDENTIAL_TYPE);
+        }
     }
 
 }

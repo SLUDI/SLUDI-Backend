@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -38,14 +39,12 @@ public class VerifiableCredentialController {
      * Issue Identity VC
      * POST /api/vc/identity/credential
      */
-    @PostMapping(value = "/identity/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/identity/credential/{did}")
     @Operation(
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
     public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> createVCIdentity(
-            @RequestParam("did") @Valid String did,
-            @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
-            @RequestParam(value = "documentTypes", required = false) List<String> documentTypes) {
+            @PathVariable("did") @Valid String did) {
 
         log.info("Received request to issue identity VC for DID: {}", did);
 
@@ -54,26 +53,12 @@ public class VerifiableCredentialController {
 
             IssueVCRequestDto issueVCRequestDto = IssueVCRequestDto.builder()
                     .did(did)
-                    .credentialType(CredentialsType.IDENTITY.toString())
+                    .credentialType(CredentialsType.IDENTITY.name())
                     .build();
 
             // Attach uploaded files to DTO
-            if (files != null && !files.isEmpty()) {
-                List<SupportingDocumentRequestDto> docs = new ArrayList<>();
-                for (int i = 0; i < files.size(); i++) {
-                    MultipartFile file = files.get(i);
-                    String docType = (documentTypes != null && documentTypes.size() > i)
-                            ? documentTypes.get(i)
-                            : "UNKNOWN";
-
-                    docs.add(SupportingDocumentRequestDto.builder()
-                            .name(file.getOriginalFilename())
-                            .type(docType) // e.g., NIC, Birth Certificate
-                            .file(file)
-                            .build());
-                }
-                issueVCRequestDto.setSupportingDocuments(docs);
-            }
+            List<SupportingDocumentRequestDto> docs = new ArrayList<>();
+            issueVCRequestDto.setSupportingDocuments(docs);
 
             VCIssuedResponseDto response = verifiableCredentialService.issueIdentityVC(issueVCRequestDto, userName);
 
@@ -96,108 +81,6 @@ public class VerifiableCredentialController {
             ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
                     .success(false)
                     .message("Failed to issue Identity Verifiable Credential")
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
-    /**
-     * Issue Driving License VC
-     * POST /api/vc/driving-license/credential
-     */
-    @PostMapping(value = "/driving-license/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(
-            security = {@SecurityRequirement(name = "bearerAuth")}
-    )
-    public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> createVCDrivingLicense(
-            @RequestParam("did") @Valid String did,
-            @RequestParam("issuingAuthority") @Valid String issuingAuthority,
-            @RequestParam("restrictions") @Valid String restrictions,
-            @RequestParam("endorsements") @Valid String endorsements,
-            @RequestParam("validityYears") @Valid Integer validityYears,
-            @RequestParam("medicalCheckDate") @Valid LocalDate medicalCheckDate,
-            @RequestParam(value = "categoriesList") @Valid List<String> category,
-            @RequestParam(value = "descriptionList") @Valid List<String> description,
-            @RequestParam(value = "validFromList") @Valid List<String> validFrom,
-            @RequestParam(value = "validUntilList") @Valid List<String> validUntil,
-            @RequestParam(value = "vehicleRestrictionsList") @Valid List<String> vehicleRestrictions,
-            @RequestParam(value = "supportingDocuments") @Valid List<MultipartFile> files,
-            @RequestParam(value = "documentTypes") @Valid List<String> documentTypes,
-            @RequestParam(value = "documentSides") @Valid List<String> documentSides) {
-
-        try {
-            String userName = getCurrentUsername();
-
-            log.info("Received request to issue driving license VC for DID: {} by: {}", did, userName);
-
-            IssueDrivingLicenseVCRequestDto issueVCRequestDto = IssueDrivingLicenseVCRequestDto.builder()
-                    .did(did)
-                    .issuingAuthority(issuingAuthority)
-                    .restrictions(restrictions)
-                    .endorsements(endorsements)
-                    .validityYears(validityYears)
-                    .medicalCheckDate(medicalCheckDate)
-                    .build();
-            // Vehicle Category Mapping
-            List<VehicleCategoryRequestDto> vehicleCategoryRequestDtos = new ArrayList<>();
-            for (int i = 0; i < category.size(); i++) {
-                VehicleCategoryRequestDto dto = new VehicleCategoryRequestDto();
-                dto.setCategory(category.get(i));
-                dto.setDescription(description.size() > i ? description.get(i) : null);
-
-                // Convert date strings safely
-                dto.setValidFrom(validFrom.size() > i ? LocalDate.parse(validFrom.get(i)) : null);
-                dto.setValidUntil(validUntil.size() > i ? LocalDate.parse(validUntil.get(i)) : null);
-                dto.setRestrictions(vehicleRestrictions.size() > i ? vehicleRestrictions.get(i) : null);
-
-                vehicleCategoryRequestDtos.add(dto);
-            }
-            issueVCRequestDto.setVehicleCategories(vehicleCategoryRequestDtos);
-
-            // Attach uploaded files to DTO
-            if (files != null && !files.isEmpty()) {
-                List<SupportingDocumentRequestDto> docs = new ArrayList<>();
-                for (int i = 0; i < files.size(); i++) {
-                    MultipartFile file = files.get(i);
-                    String docType = (documentTypes != null && documentTypes.size() > i)
-                            ? documentTypes.get(i)
-                            : "UNKNOWN";
-
-                    String docSide = (documentSides != null && documentSides.size() > i)
-                            ? documentSides.get(i)
-                            : "UNKNOWN";
-
-                    docs.add(SupportingDocumentRequestDto.builder()
-                            .name(file.getOriginalFilename())
-                            .type(docType) // e.g., NIC, Birth Certificate
-                            .side(docSide)    // FRONT, BACK
-                            .file(file)
-                            .build());
-                }
-                issueVCRequestDto.setSupportingDocuments(docs);
-            }
-
-            VCIssuedResponseDto response = verifiableCredentialService.issueDrivingLicenseVC(issueVCRequestDto, userName);
-
-            ApiResponseDto<VCIssuedResponseDto> apiResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
-                    .success(true)
-                    .message("Driving License Verifiable Credential issued successfully")
-                    .data(response)
-                    .build();
-
-            return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
-
-        } catch (SludiException e) {
-            ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-
-        } catch (Exception e) {
-            ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
-                    .success(false)
-                    .message("Failed to issue Driving License Verifiable Credential")
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
@@ -244,6 +127,304 @@ public class VerifiableCredentialController {
                             .errorCode("INTERNAL_ERROR")
                             .timestamp(java.time.Instant.now())
                             .build());
+        }
+    }
+
+    /**
+     * Initiate Driving License Request
+     * POST /api/vc/driving-license/request
+     */
+    @PostMapping("/driving-license/request")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<DrivingLicenseRequestResponseDto>> initiateDrivingLicenseRequest() {
+
+        log.info("Received request to initiate driving license request");
+
+        try {
+            String userName = getCurrentUsername();
+            DrivingLicenseRequestResponseDto response = verifiableCredentialService.initiateDrivingLicenseRequest(userName);
+
+            ApiResponseDto<DrivingLicenseRequestResponseDto> apiResponse = ApiResponseDto.<DrivingLicenseRequestResponseDto>builder()
+                    .success(true)
+                    .message("Driving license request initiated successfully")
+                    .data(response)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<DrivingLicenseRequestResponseDto> errorResponse = ApiResponseDto.<DrivingLicenseRequestResponseDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<DrivingLicenseRequestResponseDto> errorResponse = ApiResponseDto.<DrivingLicenseRequestResponseDto>builder()
+                    .success(false)
+                    .message("Failed to initiate driving license request")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Check Presentation Status (called by officer dashboard)
+     * GET /api/vc/driving-license/status/{sessionId}
+     */
+    @GetMapping("/driving-license/status/{sessionId}")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<PresentationStatusDto>> checkPresentationStatus(
+            @PathVariable String sessionId) {
+
+        log.info("Received request to check presentation status for sessionId: {}", sessionId);
+
+        try {
+            PresentationStatusDto status = verifiableCredentialService.checkPresentationStatus(sessionId);
+
+            ApiResponseDto<PresentationStatusDto> apiResponse = ApiResponseDto.<PresentationStatusDto>builder()
+                    .success(true)
+                    .message("Presentation status retrieved successfully")
+                    .data(status)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<PresentationStatusDto> errorResponse = ApiResponseDto.<PresentationStatusDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<PresentationStatusDto> errorResponse = ApiResponseDto.<PresentationStatusDto>builder()
+                    .success(false)
+                    .message("Failed to check presentation status")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get All License Presentation Requests
+     * GET /api/vc/driving-license/request/all
+     */
+    @GetMapping("/driving-license/request/all")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<List<PresentationRequestResponseDto>>> getAllLicenseRequests() {
+
+        log.info("Received request to fetch all license presentation requests");
+
+        try {
+            List<PresentationRequestResponseDto> requests = verifiableCredentialService.getAllLicenseRequest();
+
+            ApiResponseDto<List<PresentationRequestResponseDto>> apiResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(true)
+                            .message("License presentation requests retrieved successfully")
+                            .data(requests)
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<List<PresentationRequestResponseDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<List<PresentationRequestResponseDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestResponseDto>>builder()
+                            .success(false)
+                            .message("Failed to retrieve license presentation requests")
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Issue Driving License VC
+     * POST /api/vc/driving-license/credential
+     */
+    @PostMapping(value = "/driving-license/credential", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<VCIssuedResponseDto>> issueDrivingLicenseVC(
+            @RequestParam("sessionId") @Valid String sessionId,
+            @RequestParam("validityYears") @Valid int validityYears,
+            @RequestParam(value = "issuingAuthority", required = false) String issuingAuthority,
+            @RequestParam(value = "restrictions", required = false) List<String> restrictions,
+            @RequestParam(value = "endorsements", required = false) List<String> endorsements,
+            @RequestParam("vehicleCategories") @Valid List<String> vehicleCategories,
+            @RequestParam(value = "categoryValidFrom", required = false) List<String> categoryValidFrom,
+            @RequestParam(value = "categoryValidUntil", required = false) List<String> categoryValidUntil,
+            @RequestParam(value = "categoryRestrictions", required = false) List<String> categoryRestrictions,
+            @RequestParam(value = "supportingDocuments", required = false) List<MultipartFile> files,
+            @RequestParam(value = "documentTypes", required = false) List<String> documentTypes) {
+
+        log.info("Received request to issue driving license VC for sessionId: {}", sessionId);
+
+        try {
+            String userName = getCurrentUsername();
+
+            // Build vehicle category DTOs
+            List<VehicleCategoryRequestDto> vehicleCategoryDtos = new ArrayList<>();
+            for (int i = 0; i < vehicleCategories.size(); i++) {
+                VehicleCategoryRequestDto categoryDto = VehicleCategoryRequestDto.builder()
+                        .category(vehicleCategories.get(i))
+                        .validFrom(categoryValidFrom != null && categoryValidFrom.size() > i ?
+                                LocalDate.parse(categoryValidFrom.get(i)) : null)
+                        .validUntil(categoryValidUntil != null && categoryValidUntil.size() > i ?
+                                LocalDate.parse(categoryValidUntil.get(i)) : null)
+                        .restrictions(categoryRestrictions != null && categoryRestrictions.size() > i ?
+                                categoryRestrictions.get(i) : null)
+                        .build();
+                vehicleCategoryDtos.add(categoryDto);
+            }
+
+            // Attach uploaded files to DTO
+            List<SupportingDocumentRequestDto> docs = new ArrayList<>();
+            if (files != null && !files.isEmpty()) {
+                for (int i = 0; i < files.size(); i++) {
+                    MultipartFile file = files.get(i);
+                    String docType = (documentTypes != null && documentTypes.size() > i)
+                            ? documentTypes.get(i)
+                            : "UNKNOWN";
+
+                    docs.add(SupportingDocumentRequestDto.builder()
+                            .name(file.getOriginalFilename())
+                            .type(docType) // e.g., Test Certificate, Medical Report
+                            .file(file)
+                            .build());
+                }
+            }
+
+            IssueDrivingLicenseVCRequestDto request = IssueDrivingLicenseVCRequestDto.builder()
+                    .sessionId(sessionId)
+                    .validityYears(validityYears)
+                    .issuingAuthority(issuingAuthority)
+                    .restrictions(restrictions)
+                    .endorsements(endorsements)
+                    .vehicleCategories(vehicleCategoryDtos)
+                    .supportingDocuments(docs)
+                    .build();
+
+            VCIssuedResponseDto response = verifiableCredentialService.issueDrivingLicenseVC(request, userName);
+
+            ApiResponseDto<VCIssuedResponseDto> apiResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
+                    .success(true)
+                    .message("Driving License Verifiable Credential issued successfully")
+                    .data(response)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
+
+        } catch (SludiException e) {
+            ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<VCIssuedResponseDto> errorResponse = ApiResponseDto.<VCIssuedResponseDto>builder()
+                    .success(false)
+                    .message("Failed to issue Driving License Verifiable Credential")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get Vehicle Category Descriptions
+     * GET /api/vc/driving-license/vehicle-categories
+     */
+    @GetMapping("/driving-license/vehicle-categories")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<Map<String, String>>> getVehicleCategoryDescriptions() {
+
+        log.info("Received request to get vehicle category descriptions");
+
+        try {
+            Map<String, String> categories = verifiableCredentialService.getVehicleCategoryDescriptions();
+
+            ApiResponseDto<Map<String, String>> apiResponse = ApiResponseDto.<Map<String, String>>builder()
+                    .success(true)
+                    .message("Vehicle category descriptions retrieved successfully")
+                    .data(categories)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<Map<String, String>> errorResponse = ApiResponseDto.<Map<String, String>>builder()
+                    .success(false)
+                    .message("Failed to retrieve vehicle category descriptions")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get driving license stats
+     * GET /api/vc/driving-license/stats
+     */
+    @GetMapping("/driving-license/stats")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<DrivingLicenseStatsResponse>> getDrivingLicenseStats() {
+
+        log.info("Received request to get driving license stats");
+
+        try {
+            DrivingLicenseStatsResponse stats = verifiableCredentialService.getDrivingLicenseStats();
+
+            ApiResponseDto<DrivingLicenseStatsResponse> apiResponse = ApiResponseDto.<DrivingLicenseStatsResponse>builder()
+                    .success(true)
+                    .message("Vehicle category descriptions retrieved successfully")
+                    .data(stats)
+                    .timestamp(java.time.Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (Exception e) {
+            ApiResponseDto<DrivingLicenseStatsResponse> errorResponse = ApiResponseDto.<DrivingLicenseStatsResponse>builder()
+                    .success(false)
+                    .message("Failed to retrieve vehicle category descriptions")
+                    .timestamp(java.time.Instant.now())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 

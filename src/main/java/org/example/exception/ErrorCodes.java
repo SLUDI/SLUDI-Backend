@@ -68,6 +68,23 @@ public enum ErrorCodes {
     FABRIC_CONFIG_NOT_FOUND("2047","Fabric config not found for MSP: "),
     BLOCKCHAIN_ENROLMENT_FAILED("2048", "Blockchain enrollment failed: "),
     BLOCKCHAIN_USER_REGISTRATION_FAILED("2049", "Blockchain user registration failed"),
+    FAILED_TO_INITIATE_LICENSE_REQUEST("2050", "Failed to initiate license request"),
+    PRESENTATION_REQUEST_NOT_FOUND("2051", "Presentation request not found"),
+    PRESENTATION_REQUEST_EXPIRED("2052", "Presentation request expired"),
+    PRESENTATION_REQUEST_ALREADY_FULFILLED("2053", "Presentation request already fulfilled"),
+    FAILED_TO_RETRIEVE_PRESENTATION_REQUEST("2054", "Failed to retrieve presentation request"),
+    INVALID_VP_SIGNATURE("2055", "Invalid VP signature"),
+    INVALID_DID_OWNERSHIP("2056", "Invalid DID ownership proof"),
+    INVALID_CREDENTIAL_IN_VP("2057", "Invalid or untrusted credential in VP"),
+    FAILED_TO_PROCESS_VP("2058", "Failed to process verifiable presentation"),
+    VP_ATTRIBUTES_MISSING("2059", "VerifiablePresentation attributes are missing"),
+    ATTRIBUTE_MISSING("2060", "Missing requested attributes"),
+    INVALID_VP_ATTRIBUTES("2061", "No attributes shared in VP"),
+    FAILED_TO_CHECK_STATUS("2062", "Failed to check presentation status"),
+    PRESENTATION_NOT_FULFILLED("2063", "Citizen must first submit data via wallet"),
+    AGE_INFORMATION_MISSING("2064", "Age attribute is missing"),
+    INVALID_AGE_FORMAT("2065", "Invalid age format"),
+    FAILED_TO_GET_PRESENTATIONS("2066", "Failed to retrieve license requests:"),
 
     // Storage Errors (3000-3999)
     IPFS_STORAGE_ERROR("3000", "Failed to store data in IPFS"),
@@ -111,6 +128,7 @@ public enum ErrorCodes {
     REQUIRED_DOCUMENT_MISSING("3038", "Required document are missing"),
     DRIVING_LICENSE_ALREADY_EXISTS("3039", "Driving license already exists"),
     FAILED_TO_ISSUE_DRIVING_LICENSE_VC("3040", "Failed to issued driving license verifiable credential"),
+    UNKNOWN_CREDENTIAL_TYPE("3041", "Unknown credential type "),
     
     // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),

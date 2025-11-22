@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 
@@ -20,4 +21,5 @@ public class PersonalInfoDto {
     private String nationality;
     private String bloodGroup;
     private AddressDto address;
+    private MultipartFile profilePhoto;
 }

@@ -45,7 +45,8 @@ public class OrganizationJwtAuthenticationFilter extends OncePerRequestFilter {
         // Skip authentication for login and public endpoints
         String requestPath = request.getRequestURI();
         if (requestPath.contains("/api/organization-users/auth/login") ||
-                requestPath.contains("/api/organization-users/auth/refresh")) {
+                requestPath.contains("/api/organization-users/auth/refresh") ||
+                requestPath.contains("/api/citizen-user/register")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -114,6 +115,7 @@ public class OrganizationJwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         // Skip this filter for citizen user endpoints
         String path = request.getRequestURI();
-        return path.startsWith("/api/citizen-user") || path.startsWith("api/permission-template");
+        return path.startsWith("api/permission-template")
+                || path.startsWith("/api/wallet");
     }
 }

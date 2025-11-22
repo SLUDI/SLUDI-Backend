@@ -12,8 +12,9 @@ import lombok.NoArgsConstructor;
 public class WalletVerifiableCredentialDto {
     private String issuanceDate;
     private String expirationDate;
-    private String subjectDID;
-    private CredentialSubject credentialSubject;
+    private String credentialId;
+    private String credentialType;
+    private Object credentialSubject;
 
     private String status; // active, revoked, suspended, expired
     private ProofDataDto proof;

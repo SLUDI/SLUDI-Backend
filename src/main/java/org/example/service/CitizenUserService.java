@@ -87,6 +87,15 @@ public class CitizenUserService {
             user.setCreatedAt(LocalDateTime.now().toString());
             user.setUpdatedAt(LocalDateTime.now().toString());
 
+            String path = String.format("profile/users/%s/profile_photo.jpg", user.getId());
+            String hash = ipfsIntegration.storeFile(path, request.getPersonalInfo().getProfilePhoto().getBytes());
+
+            log.debug("Profile photo stored in IPFS for user {}. Hash: {}", user.getId(), hash);
+
+            recordIPFSContent(user.getId(), hash, "profile", "photo", "image/jpeg");
+
+            user.setProfilePhotoIpfsHash(hash);
+
             // Handle document uploads
             if (request.getSupportingDocuments() != null && !request.getSupportingDocuments().isEmpty()) {
                 log.info("Uploading {} supporting documents for NIC: {}",
@@ -137,21 +146,19 @@ public class CitizenUserService {
         }
     }
 
-
     /**
      * Uploads a profile photo to IPFS and links it to a CitizenUser by DID.
      *
-     * @param did User DID
+     * @param id User ID
      * @param profilePhoto Profile photo as MultipartFile
      */
-    public void citizenUserProfilePhotoUpload(String did, MultipartFile profilePhoto) {
+    public void citizenUserProfilePhotoUpload(UUID id, MultipartFile profilePhoto) {
 
-        CitizenUser citizenUser = Optional.ofNullable(
-                        citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did)))
-                .orElseThrow(() -> {
-                    log.warn("No user found with DID: {}", did);
-                    return new IllegalArgumentException("CitizenUser not found for DID: " + did);
-                });
+        CitizenUser citizenUser = citizenUserRepository.findById(id)
+                .orElseThrow(() -> new SludiException(
+                        ErrorCodes.USER_NOT_FOUND,
+                        "User not found with ID: " + id
+                ));
 
         storeProfilePhotoAsync(citizenUser.getId(), profilePhoto)
                 .thenAccept(hash -> {
@@ -161,7 +168,7 @@ public class CitizenUserService {
                             citizenUser.getId(), hash);
                 })
                 .exceptionally(ex -> {
-                    log.error("Async error while uploading profile photo for DID {}: {}", did, ex.getMessage(), ex);
+                    log.error("Async error while uploading profile photo for DID {}: {}", id, ex.getMessage(), ex);
                     return null;
                 });
     }
@@ -273,13 +280,16 @@ public class CitizenUserService {
     /**
      * Update user profile information
      */
-    public GetCitizenUserProfileResponseDto updateUserProfile(String did, CitizenUserProfileUpdateRequestDto request) {
+    public GetCitizenUserProfileResponseDto updateUserProfile(UUID id, CitizenUserProfileUpdateRequestDto request) {
         try {
-            CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
-
-            if(user == null) {
-                throw new SludiException(ErrorCodes.USER_NOT_FOUND);
-            }
+            CitizenUser user = citizenUserRepository.findById(id)
+                    .orElseThrow(() -> {
+                        log.warn("CitizenUser not found for ID: {}", id);
+                        return new SludiException(
+                                ErrorCodes.USER_NOT_FOUND,
+                                "User not found with ID: " + id
+                        );
+                    });
 
             // Validate update permissions
             if (!UserStatus.ACTIVE.equals(user.getStatus())) {
@@ -297,13 +307,35 @@ public class CitizenUserService {
 
             // Create audit log
             logUserActivity(user.getId(), "PROFILE_UPDATE", "Profile updated successfully", request.getDeviceInfo());
-            createAuditTrail(user.getId(), "update", "user", user.getId().toString(), oldValues, createAuditMap(user), "Profile update");
 
             return createUserProfileResponse(user);
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.USER_PROFILE_UPDATE_FAILED, e.getMessage(), e);
         }
+    }
+
+    public void saveBiometricData(CitizenBiometricRequestDto request) {
+        log.info("Saving biometric data for user {}", request.getUserId());
+
+        CitizenUser user = citizenUserRepository.findById(request.getUserId())
+                .orElseThrow(() -> new SludiException(
+                        ErrorCodes.USER_NOT_FOUND,
+                        "User not found with ID: " + request.getUserId()
+                ));
+
+        String faceEmbeddingHash = storeFaceEmbedding(request.getUserId().toString(), request.getFaceEmbedding());
+
+        String fingerprintHash = null;
+        if (request.getFingerprintBase64() != null) {
+            fingerprintHash = storeFingerprint(request.getUserId().toString(), request.getFingerprintBase64());
+        }
+
+        user.setFaceImageIpfsHash(faceEmbeddingHash);
+        user.setFingerprintIpfsHash(fingerprintHash);
+        user.setVerificationStatus(VerificationStatus.VERIFIED);
+
+        citizenUserRepository.save(user);
     }
 
     private void validateRegistrationRequest(CitizenUserRegistrationRequestDto request) {
@@ -609,9 +641,26 @@ public class CitizenUserService {
         return map;
     }
 
-    private void createAuditTrail(UUID userId, String actionType, String resourceType, String resourceId,
-                                  Map<String, Object> oldValues, Map<String, Object> newValues, String reason) {
-        // Implementation would create audit trail record
-        // This is a placeholder for the audit functionality
+    private String storeFaceEmbedding(String userId, List<Double> embedding) {
+        try {
+            String json = new ObjectMapper().writeValueAsString(embedding);
+            return ipfsIntegration.storeBiometricData(
+                    userId.toString(), "face", json
+            );
+        } catch (Exception ex) {
+            log.error("Failed to store face embedding for user {}", userId, ex);
+            throw new SludiException(ErrorCodes.IPFS_STORAGE_ERROR);
+        }
+    }
+
+    private String storeFingerprint(String userId, String fingerprintBase64) {
+        try {
+            return ipfsIntegration.storeBiometricData(
+                    userId.toString(), "fingerprint", fingerprintBase64
+            );
+        } catch (Exception ex) {
+            log.error("Failed to store fingerprint for user {}", userId, ex);
+            throw new SludiException(ErrorCodes.IPFS_STORAGE_ERROR);
+        }
     }
 }

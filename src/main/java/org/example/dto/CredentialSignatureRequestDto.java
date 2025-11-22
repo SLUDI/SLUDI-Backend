@@ -19,7 +19,7 @@ public class CredentialSignatureRequestDto {
 
     private String subjectDid; // DID of the credential subject (citizen)
 
-    private Map<String, Object> claims; // Credential claims/attributes
+    private String signData;
 
     private String expirationDate; // Optional expiration date (ISO 8601)
 }

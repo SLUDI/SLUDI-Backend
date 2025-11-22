@@ -138,7 +138,7 @@ public class CitizenUserJwtService {
     }
 
     /**
-     * Refresh access token using refresh token
+     * Refresh access token using refresh tokenMalformedJwtException
      */
     public String refreshAccessToken(String refreshToken, CitizenUser user) {
         try {

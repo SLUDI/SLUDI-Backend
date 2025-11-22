@@ -9,9 +9,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BiometricMetadata {
-    private String userId;
-    private String biometricType;
-    private long timestamp;
-    private boolean encrypted;
+public class VerifiablePresentationResponseDto {
+    private String sessionId;
+    private String status; // "VERIFIED", "INVALID"
+    private String message;
 }
