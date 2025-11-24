@@ -16,7 +16,7 @@ public enum ErrorCodes {
     INVALID_CURRENT_PASSWORD("1011", "Invalid current password"),
     NEW_PASSWORD_SAME_AS_OLD("1012", "New password same as the current password"),
     INSUFFICIENT_PERMISSIONS("1013", "User attempted to do operation without permission"),
-    
+
     // Data Processing Errors (2000-2999)
     ADDRESS_PARSE_ERROR("2000", "Failed to parse address data"),
     ADDRESS_CONVERSION_ERROR("2001", "Failed to convert address to JSON"),
@@ -45,12 +45,12 @@ public enum ErrorCodes {
     USER_ALREADY_HAS_DID("2024", "This user already has DID Document"),
     WALLET_EXISTS("2025", "This user already has wallet"),
     TEMPLATE_NOT_FOUND("2026", "Template not found"),
-    TEMPLATE_EXISTS_WITH_CODE("2027","Template is already exists"),
+    TEMPLATE_EXISTS_WITH_CODE("2027", "Template is already exists"),
     DUPLICATE_ORGANIZATION("2028", "Organization with registration number already exists"),
-    ORGANIZATION_NOT_FOUND("2029","Organization not found"),
-    INVALID_PERMISSION("2030","Cannot remove permission that doesn't exist in template"),
+    ORGANIZATION_NOT_FOUND("2029", "Organization not found"),
+    INVALID_PERMISSION("2030", "Cannot remove permission that doesn't exist in template"),
     ORGANIZATION_STATUS_ERROR("2031", "Current organization status does not support for operation"),
-    INVALID_STATUS_OPERATION("2032","Only pending status can be approved"),
+    INVALID_STATUS_OPERATION("2032", "Only pending status can be approved"),
     ORGANIZATION_NOT_ACTIVE("2033", "Organization is not active"),
     EMAIL_ALREADY_REGISTERED("2034", "Email already registered"),
     USER_NAME_ALREADY_TAKEN("2035", "Username already taken"),
@@ -65,7 +65,7 @@ public enum ErrorCodes {
     USER_ALREADY_SUSPEND("2044", "User is already suspended"),
     USER_IS_NOT_SUSPENDED("2045", "User is not suspended"),
     ACCOUNT_IS_NOT_ACTIVE("2046", "Account is not active"),
-    FABRIC_CONFIG_NOT_FOUND("2047","Fabric config not found for MSP: "),
+    FABRIC_CONFIG_NOT_FOUND("2047", "Fabric config not found for MSP: "),
     BLOCKCHAIN_ENROLMENT_FAILED("2048", "Blockchain enrollment failed: "),
     BLOCKCHAIN_USER_REGISTRATION_FAILED("2049", "Blockchain user registration failed"),
     FAILED_TO_INITIATE_LICENSE_REQUEST("2050", "Failed to initiate license request"),
@@ -129,7 +129,7 @@ public enum ErrorCodes {
     DRIVING_LICENSE_ALREADY_EXISTS("3039", "Driving license already exists"),
     FAILED_TO_ISSUE_DRIVING_LICENSE_VC("3040", "Failed to issued driving license verifiable credential"),
     UNKNOWN_CREDENTIAL_TYPE("3041", "Unknown credential type "),
-    
+
     // Validation Errors (4000-4999)
     INVALID_INPUT("4000", "Invalid input provided"),
     MISSING_REQUIRED_FIELD("4001", "Required field is missing"),
@@ -148,6 +148,13 @@ public enum ErrorCodes {
     DATE_UNAVAILABLE("4012", "The selected date is not available for booking"),
     INVALID_NONCE("4013", "Invalid NONCE"),
     SIGNATURE_FAILED("4014", "Signature verification failed"),
+
+    // Synchronization Errors (4500-4599)
+    SYNC_FAILED("4500", "Blockchain synchronization failed"),
+    SYNC_DID_FAILED("4501", "Failed to sync DID from blockchain"),
+    SYNC_CREDENTIAL_FAILED("4502", "Failed to sync credential from blockchain"),
+    SYNC_METADATA_UPDATE_FAILED("4503", "Failed to update sync metadata"),
+    SYNC_ENTITY_NOT_FOUND("4504", "Entity not found on blockchain for sync"),
 
     // Security Errors (5000-5999)
     HASH_GENERATION_FAILED("5000", "Failed to generate hash"),
