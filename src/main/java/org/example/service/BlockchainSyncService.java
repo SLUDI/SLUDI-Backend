@@ -212,15 +212,15 @@ public class BlockchainSyncService {
 
         try {
             // Get all credentials from blockchain
-            List<VCBlockChainResult> blockchainVCs = hyperledgerService.getAllCredentials();
+            List<VerifiableCredential> blockchainVCs = hyperledgerService.getAllCredentials();
 
             int syncedCount = 0;
             int failedCount = 0;
             List<SyncStatusDto> failedSyncs = new ArrayList<>();
 
-            for (VCBlockChainResult vcDto : blockchainVCs) {
+            for (VerifiableCredential vc : blockchainVCs) {
                 try {
-                    SyncStatusDto status = syncCredentialFromBlockchain(vcDto.getId());
+                    SyncStatusDto status = syncCredentialFromBlockchain(vc.getId());
                     if (SyncStatus.SYNCED.name().equals(status.getSyncStatus())) {
                         syncedCount++;
                     } else {
@@ -228,7 +228,7 @@ public class BlockchainSyncService {
                         failedSyncs.add(status);
                     }
                 } catch (Exception e) {
-                    log.error("Error syncing Credential {}: {}", vcDto.getId(), e.getMessage());
+                    log.error("Error syncing Credential {}: {}", vc.getId(), e.getMessage());
                     failedCount++;
                 }
             }
@@ -344,29 +344,39 @@ public class BlockchainSyncService {
      * Helper: Convert DIDDocumentDto to DIDDocument entity
      */
     private DIDDocument convertDIDDtoToEntity(DIDDocumentDto dto) {
+        // Convert ProofDataDto to ProofData
+        ProofData proofData = null;
+        if (dto.getProof() != null) {
+            proofData = ProofData.builder()
+                    .proofType(dto.getProof().getProofType())
+                    .created(dto.getProof().getCreated())
+                    .creator(dto.getProof().getCreator())
+                    .issuerDid(dto.getProof().getIssuerDid())
+                    .signatureValue(dto.getProof().getSignatureValue())
+                    .build();
+        }
+
         DIDDocument entity = DIDDocument.builder()
                 .id(dto.getId())
                 .didVersion(dto.getDidVersion())
                 .didCreated(dto.getDidCreated())
                 .didUpdated(dto.getDidUpdated())
                 .status(dto.getStatus())
-                .proof(dto.getProof())
+                .proof(proofData)
                 .blockchainTxId(dto.getBlockchainTxId())
                 .blockNumber(dto.getBlockNumber())
                 .build();
 
-        // Handle public keys
-        if (dto.getPublicKey() != null && !dto.getPublicKey().isEmpty()) {
-            List<PublicKey> publicKeys = dto.getPublicKey().stream()
-                    .map(pkDto -> {
-                        PublicKey pk = PublicKey.builder()
-                                .id(pkDto.getId())
-                                .type(pkDto.getType())
-                                .publicKeyPem(pkDto.getPublicKeyPem())
-                                .didDocument(entity)
-                                .build();
-                        return pk;
-                    })
+        // Handle public keys - use publicKeys field from DTO
+        if (dto.getPublicKeys() != null && !dto.getPublicKeys().isEmpty()) {
+            List<PublicKey> publicKeys = dto.getPublicKeys().stream()
+                    .map(pkDto -> PublicKey.builder()
+                            .id(pkDto.getId())
+                            .type(pkDto.getType())
+                            .controller(pkDto.getController())
+                            .publicKeyStr(pkDto.getPublicKeyStr())
+                            .didDocument(entity)
+                            .build())
                     .collect(Collectors.toList());
             entity.setPublicKey(publicKeys);
         }
@@ -396,6 +406,18 @@ public class BlockchainSyncService {
      * Helper: Convert VCBlockChainResult to VerifiableCredential entity
      */
     private VerifiableCredential convertVCDtoToEntity(VCBlockChainResult dto) {
+        // Convert ProofDataDto to ProofData
+        ProofData proofData = null;
+        if (dto.getProof() != null) {
+            proofData = ProofData.builder()
+                    .proofType(dto.getProof().getProofType())
+                    .created(dto.getProof().getCreated())
+                    .creator(dto.getProof().getCreator())
+                    .issuerDid(dto.getProof().getIssuerDid())
+                    .signatureValue(dto.getProof().getSignatureValue())
+                    .build();
+        }
+
         VerifiableCredential entity = VerifiableCredential.builder()
                 .id(dto.getId())
                 .subjectDid(dto.getSubjectDID())
@@ -403,23 +425,15 @@ public class BlockchainSyncService {
                 .issuanceDate(dto.getIssuanceDate())
                 .expirationDate(dto.getExpirationDate())
                 .status(dto.getStatus())
-                .proof(dto.getProof())
+                .proof(proofData)
                 .blockchainTxId(dto.getBlockchainTxId())
                 .blockNumber(dto.getBlockNumber())
                 .credentialSubjectHash(dto.getCredentialSubjectHash())
                 .build();
 
-        // Handle claims
-        if (dto.getClaims() != null && !dto.getClaims().isEmpty()) {
-            List<CredentialClaim> claims = dto.getClaims().stream()
-                    .map(claimDto -> CredentialClaim.builder()
-                            .claimKey(claimDto.getClaimKey())
-                            .claimValue(claimDto.getClaimValue())
-                            .credential(entity)
-                            .build())
-                    .collect(Collectors.toList());
-            entity.setClaims(claims);
-        }
+        // Note: VCBlockChainResult doesn't have claims field
+        // Claims are stored separately and managed by the credential service
+        // If you need to sync claims, you'll need to fetch them separately
 
         return entity;
     }
