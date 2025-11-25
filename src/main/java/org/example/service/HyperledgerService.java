@@ -351,16 +351,16 @@ public class HyperledgerService {
     /**
      * Get all credentials from blockchain (admin function)
      */
-    public List<VerifiableCredential> getAllCredentials() {
+    public List<VCBlockChainResult> getAllCredentials() {
         try {
             log.info("Getting all credentials from blockchain");
 
             byte[] result = contract.evaluateTransaction("GetAllCredentials");
             String credentialsJson = new String(result);
 
-            List<VerifiableCredential> credentials = objectMapper.readValue(
+            List<VCBlockChainResult> credentials = objectMapper.readValue(
                     credentialsJson,
-                    new TypeReference<List<VerifiableCredential>>() {}
+                    new TypeReference<List<VCBlockChainResult>>() {}
             );
 
             log.info("Found {} credentials on blockchain", credentials.size());

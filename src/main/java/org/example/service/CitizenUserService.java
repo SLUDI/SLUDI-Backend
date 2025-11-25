@@ -506,6 +506,7 @@ public class CitizenUserService {
                     .citizenCode(user.getCitizenCode())
                     .fullName(user.getFullName())
                     .nic(user.getNic())
+                    .didId(user.getDidId())
                     .age(user.getAge())
                     .email(user.getEmail())
                     .phone(user.getPhone())
