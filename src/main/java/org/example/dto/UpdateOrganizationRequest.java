@@ -1,10 +1,14 @@
 package org.example.dto;
 
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.example.entity.Organization;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class UpdateOrganizationRequest {
     @NotBlank(message = "Organization name is required")
     @Size(max = 255, message = "Name must not exceed 255 characters")
