@@ -65,7 +65,7 @@
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/SLUDI-Backend.git
+git clone https://github.com/Tishan-001/SLUDI-Backend.git
 cd SLUDI-Backend
 ```
 
