@@ -212,15 +212,15 @@ public class BlockchainSyncService {
 
         try {
             // Get all credentials from blockchain
-            List<VerifiableCredential> blockchainVCs = hyperledgerService.getAllCredentials();
+            List<VCBlockChainResult> blockchainVCs = hyperledgerService.getAllCredentials();
 
             int syncedCount = 0;
             int failedCount = 0;
             List<SyncStatusDto> failedSyncs = new ArrayList<>();
 
-            for (VerifiableCredential vc : blockchainVCs) {
+            for (VCBlockChainResult vcDto : blockchainVCs) {
                 try {
-                    SyncStatusDto status = syncCredentialFromBlockchain(vc.getId());
+                    SyncStatusDto status = syncCredentialFromBlockchain(vcDto.getId());
                     if (SyncStatus.SYNCED.name().equals(status.getSyncStatus())) {
                         syncedCount++;
                     } else {
@@ -228,7 +228,7 @@ public class BlockchainSyncService {
                         failedSyncs.add(status);
                     }
                 } catch (Exception e) {
-                    log.error("Error syncing Credential {}: {}", vc.getId(), e.getMessage());
+                    log.error("Error syncing Credential {}: {}", vcDto.getId(), e.getMessage());
                     failedCount++;
                 }
             }

@@ -15,6 +15,7 @@ public class GetCitizenUserProfileResponseDto {
     private String citizenCode;
     private String fullName;
     private String nic;
+    private String didId;
     private int age;
     private String email;
     private String phone;
