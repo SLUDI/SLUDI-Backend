@@ -11,11 +11,13 @@ import org.example.exception.SludiException;
 import org.example.service.VerifiableCredentialService;
 import org.example.service.WalletService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.Map;
@@ -393,6 +395,34 @@ public class WalletController {
                     .message("Failed to submit verifiable presentation")
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    @PostMapping(path = "/verify-identity", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponseDto<Map<String, Object>>> verifyIdentity(
+            @RequestParam("file") MultipartFile videoFile,
+            @RequestParam("citizenId") String citizenId) {
+
+        try {
+            Map<String, Object> result = walletService.verifyIdentity(videoFile, citizenId);
+
+            return ResponseEntity.ok(
+                    ApiResponseDto.<Map<String, Object>>builder()
+                            .success(true)
+                            .message("Face authentication successful")
+                            .data(result)
+                            .timestamp(Instant.now())
+                            .build()
+            );
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.<Map<String, Object>>builder()
+                            .success(false)
+                            .message("Failed to authenticate user: " + e.getMessage())
+                            .errorCode("INTERNAL_ERROR")
+                            .timestamp(Instant.now())
+                            .build());
         }
     }
 

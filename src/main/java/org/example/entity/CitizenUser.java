@@ -121,6 +121,12 @@ public class CitizenUser implements UserDetails {
     @Column(name = "did_id_hash", unique = true, length = 64)
     private String didIdHash;
 
+    public void addPublicKey(PublicKey key) {
+        key.setCitizenUser(this);
+        this.publicKeys.add(key);
+    }
+
+
     @PrePersist
     @PreUpdate
     private void generateHashes() {

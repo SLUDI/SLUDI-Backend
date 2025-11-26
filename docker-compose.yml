@@ -44,84 +44,84 @@ services:
       - sludi-network
     restart: unless-stopped
 
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sludi-backend
-    ports:
-      - "5000:5000"
-    depends_on:
-      - postgres
-      - ipfs
-      - redis
-    environment:
-      # === Application Settings ===
-      SERVER_PORT: 5000
-      SPRING_APPLICATION_NAME: sludi
-      SPRING_BASE_URL: https://sludi.dpdns.org
-
-      # ==== Database ====
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluditest
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: mysecretpassword
-
-      # ==== Redis ====
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_REDIS_PASSWORD: MyStrongRedisPassword
-
-      # ==== IPFS ====
-      IPFS_API_HOST: ipfs
-      IPFS_API_PORT: 5001
-      IPFS_GATEWAY_URL: http://ipfs:8080/ipfs/
-
-      # ==== Fabric Configuration (Using container paths) ====
-      FABRIC_BASE_PATH: /organizations/peerOrganizations
-
-      # Org1 Configuration
-      FABRIC_ORG1_MSP_ID: Org1MSP
-      FABRIC_ORG1_CHANNEL_NAME: sludi-channel
-      FABRIC_ORG1_CHAINCODE_NAME: sludiChaincode
-      FABRIC_ORG1_PEER_ENDPOINT: peer0.org1.example.com:7051
-      FABRIC_ORG1_ORDERER_ENDPOINT: orderer.example.com:7050
-      FABRIC_ORG1_CA_ENDPOINT: 192.168.8.100:7054
-
-      # Org2 Configuration
-      FABRIC_ORG2_MSP_ID: Org2MSP
-      FABRIC_ORG2_CHANNEL_NAME: sludi-channel
-      FABRIC_ORG2_CHAINCODE_NAME: sludiChaincode
-      FABRIC_ORG2_PEER_ENDPOINT: peer0.org2.example.com:9051
-      FABRIC_ORG2_ORDERER_ENDPOINT: orderer.example.com:7050
-      FABRIC_ORG2_CA_ENDPOINT: 192.168.8.100:8054
-
-      # ==== Fabric (Injected via mounted volume) ====
-      FABRIC_MSP_ID: Org1MSP
-      FABRIC_CHANNEL_NAME: sludi-channel
-      FABRIC_CHAINCODE_NAME: sludiChaincode
-      FABRIC_CRYPTO_PATH: /organizations/peerOrganizations/org1.example.com
-      FABRIC_PEER_ENDPOINT: peer0.org1.example.com:7051
-      FABRIC_OVERRIDE_AUTH: peer0.org1.example.com
-      FABRIC_WALLET_PATH: /organizations/peerOrganizations/org1.example.com/msp/keystore
-
-      SLUDI_ORGANIZATION_PRIVATE_KEY_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore
-      SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts
-      SLUDI_ORGANIZATION_MSP_ID: Org1MSP
-      SLUDI_ISSUER_DID: did:sludi:government789
-
-      # === Security Configuration ===
-      JWT_SECRET_KEY: 2lYHIETKr8xHDeLmEW5nNuAdSxllkI50+HxD2F2ZBpXXV8Ze0VAMJtJox9YLYxFUTm7Urun6vmGKRr64Avs9jQ==
-
-    volumes:
-      - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
-    extra_hosts:
-      - "peer0.org1.example.com:192.168.8.100"
-      - "peer0.org2.example.com:192.168.8.100"
-      - "orderer.example.com:192.168.8.100"
-    networks:
-      - sludi-network
-      - fabric_test
-    restart: unless-stopped
+#  backend:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    container_name: sludi-backend
+#    ports:
+#      - "5000:5000"
+#    depends_on:
+#      - postgres
+#      - ipfs
+#      - redis
+#    environment:
+#      # === Application Settings ===
+#      SERVER_PORT: 5000
+#      SPRING_APPLICATION_NAME: sludi
+#      SPRING_BASE_URL: https://api.sludi.dpdns.org
+#
+#      # ==== Database ====
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sluditest
+#      SPRING_DATASOURCE_USERNAME: postgres
+#      SPRING_DATASOURCE_PASSWORD: mysecretpassword
+#
+#      # ==== Redis ====
+#      SPRING_REDIS_HOST: redis
+#      SPRING_REDIS_PORT: 6379
+#      SPRING_REDIS_PASSWORD: MyStrongRedisPassword
+#
+#      # ==== IPFS ====
+#      IPFS_API_HOST: ipfs
+#      IPFS_API_PORT: 5001
+#      IPFS_GATEWAY_URL: http://ipfs:8080/ipfs/
+#
+#      # ==== Fabric Configuration (Using container paths) ====
+#      FABRIC_BASE_PATH: /organizations/peerOrganizations
+#
+#      # Org1 Configuration
+#      FABRIC_ORG1_MSP_ID: Org1MSP
+#      FABRIC_ORG1_CHANNEL_NAME: sludi-channel
+#      FABRIC_ORG1_CHAINCODE_NAME: sludiChaincode
+#      FABRIC_ORG1_PEER_ENDPOINT: peer0.org1.example.com:7051
+#      FABRIC_ORG1_ORDERER_ENDPOINT: orderer.example.com:7050
+#      FABRIC_ORG1_CA_ENDPOINT: 192.168.8.100:7054
+#
+#      # Org2 Configuration
+#      FABRIC_ORG2_MSP_ID: Org2MSP
+#      FABRIC_ORG2_CHANNEL_NAME: sludi-channel
+#      FABRIC_ORG2_CHAINCODE_NAME: sludiChaincode
+#      FABRIC_ORG2_PEER_ENDPOINT: peer0.org2.example.com:9051
+#      FABRIC_ORG2_ORDERER_ENDPOINT: orderer.example.com:7050
+#      FABRIC_ORG2_CA_ENDPOINT: 192.168.8.100:8054
+#
+#      # ==== Fabric (Injected via mounted volume) ====
+#      FABRIC_MSP_ID: Org1MSP
+#      FABRIC_CHANNEL_NAME: sludi-channel
+#      FABRIC_CHAINCODE_NAME: sludiChaincode
+#      FABRIC_CRYPTO_PATH: /organizations/peerOrganizations/org1.example.com
+#      FABRIC_PEER_ENDPOINT: peer0.org1.example.com:7051
+#      FABRIC_OVERRIDE_AUTH: peer0.org1.example.com
+#      FABRIC_WALLET_PATH: /organizations/peerOrganizations/org1.example.com/msp/keystore
+#
+#      SLUDI_ORGANIZATION_PRIVATE_KEY_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/keystore
+#      SLUDI_ORGANIZATION_CERTIFICATE_PATH: /organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts
+#      SLUDI_ORGANIZATION_MSP_ID: Org1MSP
+#      SLUDI_ISSUER_DID: did:sludi:government789
+#
+#      # === Security Configuration ===
+#      JWT_SECRET_KEY: 2lYHIETKr8xHDeLmEW5nNuAdSxllkI50+HxD2F2ZBpXXV8Ze0VAMJtJox9YLYxFUTm7Urun6vmGKRr64Avs9jQ==
+#
+#    volumes:
+#      - /home/tishan/development/go/src/github.com/tishan/fabric-samples/test-network/organizations:/organizations
+#    extra_hosts:
+#      - "peer0.org1.example.com:192.168.8.100"
+#      - "peer0.org2.example.com:192.168.8.100"
+#      - "orderer.example.com:192.168.8.100"
+#    networks:
+#      - sludi-network
+#      - fabric_test
+#    restart: unless-stopped
 
 networks:
   sludi-network:

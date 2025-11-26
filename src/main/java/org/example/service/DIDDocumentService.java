@@ -194,7 +194,7 @@ public class DIDDocumentService {
                             .id(publicKeyDto.getId())
                             .type(publicKeyDto.getType())
                             .controller(publicKeyDto.getController())
-                            .publicKeyStr(publicKeyDto.getPublicKeyStr())
+                            .publicKeyStr(publicKeyDto.getPublicKeyBase58())
                             .didDocument(didDocument)
                             .build();
                     publicKeyList.add(publicKey);
