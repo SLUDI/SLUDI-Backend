@@ -464,7 +464,7 @@ public class VerifiableCredentialService {
             }
 
             // Verify user sharedAttributes are valid
-            //verifySharedAttributes(vpDto, credential);
+            verifySharedAttributes(vpDto, credential);
 
             // Verify all requested attributes are present
             verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);

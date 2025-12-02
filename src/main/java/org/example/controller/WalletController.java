@@ -401,7 +401,7 @@ public class WalletController {
     @PostMapping(path = "/verify-identity", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponseDto<Map<String, Object>>> verifyIdentity(
             @RequestParam("file") MultipartFile videoFile,
-            @RequestParam("citizenId") String citizenId) {
+            @RequestParam("did") String citizenId) {
 
         try {
             Map<String, Object> result = walletService.verifyIdentity(videoFile, citizenId);

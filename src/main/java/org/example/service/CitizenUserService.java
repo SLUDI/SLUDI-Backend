@@ -324,7 +324,7 @@ public class CitizenUserService {
                         "User not found with ID: " + request.getUserId()
                 ));
 
-        String faceEmbeddingHash = storeFaceEmbedding(request.getUserId().toString(), request.getFaceEmbedding());
+        String faceEmbeddingHash = storeFaceEmbedding(request.getUserId().toString(), request.getFaceEmbeddingBase64());
 
         String fingerprintHash = null;
         if (request.getFingerprintBase64() != null) {
@@ -642,11 +642,10 @@ public class CitizenUserService {
         return map;
     }
 
-    private String storeFaceEmbedding(String userId, List<Double> embedding) {
+    private String storeFaceEmbedding(String userId, String embeddingBase64) {
         try {
-            String json = new ObjectMapper().writeValueAsString(embedding);
             return ipfsIntegration.storeBiometricData(
-                    userId.toString(), "face", json
+                    userId.toString(), "face", embeddingBase64
             );
         } catch (Exception ex) {
             log.error("Failed to store face embedding for user {}", userId, ex);

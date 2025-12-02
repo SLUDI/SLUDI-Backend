@@ -250,32 +250,33 @@ public class IPFSIntegration {
      * @return byte[] containing the original biometric data
      * @throws SludiException if access is denied or data integrity check fails
      */
-    public byte[] retrieveBiometricData(String ipfsHash, String expectedUserId) {
+    public String retrieveBiometricDataAsString(String ipfsHash, String expectedUserId) {
+        byte[] originalBytes = retrieveBiometricData(ipfsHash, expectedUserId);
+        return new String(originalBytes, StandardCharsets.UTF_8);
+    }
+
+    private byte[] retrieveBiometricData(String ipfsHash, String expectedUserId) {
         try {
             log.info("Retrieving biometric data from hash: {}", ipfsHash);
 
-            // Retrieve container
             BiometricContainer container = retrieveJsonData(ipfsHash, BiometricContainer.class);
 
-            // Verify user ID matches (security check)
             if (!expectedUserId.equals(container.getMetadata().getUserId())) {
                 throw new SludiException(ErrorCodes.BIOMETRIC_ACCESS_DENIED);
             }
 
-            // Decode base64 data
             byte[] processedData = Base64.getDecoder().decode(container.getData());
 
-            // Decrypt if data was encrypted
             byte[] originalData = container.getMetadata().isEncrypted() ?
-                    cryptographyService.decryptBiometricData(processedData) : processedData;
+                    cryptographyService.decryptBiometricData(processedData)
+                    : processedData;
 
-            // Verify checksum
             String expectedChecksum = generateChecksum(originalData);
             if (!expectedChecksum.equals(container.getChecksum())) {
                 throw new SludiException(ErrorCodes.DATA_INTEGRITY_FAILED);
             }
 
-            log.info("Successfully retrieved and verified biometric data");
+            log.info("Successfully retrieved biometric data");
             return originalData;
 
         } catch (Exception e) {

@@ -192,7 +192,7 @@ public class WalletService {
 
         // Verify signature
         PublicKey publicKey = publicKeyRepository.findByCitizenUser(user);
-        boolean valid = cryptoService.verifySignature(nonce, signatureStr, publicKey.getPublicKeyStr());
+        boolean valid = cryptoService.verifySignature(nonce, signatureStr, publicKey.getPublicKeyBase58());
 
         if (!valid) {
             throw new SludiException(ErrorCodes.SIGNATURE_FAILED, "Signature verification failed");
@@ -300,18 +300,19 @@ public class WalletService {
             throw new Exception("No face embedding found for this citizen");
         }
 
-        // Retrieve and parse embedding
-        byte[] dataBytes = ipfsIntegration.retrieveBiometricData(ipfsHash, citizen.getId().toString());
-        String jsonEmbedding = new String(dataBytes, StandardCharsets.UTF_8);
+        // Retrieve biometric data
+        String embeddingBase64 = ipfsIntegration.retrieveBiometricDataAsString(
+                ipfsHash,
+                citizen.getId().toString()
+        );
 
-        List<Double> embeddingList = new ObjectMapper()
-                .readValue(jsonEmbedding, new TypeReference<List<Double>>() {});
-        double[] storedEmbedding = embeddingList.stream().mapToDouble(Double::doubleValue).toArray();
+        embeddingBase64 = embeddingBase64.trim().replaceAll("\\s+", "");
 
-        // Face authentication
+
+        // Perform face authentication
         FaceVerificationResultDto result = deepfakeDetectionService.faceAuthentication(
                 videoFile,
-                storedEmbedding
+                embeddingBase64
         );
 
         Map<String, Object> response = new HashMap<>();
@@ -345,13 +346,14 @@ public class WalletService {
         publicKey.setId(UUID.randomUUID().toString());
         publicKey.setType("RSA");
         publicKey.setController(did);
-        publicKey.setPublicKeyStr(publicKeyStr);
-        publicKey.setCitizenUser(user);
-        user.addPublicKey(publicKey);
-        citizenUserRepository.save(user);
+        publicKey.setPublicKeyBase58(publicKeyStr);
         publicKey.setDidDocument(didDocument);
 
-        publicKeyRepository.save(publicKey);
+        publicKey.setCitizenUser(user);
+        user.getPublicKeys().add(publicKey);
+
+        // Save
+        citizenUserRepository.save(user);
     }
 
     private Wallet createAndSaveWallet(String did, CitizenUser user) {

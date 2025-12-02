@@ -88,7 +88,6 @@ public class CitizenUser implements UserDetails {
     private VerificationStatus verificationStatus;
 
     private String didId;
-    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;

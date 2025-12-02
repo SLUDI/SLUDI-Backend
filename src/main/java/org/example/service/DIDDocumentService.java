@@ -125,7 +125,6 @@ public class DIDDocumentService {
                     .status(citizenUser.getStatus())
                     .verificationStatus(citizenUser.getVerificationStatus())
                     .didId(citizenUser.getDidId())
-                    .publicKey(citizenUser.getPublicKey())
                     .fingerprintIpfsHash(citizenUser.getFingerprintIpfsHash())
                     .faceImageIpfsHash(citizenUser.getFaceImageIpfsHash())
                     .signatureIpfsHash(citizenUser.getSignatureIpfsHash())
@@ -194,7 +193,7 @@ public class DIDDocumentService {
                             .id(publicKeyDto.getId())
                             .type(publicKeyDto.getType())
                             .controller(publicKeyDto.getController())
-                            .publicKeyStr(publicKeyDto.getPublicKeyBase58())
+                            .publicKeyBase58(publicKeyDto.getPublicKeyBase58())
                             .didDocument(didDocument)
                             .build();
                     publicKeyList.add(publicKey);

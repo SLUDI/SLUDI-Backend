@@ -15,8 +15,7 @@ import java.util.UUID;
 public class CitizenBiometricRequestDto {
     private UUID userId;
 
-    @JsonDeserialize(using = DoubleListDeserializer.class)
-    private List<Double> faceEmbedding;
+    private String faceEmbeddingBase64;
 
     private String fingerprintBase64;
 }
