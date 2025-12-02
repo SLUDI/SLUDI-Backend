@@ -34,13 +34,15 @@ public class SecurityConfiguration {
                         "/swagger-resources/**",
                         "/webjars/**",
                         "/api/wallet/verify-did",
+                        "/api/wallet/verify-identity",
                         "/api/appointments/**",
                         "/api/blockchain/**",
                         "/api/citizen-user/register",
                         "/api/deepfake/**",
                         "/api/did/**",
                         "/api/wallet/**",
-                        "api/permission-template/**"
+                        "api/permission-template/**",
+                        "/api/citizen-user/verify-identity"
         };
 
         // Organization user public endpoints
@@ -51,13 +53,15 @@ public class SecurityConfiguration {
                         "/api/organization-users/verify-permission",
                         "/api/organization-users/organization/{organizationId}/roles/initialize",
                         "/api/citizen-user/register",
+                        "/api/citizen-user/verify-identity"
         };
 
         // Citizen user private endpoints (require authentication)
         private static final String[] CITIZEN_PRIVATE_URLS = {
                         "/api/wallet/retrieve",
                         "/api/wallet/driving-license/request/{sessionId}",
-                        "/api/wallet/driving-license/presentation/{sessionId}"
+                        "/api/wallet/driving-license/presentation/{sessionId}",
+
         };
 
         // Organization user private endpoints (require authentication)

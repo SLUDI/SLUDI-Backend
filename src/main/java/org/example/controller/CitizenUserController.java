@@ -576,32 +576,4 @@ public class CitizenUserController {
             throw new SludiException(ErrorCodes.INVALID_FORMAT);
         }
     }
-
-    @PostMapping( path = "/verify-identity", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> verifyIdentity(
-            @RequestParam("file") MultipartFile videoFile,
-            @RequestParam("citizenId") String citizenId) {
-
-        try {
-            FaceVerificationResultDto result = citizenUserService.verifyIdentity(
-                    videoFile,
-                    citizenId
-            );
-
-            return ResponseEntity.ok(ApiResponseDto.<FaceVerificationResultDto>builder()
-                    .success(true)
-                    .message("Face authentication successful")
-                    .data(result)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, Object>>builder()
-                            .success(false)
-                            .message("Failed to authenticate user:"+e.getMessage())
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
 }

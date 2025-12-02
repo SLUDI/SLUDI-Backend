@@ -34,7 +34,6 @@ public class CitizenUserDto {
     private UserStatus status;
     private VerificationStatus verificationStatus;
     private String didId;
-    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;

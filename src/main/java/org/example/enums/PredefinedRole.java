@@ -1,9 +1,9 @@
 package org.example.enums;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -73,11 +73,12 @@ public enum PredefinedRole {
      * Inner class to represent a role instance with custom permissions
      */
     @Getter
+    @NoArgsConstructor
     public static class RoleInstance {
-        private final String roleCode;
-        private final String description;
-        private final boolean isAdmin;
-        private final List<String> permissions;
+        private String roleCode;
+        private String description;
+        private boolean isAdmin;
+        private List<String> permissions;
 
         public RoleInstance(String roleCode, String description, boolean isAdmin, List<String> permissions) {
             this.roleCode = roleCode;

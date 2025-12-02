@@ -374,7 +374,7 @@ public class BlockchainSyncService {
                             .id(pkDto.getId())
                             .type(pkDto.getType())
                             .controller(pkDto.getController())
-                            .publicKeyStr(pkDto.getPublicKeyStr())
+                            .publicKeyBase58(pkDto.getPublicKeyBase58())
                             .didDocument(entity)
                             .build())
                     .collect(Collectors.toList());
