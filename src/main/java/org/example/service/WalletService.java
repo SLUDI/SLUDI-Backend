@@ -128,8 +128,22 @@ public class WalletService {
                 throw new SludiException(ErrorCodes.USER_NOT_FOUND, "User not found for DID: " + did);
             }
 
+            List<PublicKeyDto> publicKeyDtos = getPublicKeyDtos(did, publicKeyStr, didDocument);
+
+            List<Services> services = new ArrayList<>(didDocument.getServices());
+
+            Services walletService = new Services();
+            walletService.setId(did + "#wallet");
+            walletService.setType("WalletService");
+            walletService.setServiceEndpoint("https://api.sludi.com/wallet/" + did);
+
+            services.add(walletService);
+
+            String publicKeysJson = objectMapper.writeValueAsString(publicKeyDtos);
+            String servicesJson = objectMapper.writeValueAsString(services);
+
             // Register public key on blockchain
-            hyperledgerService.updateDID(did, publicKeyStr, "api/wallet/create");
+            hyperledgerService.updateDID(did, publicKeysJson, servicesJson, didDocument.getProof());
 
             // Save public key in DB
             savePublicKey(publicKeyStr, did, user, didDocument);
@@ -330,6 +344,29 @@ public class WalletService {
         }
 
         return response;
+    }
+
+    private static List<PublicKeyDto> getPublicKeyDtos(String did, String publicKeyStr, DIDDocument didDocument) {
+        List<PublicKey> updatedPublicKeys = new ArrayList<>(didDocument.getPublicKey());
+
+        List<PublicKeyDto> publicKeyDtos = new ArrayList<>();
+
+        if (!updatedPublicKeys.isEmpty()) {
+            for (PublicKey publicKey : updatedPublicKeys) {
+                PublicKeyDto dto = new PublicKeyDto();
+                dto.setId(publicKey.getId());
+                dto.setType(publicKey.getType());
+                dto.setPublicKeyBase58(publicKey.getPublicKeyBase58());
+                publicKeyDtos.add(dto);
+            }
+        }
+
+        PublicKeyDto newPublicKey = new PublicKeyDto();
+        newPublicKey.setId(did + "#keys-" + (updatedPublicKeys.size() + 1));
+        newPublicKey.setType("Ed25519VerificationKey2020");
+        newPublicKey.setPublicKeyBase58(publicKeyStr);
+        publicKeyDtos.add(newPublicKey);
+        return publicKeyDtos;
     }
 
     private void validateWalletCreationInputs(String did, String publicKeyStr) {

@@ -154,7 +154,14 @@ public class DIDDocumentService {
             );
 
             // Create DID on Hyperledger Fabric
-            DIDDocumentDto didResult = hyperledgerService.createDID(didId, timeNow, proofData);
+            DIDDocumentDto didResult = hyperledgerService.createDID(
+                    didId,
+                    "1.0",
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    proofData
+            );
 
             // Save DID Document
             DIDDocument didDocument = DIDDocument.builder()

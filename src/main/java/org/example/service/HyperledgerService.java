@@ -47,7 +47,7 @@ public class HyperledgerService {
     ) {
         this.contract = contract;
         this.gateway = gateway;
-        
+
         // Initialize ObjectMapper with deterministic serialization settings
         this.objectMapper = new ObjectMapper();
         // Enable ordering map entries by keys for deterministic JSON output
@@ -61,19 +61,33 @@ public class HyperledgerService {
      */
     public DIDDocumentDto createDID(
             String didId,
-            String createTime,
+            String didVersion,
+            List<PublicKeyDto> publicKeys,
+            List<String> authentication,
+            List<ServiceDto> services,
             ProofData proof) {
         try {
             log.info("Registering citizen with DID: {}", didId);
 
+            String publicKeysJson = objectMapper.writeValueAsString(publicKeys);
+            String authenticationJson = objectMapper.writeValueAsString(authentication);
+            String servicesJson = objectMapper.writeValueAsString(services);
             String proofJson = objectMapper.writeValueAsString(proof);
 
             // Submit transaction to blockchain
-            byte[] result = contract.submitTransaction("CreateDID", didId, createTime, proofJson);
+            byte[] result = contract.submitTransaction(
+                    "CreateDID",
+                    didId,
+                    didVersion,
+                    publicKeysJson,
+                    authenticationJson,
+                    servicesJson,
+                    proofJson
+            );
 
-            // Parse the result
-            String resultString = new String(result);
-            DIDDocumentDto didDocument = objectMapper.readValue(resultString, DIDDocumentDto.class);
+            // Parse the returned DID document
+            String didJson = new String(result, StandardCharsets.UTF_8);
+            DIDDocumentDto didDocument = objectMapper.readValue(didJson, DIDDocumentDto.class);
 
             log.info("Successfully registered citizen with DID: {}", didDocument.getId());
 
@@ -92,23 +106,29 @@ public class HyperledgerService {
         try {
             log.info("Issue credential for DID: {}", request.getSubjectDID());
 
+            String contextJson = objectMapper.writeValueAsString(request.getContext());
             String supportingDocsJson = objectMapper.writeValueAsString(request.getSupportingDocuments());
             String proofJson = objectMapper.writeValueAsString(request.getProofData());
+
+            String issuanceDate = Instant.now().toString();
 
             byte[] result = contract.submitTransaction(
                     "IssueCredential",
                     request.getCredentialId(),
-                    request.getSubjectDID(),
-                    request.getIssuerDID(),
+                    contextJson,
                     request.getCredentialType(),
-                    supportingDocsJson,
-                    request.getCredentialSubjectHash(),
+                    request.getIssuerDID(),
+                    issuanceDate,
                     request.getExpireDate(),
+                    request.getSubjectDID(),
+                    request.getCredentialSubjectHash(),
+                    supportingDocsJson,
                     proofJson
             );
 
-            String resultString = new String(result);
-            VCBlockChainResult credential = objectMapper.readValue(resultString, VCBlockChainResult.class);
+            // Parse the returned credential
+            String credentialJson = new String(result, StandardCharsets.UTF_8);
+            VCBlockChainResult credential = objectMapper.readValue(credentialJson, VCBlockChainResult.class);
 
             log.info("Successfully issued credential: {}", credential.getId());
 
@@ -127,7 +147,7 @@ public class HyperledgerService {
         try {
             log.info("Reading DID document: {}", didId);
 
-            byte[] result = contract.evaluateTransaction("ReadDID", didId);
+            byte[] result = contract.evaluateTransaction("GetDID", didId);
             String didJson = new String(result);
             DIDDocumentDto didDocument = objectMapper.readValue(didJson, DIDDocumentDto.class);
 
@@ -147,7 +167,7 @@ public class HyperledgerService {
         try {
             log.info("Reading identity credential: {}", credentialId);
 
-            byte[] result = contract.evaluateTransaction("ReadCredential", credentialId);
+            byte[] result = contract.evaluateTransaction("GetCredential", credentialId);
             String credentialJson = new String(result);
             VCBlockChainResult credential = objectMapper.readValue(credentialJson, VCBlockChainResult.class);
 
@@ -167,7 +187,7 @@ public class HyperledgerService {
         try {
             log.info("Getting credentials for DID: {}", subjectDID);
 
-            byte[] result = contract.evaluateTransaction("GetCredentialsByDID", subjectDID);
+            byte[] result = contract.evaluateTransaction("GetCredentialsBySubject", subjectDID);
             String credentialsJson = new String(result, StandardCharsets.UTF_8);
 
             if (credentialsJson.trim().isEmpty() || credentialsJson.equals("null")) {
@@ -196,23 +216,21 @@ public class HyperledgerService {
     /**
      * Update DID document on blockchain
      */
-    public void updateDID(String didId, String newPublicKey, String metadata) {
+    public void updateDID(String didId, String publicKeysJson, String servicesJson, ProofData proof) {
         try {
             log.info("Updating DID: {}", didId);
 
-            String serviceEndpoint = metadata != null ? metadata : "";
+            String proofJson = objectMapper.writeValueAsString(proof);
 
-            byte[] result = contract.submitTransaction(
-                    "UpdateDIDPublicKey",
+            contract.submitTransaction(
+                    "UpdateDID",
                     didId,
-                    newPublicKey != null ? newPublicKey : "",
-                    serviceEndpoint
+                    publicKeysJson,
+                    servicesJson,
+                    proofJson
             );
 
-            String resultString = new String(result);
-            DIDDocumentDto updatedDid = objectMapper.readValue(resultString, DIDDocumentDto.class);
-
-            log.info("Successfully updated DID: {}", updatedDid.getId());
+            log.info("Successfully updated DID: {}", didId);
 
         } catch (Exception e) {
             log.error("Failed to update DID: {}", e.getMessage());
@@ -227,10 +245,9 @@ public class HyperledgerService {
         try {
             log.info("Deactivating DID: {}", didId);
 
-            byte[] result = contract.submitTransaction("DeactivateDID", didId);
-            String resultMessage = new String(result);
+            contract.submitTransaction("DeactivateDID", didId);
 
-            log.info("Successfully deactivated DID: {} - {}", didId, resultMessage);
+            log.info("Successfully deactivated DID: {}", didId);
 
         } catch (Exception e) {
             log.error("Failed to deactivate DID: {}", e.getMessage());
@@ -245,11 +262,9 @@ public class HyperledgerService {
         try {
             log.info("Deleting DID: {}", didId);
 
-            // Call chaincode transaction "DeleteDID"
-            byte[] result = contract.submitTransaction("DeleteDID", didId);
-            String resultMessage = new String(result);
+            contract.submitTransaction("DeleteDID", didId);
 
-            log.info("Successfully deleted DID: {} - {}", didId, resultMessage);
+            log.info("Successfully deleted DID: {}", didId);
 
         } catch (Exception e) {
             log.error("Failed to delete DID: {}", e.getMessage());
@@ -263,7 +278,12 @@ public class HyperledgerService {
     public boolean didExists(String didId) {
         try {
             byte[] result = contract.evaluateTransaction("DIDExists", didId);
-            return Boolean.parseBoolean(new String(result));
+            String resultStr = new String(result);
+            // Handle different return formats
+            if (resultStr.equalsIgnoreCase("true") || resultStr.equals("1")) {
+                return true;
+            }
+            return false;
 
         } catch (Exception e) {
             log.error("Failed to check DID existence: {}", e.getMessage());
@@ -428,25 +448,28 @@ public class HyperledgerService {
     public String registerUserOnBlockchain(OrganizationUser user, String mspId) throws Exception {
         log.info("Registering user on blockchain ledger: {}", user.getFabricUserId());
 
-        Map<String, Object> userData = new HashMap<>();
-        userData.put("fabricUserId", user.getFabricUserId());
-        userData.put("employeeId", user.getEmployeeId());
-        userData.put("username", user.getUsername());
-        userData.put("email", user.getEmail());
-        userData.put("firstName", user.getFirstName());
-        userData.put("lastName", user.getLastName());
-        userData.put("orgCode", user.getOrganization().getOrgCode());
-        userData.put("organizationName", user.getOrganization().getName());
-        userData.put("mspId", mspId);
-        userData.put("roleCode", user.getAssignedRole().getRoleCode());
-        userData.put("permissions", user.getAssignedRole().getPermissions());
-        userData.put("department", user.getDepartment());
-        userData.put("designation", user.getDesignation());
-        userData.put("status", "ACTIVE");
+        String permissionsJson = objectMapper.writeValueAsString(
+                user.getAssignedRole().getPermissions()
+        );
 
-        String userJson = objectMapper.writeValueAsString(userData);
-        byte[] result = contract.submitTransaction("RegisterOrganizationUser", userJson);
+        byte[] result = contract.submitTransaction(
+                "RegisterOrganizationUser",
+                user.getFabricUserId(),
+                user.getEmployeeId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getOrganization().getOrgCode(),
+                user.getOrganization().getName(),
+                mspId,
+                user.getAssignedRole().getRoleCode(),
+                permissionsJson,
+                user.getDepartment(),
+                user.getDesignation()
+        );
 
+        // Read ledger response - RegisterOrganizationUser returns JSON with txId
         String txResponse = new String(result, StandardCharsets.UTF_8);
         Map<String, Object> txInfo = objectMapper.readValue(txResponse, Map.class);
 
@@ -471,7 +494,8 @@ public class HyperledgerService {
                 gson.toJson(updateData)
         );
 
-        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        String resultString = new String(result);
+        Map<String, Object> txInfo = objectMapper.readValue(resultString, Map.class);
         return (String) txInfo.get("txId");
     }
 
@@ -491,7 +515,8 @@ public class HyperledgerService {
                 gson.toJson(revokeData)
         );
 
-        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        String resultString = new String(result);
+        Map<String, Object> txInfo = objectMapper.readValue(resultString, Map.class);
         return (String) txInfo.get("txId");
     }
 
@@ -509,7 +534,8 @@ public class HyperledgerService {
                 gson.toJson(restoreData)
         );
 
-        Map<String, Object> txInfo = gson.fromJson(new String(result), Map.class);
+        String resultString = new String(result);
+        Map<String, Object> txInfo = objectMapper.readValue(resultString, Map.class);
         return (String) txInfo.get("txId");
     }
 
@@ -530,18 +556,6 @@ public class HyperledgerService {
                 "UpdateUserPermissions",
                 gson.toJson(updateData)
         );
-    }
-
-    /**
-     * Check if the credential is not expired
-     */
-    private boolean isCredentialNotExpired(String expirationDate) {
-        try {
-            Instant expiration = Instant.parse(expirationDate);
-            return Instant.now().isBefore(expiration);
-        } catch (Exception e) {
-            return false;
-        }
     }
 
     /**

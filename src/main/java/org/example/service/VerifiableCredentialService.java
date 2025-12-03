@@ -157,7 +157,12 @@ public class VerifiableCredentialService {
                     .signatureValue(proofData.getSignatureValue())
                     .build();
 
+            List<String> context = List.of(
+                    "https://www.w3.org/2018/credentials/v1",
+                    "https://sludi.gov.lk/contexts/identity/v1");
+
             CredentialIssuanceRequestDto issuanceRequest = CredentialIssuanceRequestDto.builder()
+                    .context(context)
                     .credentialId(credentialId)
                     .subjectDID(user.getDidId())
                     .issuerDID(proofDataDto.getIssuerDid())
@@ -1172,7 +1177,12 @@ public class VerifiableCredentialService {
                 .signatureValue(proofData.getSignatureValue())
                 .build();
 
+        List<String> context = List.of(
+                "https://www.w3.org/2018/credentials/v1",
+                "https://sludi.gov.lk/contexts/identity/v1");
+
         return CredentialIssuanceRequestDto.builder()
+                .context(context)
                 .credentialId(credentialId)
                 .subjectDID(citizen.getDidId())
                 .issuerDID(proofDataDto.getIssuerDid())
