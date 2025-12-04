@@ -513,6 +513,7 @@ public class CitizenUserService {
                     .address(user.getAddress() != null ? convertJsonToAddress(user.getAddress()) : null)
                     .status(user.getStatus() != null ? user.getStatus().toString() : null)
                     .kycStatus(user.getVerificationStatus() != null ? user.getVerificationStatus().toString() : null)
+                    .appointmentDate(LocalDate.parse(user.getAppointment().getConfirmedDate()))
                     .supportingDocumentList(responseList)
                     .createdAt(user.getCreatedAt())
                     .updatedAt(user.getUpdatedAt())
