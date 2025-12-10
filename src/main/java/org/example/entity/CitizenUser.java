@@ -88,7 +88,6 @@ public class CitizenUser implements UserDetails {
     private VerificationStatus verificationStatus;
 
     private String didId;
-    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;
@@ -120,6 +119,12 @@ public class CitizenUser implements UserDetails {
 
     @Column(name = "did_id_hash", unique = true, length = 64)
     private String didIdHash;
+
+    public void addPublicKey(PublicKey key) {
+        key.setCitizenUser(this);
+        this.publicKeys.add(key);
+    }
+
 
     @PrePersist
     @PreUpdate

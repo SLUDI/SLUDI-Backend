@@ -1,7 +1,9 @@
 package org.example.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.example.entity.Address;
 import org.example.entity.SupportingDocument;
 import org.example.enums.VerificationStatus;
@@ -12,6 +14,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class CitizenUserDto {
     private UUID id;
     private String citizenCode;
@@ -30,7 +34,6 @@ public class CitizenUserDto {
     private UserStatus status;
     private VerificationStatus verificationStatus;
     private String didId;
-    private String publicKey;
     private String fingerprintIpfsHash;
     private String faceImageIpfsHash;
     private String signatureIpfsHash;

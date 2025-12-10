@@ -801,12 +801,6 @@ public class VerifiableCredentialService {
     private boolean verifyIncludedCredential(VerifiableCredential credential) {
         try {
 
-            String credentialSubjectJson = cryptographyService.decryptData(credential.getCredentialSubjectHash());
-
-            CredentialSubject credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
-
-            Map<String, Object> claims = claimsMapper.convertToClaimsMap(credentialSubject);
-
             ProofDataDto proofDataDto = ProofDataDto.builder()
                     .proofType(credential.getProof().getProofType())
                     .created(credential.getProof().getCreated())
@@ -892,12 +886,30 @@ public class VerifiableCredentialService {
         Map<String, String> validClaims = credential.getClaims().stream()
                 .collect(Collectors.toMap(CredentialClaim::getClaimName, CredentialClaim::getClaimHash));
 
+        String subjectDid = credential.getSubjectDid();
+
         log.info("Attributes: {}", vpDto.getAttributes());
         // Check each shared attribute
         for (Map.Entry<String, Object> entry : vpDto.getAttributes().entrySet()) {
 
             String claimName = entry.getKey();
             Object claimValue = entry.getValue();
+
+            if (claimName.equalsIgnoreCase("id")
+                    || claimName.equalsIgnoreCase("subjectId")
+                    || claimName.equalsIgnoreCase("subjectDid")
+                    || claimName.equalsIgnoreCase("userId")) {
+
+                String providedId = normalizeValue(claimValue);
+
+                if (!providedId.equals(subjectDid)) {
+                    throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES,
+                            "Shared subject ID/DID does not match the VC subject DID");
+                }
+
+                continue;
+            }
+
 
             String normalizedSharedValue = normalizeValue(claimValue);
             String sharedHash = HashUtil.sha256(normalizedSharedValue);
@@ -909,6 +921,14 @@ public class VerifiableCredentialService {
                         "Attribute '" + claimName + "' value does not match the VC");
             }
         }
+    }
+
+    public byte[] getProfilePhoto(String cid) {
+        byte[] data = ipfsIntegration.retrieveFile(cid);
+        if (data == null || data.length == 0) {
+            throw new SludiException(ErrorCodes.FILE_READ_ERROR, "No data found for CID: " + cid);
+        }
+        return data;
     }
 
     private AddressDto mapToAddressDto(CitizenUser user) {

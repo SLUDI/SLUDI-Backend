@@ -1,7 +1,9 @@
 package org.example.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.FaceVerificationResultDto;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.*;
@@ -11,23 +13,23 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Service
 public class DeepfakeDetectionService {
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private static final String PHOTO_SPACE_API_URL = "https://Tishan-001-deepfake-detector.hf.space/predict";
     private static final String VIDEO_SPACE_API_URL = "https://Tishan-001-video-deepfake-detection.hf.space/detailed-analysis";
     private static final String QUICK_CHECK_API_URL = "https://Tishan-001-video-deepfake-detection.hf.space/quick-check";
-    private static final String FACE_DETECTION_API_URL = "https://Ishan1998-Feature.hf.space/verify-with-embedding";
-    private static final Double FACE_AUTHENTICATION_THRESHOLD = 0.90;
+    private static final String FACE_VERIFICATION_API_URL = "https://Tishan-001-deepfake-detector.hf.space/verify-with-embedding";
+    private static final Double FACE_AUTHENTICATION_THRESHOLD = 0.80;
+    private static final String UPLOAD_DIR = "uploads/videos/";
 
     public Map<String, Object> detectDeepfake(MultipartFile file) throws IOException {
         RestTemplate restTemplate = new RestTemplate();
@@ -108,7 +110,8 @@ public class DeepfakeDetectionService {
             Integer framesProcessed = (Integer) responseBody.get("frames_processed");
 
             // Extract Grad-CAM analysis data
-            List<Map<String, Object>> gradcamAnalysis = (List<Map<String, Object>>) responseBody.get("gradcam_analysis");
+            List<Map<String, Object>> gradcamAnalysis = (List<Map<String, Object>>) responseBody
+                    .get("gradcam_analysis");
             List<Map<String, Object>> gradcamResults = new ArrayList<>();
 
             if (gradcamAnalysis != null) {
@@ -195,75 +198,106 @@ public class DeepfakeDetectionService {
 
     public FaceVerificationResultDto faceAuthentication(
             MultipartFile videoFile,
-            String storedEmbedding) throws Exception {
+            String embeddingBase64) throws Exception {
+
         RestTemplate restTemplate = new RestTemplate();
 
-        try {
-            // Create headers
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        if (videoFile == null || videoFile.isEmpty()) {
+            throw new IllegalArgumentException("Video file is empty");
+        }
 
-            // Create multipart body
+        if (embeddingBase64 == null || embeddingBase64.trim().isEmpty()) {
+            throw new IllegalArgumentException("Embedding Base64 string is empty");
+        }
+
+        try {
+            // Create API request
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 
-            // Add video file
             ByteArrayResource fileResource = new ByteArrayResource(videoFile.getBytes()) {
                 @Override
                 public String getFilename() {
                     return videoFile.getOriginalFilename();
                 }
             };
+
             body.add("file", fileResource);
-
-            // Add stored embedding
-            body.add("stored_embedding", storedEmbedding);
-
-            // Add threshold
+            body.add("stored_embedding", embeddingBase64);
             body.add("threshold", String.valueOf(FACE_AUTHENTICATION_THRESHOLD));
 
-            // Create HTTP entity
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
             HttpEntity<MultiValueMap<String, Object>> requestEntity =
                     new HttpEntity<>(body, headers);
 
-            // Make the request
-            ResponseEntity<HuggingFaceResponse> response = restTemplate.postForEntity(
-                    FACE_DETECTION_API_URL,
+            // Call FastAPI
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    FACE_VERIFICATION_API_URL,
                     requestEntity,
-                    HuggingFaceResponse.class
+                    Map.class
             );
 
-            // Parse response
-            HuggingFaceResponse hfResponse = response.getBody();
-            if (hfResponse == null) {
-                throw new Exception("Empty response from HuggingFace API");
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new Exception("FastAPI returned error: " + response.getStatusCode());
             }
 
-            return convertToVerificationResult(hfResponse);
+            Map<String, Object> responseBody = response.getBody();
+            if (responseBody == null) {
+                throw new Exception("FastAPI returned empty response");
+            }
 
+
+            return convertToVerificationResult(responseBody);
         } catch (Exception e) {
-            log.error("Error during HuggingFace verification: {}", e.getMessage(), e);
-            throw new Exception("Error during HuggingFace verification: " + e.getMessage(), e);
-
+            log.error("Verification failed: {}", e.getMessage(), e);
+            throw new Exception("Face verification failed: " + e.getMessage(), e);
         }
     }
-    private FaceVerificationResultDto convertToVerificationResult(HuggingFaceResponse response) {
-        boolean isMatch = response.isMatch();
-        double similarity = response.getSimilarity();
 
-        String message = isMatch ?
-                "Identity verified successfully" :
-                "Identity verification failed";
+    private FaceVerificationResultDto convertToVerificationResult(Map<String, Object> responseBody) {
+        boolean success = Boolean.TRUE.equals(responseBody.get("success"));
 
-        // Check for deepfake detection
-        if (response.isDeepfake()) {
-            message = "Deepfake detected - verification failed";
-            isMatch = false;
-        }
+        // Deepfake Check
+        Map<String, Object> deepfakeCheck = (Map<String, Object>) responseBody.get("deepfake_check");
+        boolean isAuthentic = deepfakeCheck != null && Boolean.TRUE.equals(deepfakeCheck.get("is_authentic"));
+        double probabilityFake = deepfakeCheck != null ?
+                ((Number) deepfakeCheck.getOrDefault("probability_fake", 0.0)).doubleValue() : 0.0;
+
+        boolean isDeepfake = !isAuthentic;
+
+        // Face Verification
+        Map<String, Object> faceVerification = (Map<String, Object>) responseBody.get("face_verification");
+        boolean isMatch = faceVerification != null && Boolean.TRUE.equals(faceVerification.get("is_match"));
+        double similarity = faceVerification != null ?
+                ((Number) faceVerification.getOrDefault("similarity", 0.0)).doubleValue() : 0.0;
+        double thresholdUsed = faceVerification != null ?
+                ((Number) faceVerification.getOrDefault("threshold_used", 0.6)).doubleValue() : 0.6;
+
+        // Liveness
+        Map<String, Object> livenessCheck = (Map<String, Object>) responseBody.get("liveness_check");
+        boolean livenessPassed = livenessCheck != null && Boolean.TRUE.equals(livenessCheck.get("passed"));
+        int blinks = livenessCheck != null ? ((Number) livenessCheck.getOrDefault("blinks_detected", 0)).intValue() : 0;
+
+        // Processing Time
+        double processingTime = ((Number) responseBody.getOrDefault("processing_time_ms", 0.0)).doubleValue();
+
+        // Breakdown
+        Map<String, Object> perf = (Map<String, Object>) responseBody.get("performance_breakdown");
+        double videoProcessing = perf != null ? ((Number) perf.getOrDefault("video_processing_ms", 0.0)).doubleValue() : 0.0;
+        double deepfakeTime = perf != null ? ((Number) perf.getOrDefault("deepfake_detection_ms", 0.0)).doubleValue() : 0.0;
+        double faceVerificationTime = perf != null ? ((Number) perf.getOrDefault("face_verification_ms", 0.0)).doubleValue() : 0.0;
 
         return FaceVerificationResultDto.builder()
+                .success(success)
                 .isMatch(isMatch)
                 .similarity(similarity)
-                .message(message)
+                .deepfakeDetected(isDeepfake)
+                .confidence(probabilityFake)
+                .livenessCheckPassed(livenessPassed)
+                .blinksDetected(blinks)
+                .processingTimeMs(processingTime)
+                .thresholdUsed(thresholdUsed)
                 .build();
     }
 
@@ -285,23 +319,5 @@ public class DeepfakeDetectionService {
         public long contentLength() throws IOException {
             return -1;
         }
-    }
-    class HuggingFaceResponse {
-        private boolean is_match;
-        private double similarity;
-        private boolean deepfake;
-
-        // Constructors
-        public HuggingFaceResponse() {}
-
-        // Getters and Setters
-        public boolean isMatch() { return is_match; }
-        public void setIs_match(boolean is_match) { this.is_match = is_match; }
-
-        public double getSimilarity() { return similarity; }
-        public void setSimilarity(double similarity) { this.similarity = similarity; }
-
-        public boolean isDeepfake() { return deepfake; }
-        public void setDeepfake(boolean deepfake) { this.deepfake = deepfake; }
     }
 }

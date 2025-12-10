@@ -35,7 +35,6 @@ public class CitizenUserService {
     private final CitizenUserRepository citizenUserRepository;
     private final AuthenticationLogRepository authLogRepository;
     private final IPFSContentRepository ipfsContentRepository;
-    private final DeepfakeDetectionService deepfakeDetectionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,8 +44,7 @@ public class CitizenUserService {
             CitizenCodeGenerator citizenCodeGenerator,
             CitizenUserRepository citizenUserRepository,
             AuthenticationLogRepository authLogRepository,
-            IPFSContentRepository ipfsContentRepository,
-            DeepfakeDetectionService deepfakeDetectionService
+            IPFSContentRepository ipfsContentRepository
     ) {
         this.ipfsIntegration = ipfsIntegration;
         this.appointmentService = appointmentService;
@@ -54,7 +52,6 @@ public class CitizenUserService {
         this.citizenUserRepository = citizenUserRepository;
         this.authLogRepository = authLogRepository;
         this.ipfsContentRepository = ipfsContentRepository;
-        this.deepfakeDetectionService = deepfakeDetectionService;
     }
 
     /**
@@ -327,7 +324,7 @@ public class CitizenUserService {
                         "User not found with ID: " + request.getUserId()
                 ));
 
-        String faceEmbeddingHash = storeFaceEmbedding(request.getUserId().toString(), request.getFaceEmbedding());
+        String faceEmbeddingHash = storeFaceEmbedding(request.getUserId().toString(), request.getFaceEmbeddingBase64());
 
         String fingerprintHash = null;
         if (request.getFingerprintBase64() != null) {
@@ -506,6 +503,7 @@ public class CitizenUserService {
                     .citizenCode(user.getCitizenCode())
                     .fullName(user.getFullName())
                     .nic(user.getNic())
+                    .didId(user.getDidId())
                     .age(user.getAge())
                     .email(user.getEmail())
                     .phone(user.getPhone())
@@ -644,11 +642,10 @@ public class CitizenUserService {
         return map;
     }
 
-    private String storeFaceEmbedding(String userId, List<Double> embedding) {
+    private String storeFaceEmbedding(String userId, String embeddingBase64) {
         try {
-            String json = new ObjectMapper().writeValueAsString(embedding);
             return ipfsIntegration.storeBiometricData(
-                    userId.toString(), "face", json
+                    userId.toString(), "face", embeddingBase64
             );
         } catch (Exception ex) {
             log.error("Failed to store face embedding for user {}", userId, ex);
@@ -665,41 +662,5 @@ public class CitizenUserService {
             log.error("Failed to store fingerprint for user {}", userId, ex);
             throw new SludiException(ErrorCodes.IPFS_STORAGE_ERROR);
         }
-    }
-
-    @Transactional
-    public FaceVerificationResultDto verifyIdentity(
-            MultipartFile videoFile,
-            String citizenId) throws Exception {
-
-        // Fetch citizen from database
-        CitizenUser citizen = citizenUserRepository.findByAnyHash(null,null,citizenId);
-        if(citizen == null){
-            throw new Exception("Cannot find user!");
-        }
-        // Get IPFS hash from citizen record
-        String ipfsHash = citizen.getFaceImageIpfsHash();
-        if (ipfsHash == null || ipfsHash.isEmpty()) {
-            throw new Exception("No face embedding found for this citizen");
-        }
-
-        // Fetch face embedding from IPFS
-        String storedEmbedding = Arrays.toString(ipfsIntegration.retrieveBiometricData(ipfsHash, citizenId));
-
-        // Pass to authentication service for verification
-        FaceVerificationResultDto result = deepfakeDetectionService.faceAuthentication(
-                videoFile,
-                storedEmbedding
-        );
-
-        // Optional: Log verification attempt
-        logVerificationAttempt(citizenId, result.isMatch());
-
-        return result;
-    }
-
-    private void logVerificationAttempt(String citizenId, boolean success) {
-        // Log verification attempt to database for audit trail
-        // Implementation depends on your requirements
     }
 }

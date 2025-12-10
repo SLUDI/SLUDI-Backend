@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
-@RequiredArgsConstructor
+@NoArgsConstructor
 @Builder
 public class FaceVerificationResultDto {
     private boolean isMatch;
@@ -15,4 +15,13 @@ public class FaceVerificationResultDto {
     private LocalDateTime timestamp;
     private String citizenId;
     private boolean deepfakeDetected;
+
+    // Additional fields from API
+    private boolean success;
+    private String result;
+    private Double confidence;
+    private Boolean livenessCheckPassed;
+    private Integer blinksDetected;
+    private Double processingTimeMs;
+    private Double thresholdUsed;
 }

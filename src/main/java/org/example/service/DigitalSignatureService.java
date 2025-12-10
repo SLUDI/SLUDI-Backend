@@ -76,12 +76,19 @@ public class DigitalSignatureService {
     // Cache for organization signers (by MSP ID)
     private final Map<String, Signer> organizationSignerCache = new HashMap<>();
     private final Map<String, X509Certificate> organizationCertCache = new HashMap<>();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper;
 
     @PostConstruct
     public void initializeFromFabricIdentity() {
         try {
             log.info("Initializing DigitalSignatureService with Fabric identity");
+
+            // Initialize ObjectMapper with deterministic serialization settings
+            this.objectMapper = new ObjectMapper();
+            // Enable ordering map entries by keys for deterministic JSON output
+            this.objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+            // Ensure compact output (no extra whitespace) for byte-level consistency
+            this.objectMapper.configure(SerializationFeature.INDENT_OUTPUT, false);
 
             if (fabricIdentity instanceof X509Identity x509Identity) {
                 // Certificate extracted from Fabric identity
@@ -371,11 +378,11 @@ public class DigitalSignatureService {
 
             PublicKey publicKey = certificate.getPublicKey();
 
-            // DEBUG: Log certificate info
+            // certificate info
             log.info("Certificate Subject: {}", certificate.getSubjectX500Principal());
             log.info("Public Key Algorithm: {}", publicKey.getAlgorithm());
 
-            // DEBUG: Log data being verified
+            // data being verified
             log.info("Data length: {}", dataBytes.length);
             log.info("Signature length: {}", signatureBytes.length);
 
@@ -559,7 +566,7 @@ public class DigitalSignatureService {
         }
 
        org.example.entity.PublicKey publicKey = publicKeyRepository.findByCitizenUser(citizen);
-        return publicKey.getPublicKeyStr(); // PEM format
+        return publicKey.getPublicKeyBase58(); // PEM format
     }
 
     private String buildCanonicalVP(String sessionId, VerifiablePresentationDto vpDto) throws JsonProcessingException {

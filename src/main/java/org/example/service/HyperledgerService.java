@@ -1,6 +1,7 @@
 package org.example.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -37,7 +38,7 @@ public class HyperledgerService {
     @Value("${sludi.issuer-did}")
     private String issuerDid;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private final Gson gson = new Gson();
 
     public HyperledgerService(
@@ -46,6 +47,13 @@ public class HyperledgerService {
     ) {
         this.contract = contract;
         this.gateway = gateway;
+        
+        // Initialize ObjectMapper with deterministic serialization settings
+        this.objectMapper = new ObjectMapper();
+        // Enable ordering map entries by keys for deterministic JSON output
+        this.objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+        // Ensure compact output (no extra whitespace) for byte-level consistency
+        this.objectMapper.configure(SerializationFeature.INDENT_OUTPUT, false);
     }
 
     /**
@@ -351,16 +359,16 @@ public class HyperledgerService {
     /**
      * Get all credentials from blockchain (admin function)
      */
-    public List<VerifiableCredential> getAllCredentials() {
+    public List<VCBlockChainResult> getAllCredentials() {
         try {
             log.info("Getting all credentials from blockchain");
 
             byte[] result = contract.evaluateTransaction("GetAllCredentials");
             String credentialsJson = new String(result);
 
-            List<VerifiableCredential> credentials = objectMapper.readValue(
+            List<VCBlockChainResult> credentials = objectMapper.readValue(
                     credentialsJson,
-                    new TypeReference<List<VerifiableCredential>>() {}
+                    new TypeReference<List<VCBlockChainResult>>() {}
             );
 
             log.info("Found {} credentials on blockchain", credentials.size());

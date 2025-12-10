@@ -1,5 +1,6 @@
 package org.example.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.*;
@@ -15,7 +16,9 @@ import org.example.utils.HashUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -38,6 +41,7 @@ public class WalletService {
     private final StringRedisTemplate redisTemplate;
     private final CitizenUserJwtService citizenUserJwtService;
     private final IPFSIntegration ipfsIntegration;
+    private final DeepfakeDetectionService deepfakeDetectionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -53,7 +57,8 @@ public class WalletService {
             VerifiableCredentialRepository verifiableCredentialRepository,
             StringRedisTemplate redisTemplate,
             CitizenUserJwtService citizenUserJwtService,
-            IPFSIntegration ipfsIntegration
+            IPFSIntegration ipfsIntegration,
+            DeepfakeDetectionService deepfakeDetectionService
     ) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
@@ -68,6 +73,7 @@ public class WalletService {
         this.redisTemplate = redisTemplate;
         this.citizenUserJwtService = citizenUserJwtService;
         this.ipfsIntegration = ipfsIntegration;
+        this.deepfakeDetectionService = deepfakeDetectionService;
     }
 
     /**
@@ -186,7 +192,7 @@ public class WalletService {
 
         // Verify signature
         PublicKey publicKey = publicKeyRepository.findByCitizenUser(user);
-        boolean valid = cryptoService.verifySignature(nonce, signatureStr, publicKey.getPublicKeyStr());
+        boolean valid = cryptoService.verifySignature(nonce, signatureStr, publicKey.getPublicKeyBase58());
 
         if (!valid) {
             throw new SludiException(ErrorCodes.SIGNATURE_FAILED, "Signature verification failed");
@@ -278,6 +284,54 @@ public class WalletService {
         return data;
     }
 
+    public Map<String, Object> verifyIdentity(
+            MultipartFile videoFile,
+            String citizenId) throws Exception {
+
+        // Fetch citizen
+        CitizenUser citizen = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(citizenId));
+        if (citizen == null) {
+            throw new Exception("Cannot find user!");
+        }
+
+        // Get IPFS hash
+        String ipfsHash = citizen.getFaceImageIpfsHash();
+        if (ipfsHash == null || ipfsHash.isEmpty()) {
+            throw new Exception("No face embedding found for this citizen");
+        }
+
+        // Retrieve biometric data
+        String embeddingBase64 = ipfsIntegration.retrieveBiometricDataAsString(
+                ipfsHash,
+                citizen.getId().toString()
+        );
+
+        embeddingBase64 = embeddingBase64.trim().replaceAll("\\s+", "");
+
+
+        // Perform face authentication
+        FaceVerificationResultDto result = deepfakeDetectionService.faceAuthentication(
+                videoFile,
+                embeddingBase64
+        );
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("verification", result);
+
+        if (result.isMatch() && !result.isDeepfakeDetected()) {
+            String token = citizenUserJwtService.generateAccessToken(citizen);
+            String refreshToken = citizenUserJwtService.generateRefreshToken(citizen);
+
+            response.put("accessToken", token);
+            response.put("refreshToken", refreshToken);
+            response.put("status", "AUTH_SUCCESS");
+        } else {
+            response.put("status", "AUTH_FAILED");
+        }
+
+        return response;
+    }
+
     private void validateWalletCreationInputs(String did, String publicKeyStr) {
         if (did == null || did.isBlank()) {
             throw new SludiException(ErrorCodes.INVALID_INPUT, "DID cannot be null or empty");
@@ -292,11 +346,14 @@ public class WalletService {
         publicKey.setId(UUID.randomUUID().toString());
         publicKey.setType("RSA");
         publicKey.setController(did);
-        publicKey.setPublicKeyStr(publicKeyStr);
-        publicKey.setCitizenUser(user);
+        publicKey.setPublicKeyBase58(publicKeyStr);
         publicKey.setDidDocument(didDocument);
 
-        publicKeyRepository.save(publicKey);
+        publicKey.setCitizenUser(user);
+        user.getPublicKeys().add(publicKey);
+
+        // Save
+        citizenUserRepository.save(user);
     }
 
     private Wallet createAndSaveWallet(String did, CitizenUser user) {
