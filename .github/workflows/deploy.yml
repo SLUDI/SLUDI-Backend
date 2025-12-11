@@ -42,10 +42,10 @@ jobs:
     needs: build-and-push
 
     steps:
-      - name: Wait for build step to finish
-        run: echo "Deploying to EC2..."
+      - name: Deploying to EC2
+        run: echo "Deploying backend app to EC2..."
 
-      - name: Execute remote docker-compose update
+      - name: SSH and deploy backend
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -53,13 +53,24 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || '22' }}
           script: |
-            # make sure docker is available
+            # Check docker is available
             docker --version || exit 1
+
+            # Go to backend directory
             cd ${{ env.REMOTE_DIR }} || exit 1
-            # optionally show docker-compose file
+
             echo "docker-compose.yml located at $(pwd)/docker-compose.yml"
-            # pull the latest image and recreate containers
+
+            # Stop and remove existing containers
+            docker-compose down
+
+            # Pull the latest image
             docker-compose pull || docker pull ${{ env.IMAGE_NAME }}:latest
+
+            # Recreate and start containers
             docker-compose up -d --build
-            # optional: prune unused images
+
+            # Cleanup unused images
             docker image prune -f || true
+
+            echo "Backend deployment completed successfully!"
