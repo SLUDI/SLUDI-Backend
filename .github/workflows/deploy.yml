@@ -1,4 +1,4 @@
-name: Build → Push → Deploy to EC2
+name: Build → Push → Deploy Backend App to EC2
 
 on:
   push:
