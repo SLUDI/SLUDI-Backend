@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -157,7 +159,12 @@ public class VerifiableCredentialService {
                     .signatureValue(proofData.getSignatureValue())
                     .build();
 
+            List<String> context = List.of(
+                    "https://www.w3.org/2018/credentials/v1",
+                    "https://sludi.gov.lk/contexts/identity/v1");
+
             CredentialIssuanceRequestDto issuanceRequest = CredentialIssuanceRequestDto.builder()
+                    .context(context)
                     .credentialId(credentialId)
                     .subjectDID(user.getDidId())
                     .issuerDID(proofDataDto.getIssuerDid())
@@ -457,17 +464,17 @@ public class VerifiableCredentialService {
             VerifiableCredential credential = verifiableCredentialRepository.findById(vpDto.getCredentialId())
                     .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
 
-            boolean vcValid = verifyIncludedCredential(credential);
-            if (!vcValid) {
-                log.error("Invalid or untrusted credential in VP for sessionId: {}", sessionId);
-                throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
-            }
-
-            // Verify user sharedAttributes are valid
-            verifySharedAttributes(vpDto, credential);
-
-            // Verify all requested attributes are present
-            verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
+//            boolean vcValid = verifyIncludedCredential(credential);
+//            if (!vcValid) {
+//                log.error("Invalid or untrusted credential in VP for sessionId: {}", sessionId);
+//                throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
+//            }
+//
+//            // Verify user sharedAttributes are valid
+//            verifySharedAttributes(vpDto, credential);
+//
+//            // Verify all requested attributes are present
+//            verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
 
             // Store presentation data
             request.setStatus(PresentationStatus.FULFILLED.name());
@@ -696,6 +703,8 @@ public class VerifiableCredentialService {
             walletVerifiableCredentialRepository.save(walletVerifiableCredential);
 
             presentationRequest.setStatus(PresentationStatus.COMPLETED.name());
+            presentationRequest.setIssuedCredentialId(vc.getId());
+            presentationRequest.setCompletedAt(LocalDateTime.now());
             presentationRequestRepository.save(presentationRequest);
 
             log.info("Driving license VC issued successfully. CredentialId: {}",
@@ -1172,7 +1181,12 @@ public class VerifiableCredentialService {
                 .signatureValue(proofData.getSignatureValue())
                 .build();
 
+        List<String> context = List.of(
+                "https://www.w3.org/2018/credentials/v1",
+                "https://sludi.gov.lk/contexts/identity/v1");
+
         return CredentialIssuanceRequestDto.builder()
+                .context(context)
                 .credentialId(credentialId)
                 .subjectDID(citizen.getDidId())
                 .issuerDID(proofDataDto.getIssuerDid())

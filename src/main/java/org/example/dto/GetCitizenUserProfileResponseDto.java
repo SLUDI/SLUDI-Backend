@@ -29,6 +29,7 @@ public class GetCitizenUserProfileResponseDto {
     private AddressDto address;
     private String status;
     private String kycStatus;
+    private LocalDate appointmentDate;
 
     @Builder.Default
     private List<GetSupportingDocumentResponseDto> supportingDocumentList = new ArrayList<>();

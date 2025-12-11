@@ -12,6 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CredentialIssuanceRequestDto {
+    private List<String> context;
     private String credentialId;
     private String subjectDID;
     private String issuerDID;
