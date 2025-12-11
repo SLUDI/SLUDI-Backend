@@ -389,7 +389,7 @@ public class DigitalSignatureService {
             String sigAlgorithm = getSignatureAlgorithm(certificate);
             log.info("Using signature algorithm: {}", sigAlgorithm);
 
-            Signature signature = Signature.getInstance(sigAlgorithm);
+            Signature signature = Signature.getInstance("SHA256withECDSA");
             signature.initVerify(publicKey);
             signature.update(dataBytes);
 

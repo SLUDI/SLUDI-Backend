@@ -38,6 +38,7 @@ public class WalletService {
     private final DIDDocumentRepository didDocumentRepository;
     private final WalletVerifiableCredentialRepository walletVerifiableCredentialRepository;
     private final VerifiableCredentialRepository verifiableCredentialRepository;
+    private final PresentationRequestRepository presentationRequestRepository;
     private final StringRedisTemplate redisTemplate;
     private final CitizenUserJwtService citizenUserJwtService;
     private final IPFSIntegration ipfsIntegration;
@@ -54,7 +55,7 @@ public class WalletService {
             PublicKeyRepository publicKeyRepository,
             DIDDocumentRepository didDocumentRepository,
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
-            VerifiableCredentialRepository verifiableCredentialRepository,
+            VerifiableCredentialRepository verifiableCredentialRepository, PresentationRequestRepository presentationRequestRepository,
             StringRedisTemplate redisTemplate,
             CitizenUserJwtService citizenUserJwtService,
             IPFSIntegration ipfsIntegration,
@@ -70,6 +71,7 @@ public class WalletService {
         this.didDocumentRepository = didDocumentRepository;
         this.walletVerifiableCredentialRepository = walletVerifiableCredentialRepository;
         this.verifiableCredentialRepository = verifiableCredentialRepository;
+        this.presentationRequestRepository = presentationRequestRepository;
         this.redisTemplate = redisTemplate;
         this.citizenUserJwtService = citizenUserJwtService;
         this.ipfsIntegration = ipfsIntegration;
@@ -346,6 +348,15 @@ public class WalletService {
         return response;
     }
 
+    public List<PresentationRequestHistoryDto> getHolderRequestHistory(String holderDid) {
+        List<PresentationRequest> requests =
+                presentationRequestRepository.findByHolderDid(holderDid);
+
+        return requests.stream()
+                .map(this::toHistoryDTO)
+                .toList();
+    }
+
     private static List<PublicKeyDto> getPublicKeyDtos(String did, String publicKeyStr, DIDDocument didDocument) {
         List<PublicKey> updatedPublicKeys = new ArrayList<>(didDocument.getPublicKey());
 
@@ -387,6 +398,8 @@ public class WalletService {
         publicKey.setDidDocument(didDocument);
 
         publicKey.setCitizenUser(user);
+        user.getPublicKeys().add(publicKey);
+
         user.getPublicKeys().add(publicKey);
 
         // Save
@@ -444,4 +457,24 @@ public class WalletService {
         }
     }
 
+    private PresentationRequestHistoryDto toHistoryDTO(PresentationRequest entity) {
+        PresentationRequestHistoryDto dto = new PresentationRequestHistoryDto();
+
+        dto.setId(entity.getId());
+        dto.setSessionId(entity.getSessionId());
+        dto.setRequesterId(entity.getRequesterId());
+        dto.setRequesterName(entity.getRequesterName());
+        dto.setRequestedAttributes(entity.getRequestedAttributes());
+        dto.setPurpose(entity.getPurpose());
+        dto.setStatus(entity.getStatus());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setExpiresAt(entity.getExpiresAt());
+        dto.setFulfilledAt(entity.getFulfilledAt());
+        dto.setCompletedAt(entity.getCompletedAt());
+        dto.setSharedAttributes(entity.getSharedAttributes());
+        dto.setIssuedCredentialId(entity.getIssuedCredentialId());
+        dto.setErrorMessage(entity.getErrorMessage());
+
+        return dto;
+    }
 }

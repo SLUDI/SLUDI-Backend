@@ -24,10 +24,10 @@ public class DeepfakeDetectionService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private static final String PHOTO_SPACE_API_URL = "https://Tishan-001-deepfake-detector.hf.space/predict";
+    private static final String PHOTO_SPACE_API_URL = "https://deepfake.sludi.dpdns.org/predict";
     private static final String VIDEO_SPACE_API_URL = "https://Tishan-001-video-deepfake-detection.hf.space/detailed-analysis";
     private static final String QUICK_CHECK_API_URL = "https://Tishan-001-video-deepfake-detection.hf.space/quick-check";
-    private static final String FACE_VERIFICATION_API_URL = "https://Tishan-001-deepfake-detector.hf.space/verify-with-embedding";
+    private static final String FACE_VERIFICATION_API_URL = "https://deepfake.sludi.dpdns.org/verify-with-embedding";
     private static final Double FACE_AUTHENTICATION_THRESHOLD = 0.80;
     private static final String UPLOAD_DIR = "uploads/videos/";
 
@@ -60,17 +60,34 @@ public class DeepfakeDetectionService {
 
         // Extract response data
         String label = (String) responseBody.get("label");
-        Double confidence = (Double) responseBody.get("confidence");
+        Double confidence = ((Number) responseBody.get("confidence")).doubleValue();
+        Double probabilityFake = ((Number) responseBody.get("probability_fake")).doubleValue();
+        Double probabilityReal = ((Number) responseBody.get("probability_real")).doubleValue();
+        Integer framesAnalyzed = ((Number) responseBody.get("frames_analyzed")).intValue();
+        Double processingTimeMs = ((Number) responseBody.get("processing_time_ms")).doubleValue();
 
-        Map<String, String> images = (Map<String, String>) responseBody.get("images");
+        // Frame probabilities (avg, max, min)
+        Map<String, Object> frameProbabilities = (Map<String, Object>) responseBody.get("frame_probabilities");
 
         // Build response map
         Map<String, Object> result = new HashMap<>();
         result.put("label", label);
         result.put("confidence", confidence);
-        result.put("original", images.get("original"));
-        result.put("gradcam_heatmap", images.get("gradcam_heatmap"));
-        result.put("overlay", images.get("overlay"));
+        result.put("probability_fake", probabilityFake);
+        result.put("probability_real", probabilityReal);
+        result.put("frames_analyzed", framesAnalyzed);
+        result.put("processing_time_ms", processingTimeMs);
+        result.put("frame_probabilities", frameProbabilities);
+
+        // Images are only included when deepfake is detected (label == "Fake")
+        Map<String, String> images = (Map<String, String>) responseBody.get("images");
+        if (images != null) {
+            result.put("original", images.get("original"));
+            result.put("gradcam_heatmap", images.get("gradcam_heatmap"));
+            result.put("overlay", images.get("overlay"));
+            result.put("gradcam_frame_index", responseBody.get("gradcam_frame_index"));
+            result.put("gradcam_frame_probability", responseBody.get("gradcam_frame_probability"));
+        }
 
         return result;
     }

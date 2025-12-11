@@ -448,6 +448,7 @@ public class BlockchainSyncService {
             Long blockNumber,
             String syncStatus,
             String errorMessage) {
+
         Optional<SyncMetadata> existing = syncMetadataRepository
                 .findByEntityTypeAndEntityId(entityType, entityId);
 
@@ -459,18 +460,21 @@ public class BlockchainSyncService {
             metadata.setErrorMessage(errorMessage);
 
             if (SyncStatus.FAILED.name().equals(syncStatus)) {
-                metadata.setRetryCount(metadata.getRetryCount() != null ? metadata.getRetryCount() + 1 : 1);
+                metadata.setRetryCount(
+                        metadata.getRetryCount() != null ? metadata.getRetryCount() + 1 : 1
+                );
             } else if (SyncStatus.SYNCED.name().equals(syncStatus)) {
                 metadata.setRetryCount(0);
                 metadata.setBlockchainTxId(blockchainTxId);
                 metadata.setBlockNumber(blockNumber);
             }
+
         } else {
             metadata = SyncMetadata.builder()
                     .entityType(entityType)
                     .entityId(entityId)
-                    .blockchainTxId(blockchainTxId)
-                    .blockNumber(blockNumber)
+                    .blockchainTxId(SyncStatus.SYNCED.name().equals(syncStatus) ? blockchainTxId : null)
+                    .blockNumber(SyncStatus.SYNCED.name().equals(syncStatus) ? blockNumber : null)
                     .syncStatus(syncStatus)
                     .errorMessage(errorMessage)
                     .retryCount(SyncStatus.FAILED.name().equals(syncStatus) ? 1 : 0)

@@ -20,6 +20,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -426,6 +427,56 @@ public class WalletController {
         }
     }
 
+    /**
+     * Get Presentation Request History for a Holder
+     * GET /api/wallet/presentation/history
+     */
+    @GetMapping("/presentation/history")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<List<PresentationRequestHistoryDto>>> getHolderRequestHistory(
+            Authentication authentication) {
+
+        String holderDid = getString(authentication);
+
+        log.info("Fetching presentation request history for holderDid: {}", holderDid);
+
+        try {
+            List<PresentationRequestHistoryDto> history =
+                    walletService.getHolderRequestHistory(holderDid);
+
+            ApiResponseDto<List<PresentationRequestHistoryDto>> apiResponse =
+                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
+                            .success(true)
+                            .message("Presentation request history fetched successfully")
+                            .data(history)
+                            .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (SludiException e) {
+
+            ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
+                            .success(false)
+                            .message(e.getMessage())
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+        } catch (Exception e) {
+
+            ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse =
+                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
+                            .success(false)
+                            .message("Failed to fetch presentation request history")
+                            .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
     private static String getString(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
             throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");
@@ -444,5 +495,4 @@ public class WalletController {
         // Ensure the DID is in full form
         return didId.startsWith("did:sludi:") ? didId : "did:sludi:" + didId;
     }
-
 }

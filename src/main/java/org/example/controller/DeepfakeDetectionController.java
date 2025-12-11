@@ -56,19 +56,47 @@ public class DeepfakeDetectionController {
         try {
             Map<String, Object> result = deepfakeDetectionService.detectDeepfake(file);
 
-            // extract images (Base64)
+            String label = (String) result.get("label");
+            Double confidence = (Double) result.get("confidence");
+
+            // Check if images are available (only present when deepfake detected)
+            String original = (String) result.get("original");
+            String gradcamHeatmap = (String) result.get("gradcam_heatmap");
+            String overlay = (String) result.get("overlay");
+
+            // If no deepfake detected, images won't be present
+            if (original == null || gradcamHeatmap == null || overlay == null) {
+                // Return JSON response instead of ZIP when video is real (no visualization needed)
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "label", label,
+                        "confidence", confidence,
+                        "probability_fake", result.get("probability_fake"),
+                        "probability_real", result.get("probability_real"),
+                        "frames_analyzed", result.get("frames_analyzed"),
+                        "message", "Video detected as Real - no Grad-CAM visualization generated",
+                        "timestamp", Instant.now()
+                ));
+            }
+
+            // Deepfake detected - create ZIP with images
             Map<String, String> images = Map.of(
-                    "original.png", (String) result.get("original"),
-                    "gradcam_heatmap.png", (String) result.get("gradcam_heatmap"),
-                    "overlay.png", (String) result.get("overlay")
+                    "original.png", original,
+                    "gradcam_heatmap.png", gradcamHeatmap,
+                    "overlay.png", overlay
             );
 
-            // convert to zip
+            // Convert to zip
             byte[] zipBytes = createZipFromBase64(images);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
             headers.setContentDisposition(ContentDisposition.attachment().filename("deepfake_results.zip").build());
+
+            // Add detection metadata as custom headers
+            headers.add("X-Deepfake-Label", label);
+            headers.add("X-Deepfake-Confidence", String.valueOf(confidence));
+            headers.add("X-Gradcam-Frame-Index", String.valueOf(result.get("gradcam_frame_index")));
 
             return new ResponseEntity<>(new ByteArrayResource(zipBytes), headers, HttpStatus.OK);
 

@@ -21,4 +21,6 @@ public interface PresentationRequestRepository extends JpaRepository<Presentatio
     List<PresentationRequest> findByExpiresAtBeforeAndStatus(LocalDateTime dateTime, String status);
 
     Optional<PresentationRequest> findByIssuedCredentialId(String credentialId);
+
+    List<PresentationRequest> findByHolderDid(String holderDid);
 }

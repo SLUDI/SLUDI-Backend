@@ -30,7 +30,7 @@ public class PublicKey {
     private DIDDocument didDocument;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "citizen_user_id", nullable = false)
+    @JoinColumn(name = "citizen_user_id", nullable = true)
     private CitizenUser citizenUser;
 
     public PublicKey(String id, String type, String controller, String publicKeyBase58) {
