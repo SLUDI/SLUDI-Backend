@@ -63,6 +63,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.google.zxing:javase:3.5.3")
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+    // SourceAFIS for server-side matching (No device required)
+    implementation 'com.machinezoo.sourceafis:sourceafis:3.17.1'
+
+
 }
 
 
