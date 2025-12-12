@@ -10,6 +10,7 @@ import org.example.exception.ErrorCodes;
 import org.example.exception.HttpStatusHandler;
 import org.example.exception.SludiException;
 import org.example.service.CitizenUserService;
+import org.example.service.FingerprintService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,11 +31,13 @@ import java.util.UUID;
 public class CitizenUserController {
     
     private final CitizenUserService citizenUserService;
+    private final FingerprintService fingerprintService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CitizenUserController(CitizenUserService citizenUserService) {
+    public CitizenUserController(CitizenUserService citizenUserService, FingerprintService fingerprintService) {
         this.citizenUserService = citizenUserService;
+        this.fingerprintService = fingerprintService;
     }
 
     /**
@@ -533,6 +536,19 @@ public class CitizenUserController {
                             .build());
         }
     }
+
+    @PostMapping("/fingerprint/verify")
+    public ResponseEntity<?> verify(@RequestBody FingerprintVerificationRequest request) {
+        try {
+            FingerprintVerificationResult result = fingerprintService.verifyUser(request);
+            return ResponseEntity.ok(result);
+        } catch (Throwable e) {
+//            e.printStackTrace(); // Ensure it shows in console
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getClass().getName() + ": " + e.getMessage()));
+        }
+    }
+
 
     /**
      * Validate image file for profile photo upload

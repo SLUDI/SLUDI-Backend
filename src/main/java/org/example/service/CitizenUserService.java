@@ -328,7 +328,7 @@ public class CitizenUserService {
 
         String fingerprintHash = null;
         if (request.getFingerprintBase64() != null) {
-            fingerprintHash = storeFingerprint(request.getUserId().toString(), request.getFingerprintBase64());
+            fingerprintHash = storeFingerprints(request.getUserId().toString(), request.getFingerprintBase64());
         }
 
         user.setFaceImageIpfsHash(faceEmbeddingHash);
@@ -654,13 +654,19 @@ public class CitizenUserService {
         }
     }
 
-    private String storeFingerprint(String userId, String fingerprintBase64) {
+    private String storeFingerprints(String userId, List<String> fingerprints) {
         try {
+            // Convert to JSON string
+            String fpJson = new ObjectMapper().writeValueAsString(fingerprints);
+
             return ipfsIntegration.storeBiometricData(
-                    userId.toString(), "fingerprint", fingerprintBase64
+                    userId,
+                    "fingerprints",
+                    fpJson
             );
+
         } catch (Exception ex) {
-            log.error("Failed to store fingerprint for user {}", userId, ex);
+            log.error("Failed to store fingerprints for user {}", userId, ex);
             throw new SludiException(ErrorCodes.IPFS_STORAGE_ERROR);
         }
     }

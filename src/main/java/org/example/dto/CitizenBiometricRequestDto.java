@@ -17,5 +17,5 @@ public class CitizenBiometricRequestDto {
 
     private String faceEmbeddingBase64;
 
-    private String fingerprintBase64;
+    private List<String> fingerprintBase64;
 }
