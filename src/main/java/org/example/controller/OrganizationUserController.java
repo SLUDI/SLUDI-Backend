@@ -180,7 +180,7 @@ public class OrganizationUserController {
      * Get all users of an organization
      * GET /api/organization-users/get-all
      */
-    @GetMapping("/organization/{organizationId}")
+    @GetMapping("get-all")
     @Operation(
             security = {@SecurityRequirement(name = "bearerAuth")}
     )
