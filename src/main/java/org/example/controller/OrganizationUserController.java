@@ -177,6 +177,44 @@ public class OrganizationUserController {
     }
 
     /**
+     * Get all users of an organization
+     * GET /api/organization-users/get-all
+     */
+    @GetMapping("/organization/{organizationId}")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<List<OrganizationUserResponseDto>>> getAllOrganizationsUsers() {
+
+        log.info("Fetching all organizations users");
+
+        try {
+            List<OrganizationUserResponseDto> users = userService.getAllOrgUsers();
+
+            ApiResponseDto<List<OrganizationUserResponseDto>> apiResponse = ApiResponseDto.<List<OrganizationUserResponseDto>>builder()
+                    .success(true)
+                    .message("Users fetched successfully")
+                    .data(users)
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (Exception ex) {
+            log.error("Error fetching users: {}", ex.getMessage(), ex);
+
+            ApiResponseDto<List<OrganizationUserResponseDto>> apiResponse = ApiResponseDto.<List<OrganizationUserResponseDto>>builder()
+                    .success(false)
+                    .message("Failed to fetch users")
+                    .errorCode("FETCH_ERROR")
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        }
+    }
+
+    /**
      * Get user details by ID
      * GET /api/organization-users/{userId}
      */
@@ -385,6 +423,9 @@ public class OrganizationUserController {
      * GET /api/organization-users/verify-permission
      */
     @GetMapping("/verify-permission")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<Boolean>> verifyUserPermission(
             @RequestParam String username,
             @RequestParam String permission) {
@@ -422,6 +463,9 @@ public class OrganizationUserController {
      * POST /api/organization-users/organization/{organizationId}/roles/initialize
      */
     @PostMapping("/organization/{organizationId}/roles/initialize")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<List<OrganizationRole>>> initializeOrganizationRoles(
             @PathVariable Long organizationId) {
 
@@ -641,6 +685,9 @@ public class OrganizationUserController {
      * DELETE /api/organization-users/{userId}
      */
     @DeleteMapping("/{userId}")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     public ResponseEntity<ApiResponseDto<Void>> deleteUser(
             @PathVariable Long userId,
             @RequestParam Long deletedBy) {

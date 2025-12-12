@@ -93,7 +93,8 @@ public class OrganizationService{
         // Save to database
         organization = organizationRepository.save(organization);
 
-        // Log audit trail
+        // Initialize roles
+        userService.initializeOrganizationRoles(organization.getId());
 
         log.info("Organization created successfully with ID: {} and code: {}",
                 organization.getId(), organization.getOrgCode());
