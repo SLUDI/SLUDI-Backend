@@ -967,6 +967,14 @@ public class OrganizationUserService {
         log.info("Password changed successfully for user: {}", username);
     }
 
+    public List<OrganizationUserResponseDto> getAllOrgUsers() {
+        List<OrganizationUser> organizationUserList = userRepository.findAll();
+
+        return organizationUserList.stream()
+                .map(this::mapToUserResponse)
+                .collect(Collectors.toList());
+    }
+
     // Helper Methods
     /**
      * Generate unique Fabric user ID
@@ -996,6 +1004,7 @@ public class OrganizationUserService {
                 .lastName(user.getLastName())
                 .phone(user.getPhone())
                 .organizationId(user.getOrganization().getId())
+                .organizationCode(user.getOrganization().getOrgCode())
                 .organizationName(user.getOrganization().getName())
                 .roleId(user.getAssignedRole().getId())
                 .roleCode(user.getAssignedRole().getRoleCode())
