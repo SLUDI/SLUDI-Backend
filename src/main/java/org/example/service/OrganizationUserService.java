@@ -789,6 +789,33 @@ public class OrganizationUserService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public UserStatisticsResponseDto getOrganizationsUserStatistics() {
+        log.info("Fetching user statistics");
+
+        long totalUsers = userRepository.count();
+        long activeUsers = userRepository.countAllActiveUsers();
+
+        List<OrganizationUser> pendingUsers = userRepository
+                .findByStatus(UserStatus.PENDING);
+
+        List<OrganizationUser> suspendedUsers = userRepository
+                .findByStatus(UserStatus.SUSPENDED);
+
+        List<OrganizationUser> enrolledUsers = userRepository
+                .findEnrolledUsers().stream()
+                .filter(OrganizationUser::getIsEnrolledOnBlockchain)
+                .toList();
+
+        return UserStatisticsResponseDto.builder()
+                .totalUsers(totalUsers)
+                .activeUsers(activeUsers)
+                .pendingUsers(pendingUsers.size())
+                .suspendedUsers(suspendedUsers.size())
+                .enrolledOnBlockchain(enrolledUsers.size())
+                .build();
+    }
+
     /**
      * Reset user password
      */

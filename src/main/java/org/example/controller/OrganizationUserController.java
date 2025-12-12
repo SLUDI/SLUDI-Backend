@@ -631,6 +631,40 @@ public class OrganizationUserController {
         }
     }
 
+    @GetMapping("/users/statistics")
+    @Operation(
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<ApiResponseDto<UserStatisticsResponseDto>> getOrganizationsUserStatistics() {
+
+        log.info("Fetching all user statistics");
+
+        try {
+            UserStatisticsResponseDto statistics = userService.getOrganizationsUserStatistics();
+
+            ApiResponseDto<UserStatisticsResponseDto> apiResponse = ApiResponseDto.<UserStatisticsResponseDto>builder()
+                    .success(true)
+                    .message("Statistics fetched successfully")
+                    .data(statistics)
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.ok(apiResponse);
+
+        } catch (Exception ex) {
+            log.error("Error fetching statistics: {}", ex.getMessage(), ex);
+
+            ApiResponseDto<UserStatisticsResponseDto> apiResponse = ApiResponseDto.<UserStatisticsResponseDto>builder()
+                    .success(false)
+                    .message("Failed to fetch statistics")
+                    .errorCode("FETCH_ERROR")
+                    .timestamp(Instant.now())
+                    .build();
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        }
+    }
+
     /**
      * Reset user password
      * POST /api/organization-users/{userId}/reset-password
