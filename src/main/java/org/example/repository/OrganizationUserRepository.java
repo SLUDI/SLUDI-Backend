@@ -120,4 +120,7 @@ public interface OrganizationUserRepository extends JpaRepository<OrganizationUs
     List<OrganizationUser> searchUsers(
             @Param("organizationId") Long organizationId,
             @Param("searchTerm") String searchTerm);
+
+    @Query("SELECT COUNT(u) FROM OrganizationUser u WHERE u.status = 'ACTIVE'")
+    long countAllActiveUsers();
 }
