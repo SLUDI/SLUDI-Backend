@@ -69,8 +69,7 @@ public class VerifiableCredentialService {
             OrganizationUserRepository organizationUserRepository,
             PresentationRequestRepository presentationRequestRepository,
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
-            WalletRepository walletRepository
-    ) {
+            WalletRepository walletRepository) {
         this.hyperledgerService = hyperledgerService;
         this.cryptographyService = cryptographyService;
         this.digitalSignatureService = digitalSignatureService;
@@ -123,8 +122,7 @@ public class VerifiableCredentialService {
             String credentialSubjectHash = cryptographyService.encryptData(credentialSubjectJson);
 
             List<SupportingDocumentResponseDto> supportingDocuments = mapSupportingDocuments(
-                    user, request.getSupportingDocuments(), request.getCredentialType()
-            );
+                    user, request.getSupportingDocuments(), request.getCredentialType());
 
             // Create credential ID
             String credentialId = "credential:" + request.getCredentialType().toLowerCase() + ":" + request.getDid();
@@ -148,8 +146,7 @@ public class VerifiableCredentialService {
             // Sign the credential with claims
             ProofData proofData = digitalSignatureService.signVerifiableCredential(
                     credentialSignatureRequestDto,
-                    adminUser
-            );
+                    adminUser);
 
             ProofDataDto proofDataDto = ProofDataDto.builder()
                     .proofType(proofData.getProofType())
@@ -251,18 +248,22 @@ public class VerifiableCredentialService {
 
             if (vcBlockChainResult == null) {
                 log.error("No credential found on blockchain for ID: {}", credentialId);
-                throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND, "No credential found for ID: " + credentialId);
+                throw new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND,
+                        "No credential found for ID: " + credentialId);
             }
 
             log.info("Decrypting credential subject for credentialId: {}", credentialId);
-            String credentialSubjectJson = cryptographyService.decryptData(vcBlockChainResult.getCredentialSubjectHash());
+            String credentialSubjectJson = cryptographyService
+                    .decryptData(vcBlockChainResult.getCredentialSubjectHash());
 
             CredentialSubject credentialSubject;
             try {
                 credentialSubject = objectMapper.readValue(credentialSubjectJson, CredentialSubject.class);
             } catch (Exception parseEx) {
-                log.error("Failed to parse CredentialSubject JSON for credentialId: {}. Error: {}", credentialId, parseEx.getMessage());
-                throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_IDENTITY_VC, "Invalid credential subject format", parseEx);
+                log.error("Failed to parse CredentialSubject JSON for credentialId: {}. Error: {}", credentialId,
+                        parseEx.getMessage());
+                throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_IDENTITY_VC, "Invalid credential subject format",
+                        parseEx);
             }
 
             log.info("Successfully retrieved Verifiable Credential for ID: {}", credentialId);
@@ -291,10 +292,12 @@ public class VerifiableCredentialService {
                     .build();
 
         } catch (SludiException e) {
-            log.error("Business exception while fetching VC for credentialId: {}. Error: {}", credentialId, e.getMessage());
+            log.error("Business exception while fetching VC for credentialId: {}. Error: {}", credentialId,
+                    e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected error while fetching VC for credentialId: {}. Error: {}", credentialId, e.getMessage());
+            log.error("Unexpected error while fetching VC for credentialId: {}. Error: {}", credentialId,
+                    e.getMessage());
             throw new SludiException(ErrorCodes.FAILED_TO_RETRIEVE_IDENTITY_VC, "Unexpected error retrieving VC", e);
         }
     }
@@ -341,8 +344,7 @@ public class VerifiableCredentialService {
                             "bloodGroup",
                             "id",
                             "nic",
-                            "profilePhoto"
-                    ))
+                            "profilePhoto"))
                     .purpose("Driving License Issuance")
                     .status(PresentationStatus.PENDING.name())
                     .createdAt(LocalDateTime.now())
@@ -356,8 +358,7 @@ public class VerifiableCredentialService {
             String requestUrl = String.format(
                     "%s/api/wallet/driving-license/request/%s",
                     baseUrl,
-                    sessionId
-            );
+                    sessionId);
 
             // Generate QR code image
             byte[] qrCodeImage = qrCodeService.generateQRCode(requestUrl, 300, 300);
@@ -379,7 +380,8 @@ public class VerifiableCredentialService {
     }
 
     /**
-     * Wallet calls this endpoint after scanning QR code to get the presentation request details
+     * Wallet calls this endpoint after scanning QR code to get the presentation
+     * request details
      */
     public PresentationRequestDto getPresentationRequest(String sessionId) {
         log.info("Retrieving presentation request for sessionId: {}", sessionId);
@@ -453,8 +455,7 @@ public class VerifiableCredentialService {
             // Verify the holder owns the DID (proof of possession)
             boolean didOwnershipValid = digitalSignatureService.verifyDIDOwnership(
                     vpDto.getHolder(),
-                    vpDto.getProof()
-            );
+                    vpDto.getProof());
             if (!didOwnershipValid) {
                 log.error("Invalid DID ownership proof for sessionId: {}", sessionId);
                 throw new SludiException(ErrorCodes.INVALID_DID_OWNERSHIP);
@@ -464,17 +465,18 @@ public class VerifiableCredentialService {
             VerifiableCredential credential = verifiableCredentialRepository.findById(vpDto.getCredentialId())
                     .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
 
-//            boolean vcValid = verifyIncludedCredential(credential);
-//            if (!vcValid) {
-//                log.error("Invalid or untrusted credential in VP for sessionId: {}", sessionId);
-//                throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
-//            }
-//
-//            // Verify user sharedAttributes are valid
-//            verifySharedAttributes(vpDto, credential);
-//
-//            // Verify all requested attributes are present
-//            verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
+            // boolean vcValid = verifyIncludedCredential(credential);
+            // if (!vcValid) {
+            // log.error("Invalid or untrusted credential in VP for sessionId: {}",
+            // sessionId);
+            // throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
+            // }
+            //
+            // // Verify user sharedAttributes are valid
+            // verifySharedAttributes(vpDto, credential);
+            //
+            // // Verify all requested attributes are present
+            // verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
 
             // Store presentation data
             request.setStatus(PresentationStatus.FULFILLED.name());
@@ -539,7 +541,7 @@ public class VerifiableCredentialService {
 
             return presentationRequestList.stream()
                     .map(this::mapPresentationRequestToDto)
-                    .toList();
+                    .collect(Collectors.toList());
 
         } catch (Exception e) {
             throw new SludiException(ErrorCodes.FAILED_TO_GET_PRESENTATIONS, e.getMessage());
@@ -595,16 +597,14 @@ public class VerifiableCredentialService {
             validateDrivingLicenseRequirements(request, presentationRequest);
 
             // Check for existing driving license
-            if (
-                    verifiableCredentialRepository.findBySubjectDidAndCredentialType(
-                            citizenDid, CredentialsType.DRIVING_LICENSE.toString()).isPresent()
-            ) {
+            if (verifiableCredentialRepository.findBySubjectDidAndCredentialType(
+                    citizenDid, CredentialsType.DRIVING_LICENSE.toString()).isPresent()) {
                 throw new SludiException(ErrorCodes.DRIVING_LICENSE_ALREADY_EXISTS);
             }
 
             // Store supporting documents (test certificates, medical reports)
-            List<SupportingDocumentResponseDto> supportingDocs =
-                    mapSupportingDocuments(citizen, request.getSupportingDocuments(), CredentialsType.DRIVING_LICENSE.toString());
+            List<SupportingDocumentResponseDto> supportingDocs = mapSupportingDocuments(citizen,
+                    request.getSupportingDocuments(), CredentialsType.DRIVING_LICENSE.toString());
 
             // Generate license number
             String drivingLicenseNumber = licenseNumberGenerator.generateLicenseNumber();
@@ -614,44 +614,37 @@ public class VerifiableCredentialService {
 
             // Build credential subject
             DrivingLicenseCredentialSubject credentialSubject = buildDrivingLicenseCredentialSubject(
-                    request, presentationRequest, drivingLicenseNumber, LocalDate.now().toString(), expireDate
-            );
+                    request, presentationRequest, drivingLicenseNumber, LocalDate.now().toString(), expireDate);
 
             // Encrypt and hash credential subject
-            String credentialSubjectJson =
-                    objectMapper.writeValueAsString(credentialSubject);
-            String credentialSubjectHash =
-                    cryptographyService.encryptData(credentialSubjectJson);
+            String credentialSubjectJson = objectMapper.writeValueAsString(credentialSubject);
+            String credentialSubjectHash = cryptographyService.encryptData(credentialSubjectJson);
 
             // Generate credential ID
             String credentialId = String.format(
                     "credential:%s:%s",
                     CredentialsType.DRIVING_LICENSE.name().toLowerCase(),
-                    drivingLicenseNumber
-            );
+                    drivingLicenseNumber);
 
             // Convert to claims and create proof
-            Map<String, Object> claims =
-                    claimsMapper.convertLicenseClaimsMap(credentialSubject);
+            Map<String, Object> claims = claimsMapper.convertLicenseClaimsMap(credentialSubject);
 
-            CredentialSignatureRequestDto signatureRequest =
-                    CredentialSignatureRequestDto.builder()
-                            .credentialId(credentialId)
-                            .credentialType(CredentialsType.DRIVING_LICENSE.toString())
-                            .subjectDid(citizenDid)
-                            .signData(credentialSubjectHash)
-                            .expirationDate(expireDate)
-                            .build();
+            CredentialSignatureRequestDto signatureRequest = CredentialSignatureRequestDto.builder()
+                    .credentialId(credentialId)
+                    .credentialType(CredentialsType.DRIVING_LICENSE.toString())
+                    .subjectDid(citizenDid)
+                    .signData(credentialSubjectHash)
+                    .expirationDate(expireDate)
+                    .build();
 
             ProofData proofData = digitalSignatureService
                     .signVerifiableCredential(signatureRequest, adminUser);
 
             // Issue credential on blockchain
-            CredentialIssuanceRequestDto issuanceRequest =
-                    buildIssuanceRequest(credentialId, citizen, credentialSubjectHash, supportingDocs, proofData, expireDate);
+            CredentialIssuanceRequestDto issuanceRequest = buildIssuanceRequest(credentialId, citizen,
+                    credentialSubjectHash, supportingDocs, proofData, expireDate);
 
-            VCBlockChainResult result =
-                    hyperledgerService.issueCredential(issuanceRequest);
+            VCBlockChainResult result = hyperledgerService.issueCredential(issuanceRequest);
 
             // Save credential and license records
             VerifiableCredential vc = VerifiableCredential.builder()
@@ -762,8 +755,8 @@ public class VerifiableCredentialService {
     public DrivingLicenseStatsResponse getDrivingLicenseStats() {
 
         // Load all driving license credentials
-        List<VerifiableCredential> licenses =
-                verifiableCredentialRepository.getAllByCredentialType(CredentialsType.DRIVING_LICENSE.name());
+        List<VerifiableCredential> licenses = verifiableCredentialRepository
+                .getAllByCredentialType(CredentialsType.DRIVING_LICENSE.name());
 
         int total = licenses.size();
 
@@ -772,10 +765,8 @@ public class VerifiableCredentialService {
                 .count();
 
         int deactivated = (int) licenses.stream()
-                .filter(vc ->
-                        "deactivated".equalsIgnoreCase(vc.getStatus()) ||
-                                "revoked".equalsIgnoreCase(vc.getStatus())
-                )
+                .filter(vc -> "deactivated".equalsIgnoreCase(vc.getStatus()) ||
+                        "revoked".equalsIgnoreCase(vc.getStatus()))
                 .count();
 
         // Expire within next 30 days
@@ -858,11 +849,11 @@ public class VerifiableCredentialService {
                 .build();
     }
 
-
     /**
-     * Verify that all requested attributes are present in the VerifiablePresentationDto.
+     * Verify that all requested attributes are present in the
+     * VerifiablePresentationDto.
      */
-     private static void verifyRequestedAttributes(List<String> requestedAttributes, VerifiablePresentationDto vpDto) {
+    private static void verifyRequestedAttributes(List<String> requestedAttributes, VerifiablePresentationDto vpDto) {
         if (requestedAttributes == null || requestedAttributes.isEmpty()) {
             return; // Nothing to verify
         }
@@ -875,7 +866,7 @@ public class VerifiableCredentialService {
 
         List<String> missingAttributes = requestedAttributes.stream()
                 .filter(attr -> !providedAttributes.containsKey(attr) || providedAttributes.get(attr) == null)
-                .toList();
+                .collect(Collectors.toList());
 
         if (!missingAttributes.isEmpty()) {
             throw new SludiException(ErrorCodes.ATTRIBUTE_MISSING);
@@ -883,10 +874,12 @@ public class VerifiableCredentialService {
     }
 
     /**
-     * Verify that all attributes shared in the VP exist in the original Verifiable Credential.
+     * Verify that all attributes shared in the VP exist in the original Verifiable
+     * Credential.
      * Throws exception if any attribute is invalid.
      */
-    public static void verifySharedAttributes(VerifiablePresentationDto vpDto, VerifiableCredential credential) throws JsonProcessingException {
+    public static void verifySharedAttributes(VerifiablePresentationDto vpDto, VerifiableCredential credential)
+            throws JsonProcessingException {
         if (vpDto.getAttributes() == null || vpDto.getAttributes().isEmpty()) {
             throw new SludiException(ErrorCodes.INVALID_VP_ATTRIBUTES);
         }
@@ -918,7 +911,6 @@ public class VerifiableCredentialService {
 
                 continue;
             }
-
 
             String normalizedSharedValue = normalizeValue(claimValue);
             String sharedHash = HashUtil.sha256(normalizedSharedValue);
@@ -1038,7 +1030,7 @@ public class VerifiableCredentialService {
         }
 
         // Validate required documents
-        if(request.getSupportingDocuments().isEmpty()) {
+        if (request.getSupportingDocuments().isEmpty()) {
             throw new SludiException(
                     ErrorCodes.REQUIRED_DOCUMENT_MISSING);
         }
@@ -1098,7 +1090,6 @@ public class VerifiableCredentialService {
                 ? (String) addressObj
                 : objectMapper.writeValueAsString(addressObj);
 
-
         // Map vehicle categories from request
         List<VehicleCategory> authorizedVehicles = request.getVehicleCategories().stream()
                 .map(this::mapToVehicleCategory)
@@ -1118,8 +1109,7 @@ public class VerifiableCredentialService {
                 .issuingAuthority(
                         request.getIssuingAuthority() != null
                                 ? request.getIssuingAuthority()
-                                : "Department of Motor Traffic, Sri Lanka"
-                )
+                                : "Department of Motor Traffic, Sri Lanka")
                 .restrictions(request.getRestrictions())
                 .endorsements(request.getEndorsements())
                 .bloodGroup(bloodGroup)
@@ -1136,11 +1126,16 @@ public class VerifiableCredentialService {
 
         List<String> addressParts = new ArrayList<>();
 
-        if (address.getStreet() != null) addressParts.add(address.getStreet());
-        if (address.getCity() != null) addressParts.add(address.getCity());
-        if (address.getDistrict() != null) addressParts.add(address.getDistrict());
-        if (address.getPostalCode() != null) addressParts.add(address.getPostalCode());
-        if (address.getProvince() != null) addressParts.add(address.getProvince());
+        if (address.getStreet() != null)
+            addressParts.add(address.getStreet());
+        if (address.getCity() != null)
+            addressParts.add(address.getCity());
+        if (address.getDistrict() != null)
+            addressParts.add(address.getDistrict());
+        if (address.getPostalCode() != null)
+            addressParts.add(address.getPostalCode());
+        if (address.getProvince() != null)
+            addressParts.add(address.getProvince());
 
         return String.join(", ", addressParts);
     }
@@ -1216,8 +1211,7 @@ public class VerifiableCredentialService {
                 "CE",
                 "C1E",
                 "DE",
-                "D1E"
-        );
+                "D1E");
 
         return vehicleCategories.stream()
                 .anyMatch(category -> heavyVehicleCategories.contains(

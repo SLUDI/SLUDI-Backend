@@ -36,8 +36,7 @@ public class MailService {
 
     public MailService(
             JavaMailSender mailSender,
-            TemplateEngine templateEngine
-    ) {
+            TemplateEngine templateEngine) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
     }
@@ -62,10 +61,10 @@ public class MailService {
      * Sends an appointment confirmation email.
      */
     public void sendAppointmentEmail(String to,
-                                     String fullName,
-                                     String location,
-                                     String dateTime,
-                                     String referenceNumber) {
+            String fullName,
+            String location,
+            String dateTime,
+            String referenceNumber) {
         try {
             Context context = new Context();
             context.setVariable("fullName", fullName);
@@ -164,8 +163,7 @@ public class MailService {
                     user.getEmail(),
                     "Account Activated - Welcome to Digital Identity System",
                     "user-activation-mail",
-                    context
-            );
+                    context);
 
             log.info("Activation email sent successfully to: {}", user.getEmail());
         } catch (MessagingException e) {
@@ -194,8 +192,7 @@ public class MailService {
                     user.getEmail(),
                     "Account Suspended - Digital Identity System",
                     "user-suspension-mail",
-                    context
-            );
+                    context);
 
             log.info("Suspension email sent successfully to: {}", user.getEmail());
         } catch (MessagingException e) {
@@ -225,8 +222,7 @@ public class MailService {
                     user.getEmail(),
                     "Account Reactivated - Digital Identity System",
                     "user-reactivation-mail",
-                    context
-            );
+                    context);
 
             log.info("Reactivation email sent successfully to: {}", user.getEmail());
         } catch (MessagingException e) {
@@ -257,8 +253,7 @@ public class MailService {
                     user.getEmail(),
                     "Password Reset - Digital Identity System",
                     "password-reset-mail",
-                    context
-            );
+                    context);
 
             log.info("Password reset email sent successfully to: {}", user.getEmail());
         } catch (MessagingException e) {

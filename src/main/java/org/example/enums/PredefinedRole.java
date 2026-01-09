@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 public enum PredefinedRole {
@@ -42,7 +43,8 @@ public enum PredefinedRole {
     }
 
     /**
-     * Create a role instance with custom permissions based on template's base permissions
+     * Create a role instance with custom permissions based on template's base
+     * permissions
      * This allows flexibility while maintaining the role type
      */
     public RoleInstance withPermissions(List<String> permissions) {
@@ -50,7 +52,8 @@ public enum PredefinedRole {
     }
 
     /**
-     * Create a role instance with all permissions from the provided base permissions
+     * Create a role instance with all permissions from the provided base
+     * permissions
      * Useful for ADMIN roles that should get all available permissions
      */
     public RoleInstance withAllPermissions(List<String> basePermissions) {
@@ -65,7 +68,7 @@ public enum PredefinedRole {
         Set<String> defaultPerms = getDefaultPermissions();
         List<String> filtered = basePermissions.stream()
                 .filter(defaultPerms::contains)
-                .toList();
+                .collect(Collectors.toList());
         return new RoleInstance(this.roleCode, this.description, this.isAdmin, filtered);
     }
 
