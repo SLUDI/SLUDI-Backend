@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DoubleListDeserializer extends JsonDeserializer<List<Double>> {
     @Override
@@ -17,7 +18,8 @@ public class DoubleListDeserializer extends JsonDeserializer<List<Double>> {
 
         // Case 1: Already an array
         if (token == JsonToken.START_ARRAY) {
-            return p.readValueAs(new TypeReference<List<Double>>() {});
+            return p.readValueAs(new TypeReference<List<Double>>() {
+            });
         }
 
         // Case 2: String that looks like an array
@@ -28,10 +30,9 @@ public class DoubleListDeserializer extends JsonDeserializer<List<Double>> {
             return Arrays.stream(raw.split(","))
                     .map(String::trim)
                     .map(Double::parseDouble)
-                    .toList();
+                    .collect(Collectors.toList());
         }
 
         throw new IOException("Invalid faceEmbedding format");
     }
 }
-

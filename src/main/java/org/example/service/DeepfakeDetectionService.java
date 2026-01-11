@@ -245,15 +245,13 @@ public class DeepfakeDetectionService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity =
-                    new HttpEntity<>(body, headers);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             // Call FastAPI
             ResponseEntity<Map> response = restTemplate.postForEntity(
                     FACE_VERIFICATION_API_URL,
                     requestEntity,
-                    Map.class
-            );
+                    Map.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new Exception("FastAPI returned error: " + response.getStatusCode());
@@ -263,7 +261,6 @@ public class DeepfakeDetectionService {
             if (responseBody == null) {
                 throw new Exception("FastAPI returned empty response");
             }
-
 
             return convertToVerificationResult(responseBody);
         } catch (Exception e) {
@@ -278,18 +275,45 @@ public class DeepfakeDetectionService {
         // Deepfake Check
         Map<String, Object> deepfakeCheck = (Map<String, Object>) responseBody.get("deepfake_check");
         boolean isAuthentic = deepfakeCheck != null && Boolean.TRUE.equals(deepfakeCheck.get("is_authentic"));
-        double probabilityFake = deepfakeCheck != null ?
-                ((Number) deepfakeCheck.getOrDefault("probability_fake", 0.0)).doubleValue() : 0.0;
+        double probabilityFake = deepfakeCheck != null
+                ? ((Number) deepfakeCheck.getOrDefault("probability_fake", 0.0)).doubleValue()
+                : 0.0;
 
         boolean isDeepfake = !isAuthentic;
+
+        // Extract visualization data from deepfake check
+        String heatmapBase64 = null;
+        String overlayBase64 = null;
+        String originalImageBase64 = null;
+
+        if (deepfakeCheck != null) {
+            Map<String, Object> visualizations = (Map<String, Object>) deepfakeCheck.get("visualizations");
+            if (visualizations != null) {
+                heatmapBase64 = (String) visualizations.get("gradcam_heatmap");
+                overlayBase64 = (String) visualizations.get("overlay");
+            }
+            // Get original from images if present
+            Map<String, Object> images = (Map<String, Object>) deepfakeCheck.get("images");
+            if (images != null) {
+                originalImageBase64 = (String) images.get("original");
+                if (heatmapBase64 == null) {
+                    heatmapBase64 = (String) images.get("gradcam_heatmap");
+                }
+                if (overlayBase64 == null) {
+                    overlayBase64 = (String) images.get("overlay");
+                }
+            }
+        }
 
         // Face Verification
         Map<String, Object> faceVerification = (Map<String, Object>) responseBody.get("face_verification");
         boolean isMatch = faceVerification != null && Boolean.TRUE.equals(faceVerification.get("is_match"));
-        double similarity = faceVerification != null ?
-                ((Number) faceVerification.getOrDefault("similarity", 0.0)).doubleValue() : 0.0;
-        double thresholdUsed = faceVerification != null ?
-                ((Number) faceVerification.getOrDefault("threshold_used", 0.6)).doubleValue() : 0.6;
+        double similarity = faceVerification != null
+                ? ((Number) faceVerification.getOrDefault("similarity", 0.0)).doubleValue()
+                : 0.0;
+        double thresholdUsed = faceVerification != null
+                ? ((Number) faceVerification.getOrDefault("threshold_used", 0.6)).doubleValue()
+                : 0.6;
 
         // Liveness
         Map<String, Object> livenessCheck = (Map<String, Object>) responseBody.get("liveness_check");
@@ -301,9 +325,13 @@ public class DeepfakeDetectionService {
 
         // Breakdown
         Map<String, Object> perf = (Map<String, Object>) responseBody.get("performance_breakdown");
-        double videoProcessing = perf != null ? ((Number) perf.getOrDefault("video_processing_ms", 0.0)).doubleValue() : 0.0;
-        double deepfakeTime = perf != null ? ((Number) perf.getOrDefault("deepfake_detection_ms", 0.0)).doubleValue() : 0.0;
-        double faceVerificationTime = perf != null ? ((Number) perf.getOrDefault("face_verification_ms", 0.0)).doubleValue() : 0.0;
+        double videoProcessing = perf != null ? ((Number) perf.getOrDefault("video_processing_ms", 0.0)).doubleValue()
+                : 0.0;
+        double deepfakeTime = perf != null ? ((Number) perf.getOrDefault("deepfake_detection_ms", 0.0)).doubleValue()
+                : 0.0;
+        double faceVerificationTime = perf != null
+                ? ((Number) perf.getOrDefault("face_verification_ms", 0.0)).doubleValue()
+                : 0.0;
 
         return FaceVerificationResultDto.builder()
                 .success(success)
@@ -311,10 +339,14 @@ public class DeepfakeDetectionService {
                 .similarity(similarity)
                 .deepfakeDetected(isDeepfake)
                 .confidence(probabilityFake)
+                .probabilityFake(probabilityFake)
                 .livenessCheckPassed(livenessPassed)
                 .blinksDetected(blinks)
                 .processingTimeMs(processingTime)
                 .thresholdUsed(thresholdUsed)
+                .heatmapBase64(heatmapBase64)
+                .overlayBase64(overlayBase64)
+                .originalImageBase64(originalImageBase64)
                 .build();
     }
 

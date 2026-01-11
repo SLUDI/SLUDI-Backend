@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -43,6 +44,7 @@ public class WalletService {
     private final CitizenUserJwtService citizenUserJwtService;
     private final IPFSIntegration ipfsIntegration;
     private final DeepfakeDetectionService deepfakeDetectionService;
+    private final DeepfakeDetectionLogRepository deepfakeDetectionLogRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -55,12 +57,13 @@ public class WalletService {
             PublicKeyRepository publicKeyRepository,
             DIDDocumentRepository didDocumentRepository,
             WalletVerifiableCredentialRepository walletVerifiableCredentialRepository,
-            VerifiableCredentialRepository verifiableCredentialRepository, PresentationRequestRepository presentationRequestRepository,
+            VerifiableCredentialRepository verifiableCredentialRepository,
+            PresentationRequestRepository presentationRequestRepository,
             StringRedisTemplate redisTemplate,
             CitizenUserJwtService citizenUserJwtService,
             IPFSIntegration ipfsIntegration,
-            DeepfakeDetectionService deepfakeDetectionService
-    ) {
+            DeepfakeDetectionService deepfakeDetectionService,
+            DeepfakeDetectionLogRepository deepfakeDetectionLogRepository) {
         this.hyperledgerService = hyperledgerService;
         this.otpService = otpService;
         this.mailService = mailService;
@@ -76,6 +79,7 @@ public class WalletService {
         this.citizenUserJwtService = citizenUserJwtService;
         this.ipfsIntegration = ipfsIntegration;
         this.deepfakeDetectionService = deepfakeDetectionService;
+        this.deepfakeDetectionLogRepository = deepfakeDetectionLogRepository;
     }
 
     /**
@@ -238,8 +242,8 @@ public class WalletService {
                     .orElseThrow(() -> new SludiException(ErrorCodes.WALLET_NOT_FOUND));
 
             // Get all stored wallet verifiable credentials
-            List<WalletVerifiableCredential> walletVCList =
-                    walletVerifiableCredentialRepository.findAllByWallet(wallet);
+            List<WalletVerifiableCredential> walletVCList = walletVerifiableCredentialRepository
+                    .findAllByWallet(wallet);
 
             List<WalletVerifiableCredentialDto> vcDtoList = new ArrayList<>();
 
@@ -319,17 +323,49 @@ public class WalletService {
         // Retrieve biometric data
         String embeddingBase64 = ipfsIntegration.retrieveBiometricDataAsString(
                 ipfsHash,
-                citizen.getId().toString()
-        );
+                citizen.getId().toString());
 
         embeddingBase64 = embeddingBase64.trim().replaceAll("\\s+", "");
-
 
         // Perform face authentication
         FaceVerificationResultDto result = deepfakeDetectionService.faceAuthentication(
                 videoFile,
-                embeddingBase64
-        );
+                embeddingBase64);
+
+        // Determine auth result
+        String authResult;
+        if (result.isDeepfakeDetected()) {
+            authResult = "FAILED_DEEPFAKE";
+        } else if (!result.isMatch()) {
+            authResult = "FAILED_MATCH";
+        } else if (result.getLivenessCheckPassed() != null && !result.getLivenessCheckPassed()) {
+            authResult = "FAILED_LIVENESS";
+        } else {
+            authResult = "SUCCESS";
+        }
+
+        // Save deepfake detection log
+        DeepfakeDetectionLog detectionLog = DeepfakeDetectionLog.builder()
+                .citizenId(citizen.getId())
+                .citizenDid(citizenId)
+                .citizenName(citizen.getFullName())
+                .deepfakeDetected(result.isDeepfakeDetected())
+                .confidence(result.getConfidence())
+                .probabilityFake(result.getProbabilityFake())
+                .similarityScore(result.getSimilarity())
+                .livenessCheckPassed(result.getLivenessCheckPassed())
+                .blinksDetected(result.getBlinksDetected())
+                .heatmapBase64(result.getHeatmapBase64())
+                .overlayBase64(result.getOverlayBase64())
+                .originalImageBase64(result.getOriginalImageBase64())
+                .authResult(authResult)
+                .processingTimeMs(result.getProcessingTimeMs())
+                .thresholdUsed(result.getThresholdUsed())
+                .detectedAt(LocalDateTime.now())
+                .build();
+
+        deepfakeDetectionLogRepository.save(detectionLog);
+        log.info("Saved deepfake detection log for citizen: {} with result: {}", citizenId, authResult);
 
         Map<String, Object> response = new HashMap<>();
         response.put("verification", result);
@@ -349,8 +385,7 @@ public class WalletService {
     }
 
     public List<PresentationRequestHistoryDto> getHolderRequestHistory(String holderDid) {
-        List<PresentationRequest> requests =
-                presentationRequestRepository.findByHolderDid(holderDid);
+        List<PresentationRequest> requests = presentationRequestRepository.findByHolderDid(holderDid);
 
         return requests.stream()
                 .map(this::toHistoryDTO)
@@ -448,11 +483,9 @@ public class WalletService {
     private Object mapSubject(String credentialType, String decryptedJson) throws Exception {
         if (credentialType.equals(CredentialsType.IDENTITY.toString())) {
             return objectMapper.readValue(decryptedJson, CredentialSubject.class);
-        }
-        else if (credentialType.equals(CredentialsType.DRIVING_LICENSE.toString())) {
+        } else if (credentialType.equals(CredentialsType.DRIVING_LICENSE.toString())) {
             return objectMapper.readValue(decryptedJson, DrivingLicenseCredentialSubject.class);
-        }
-        else {
+        } else {
             throw new SludiException(ErrorCodes.UNKNOWN_CREDENTIAL_TYPE);
         }
     }

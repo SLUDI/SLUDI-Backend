@@ -24,4 +24,10 @@ public class FaceVerificationResultDto {
     private Integer blinksDetected;
     private Double processingTimeMs;
     private Double thresholdUsed;
+
+    // Visualization fields for deepfake detection
+    private String heatmapBase64;
+    private String overlayBase64;
+    private String originalImageBase64;
+    private Double probabilityFake;
 }
