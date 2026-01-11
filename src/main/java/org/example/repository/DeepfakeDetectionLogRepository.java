@@ -18,7 +18,7 @@ public interface DeepfakeDetectionLogRepository extends JpaRepository<DeepfakeDe
     List<DeepfakeDetectionLog> findAllByOrderByDetectedAtDesc();
 
     // Find logs by citizen ID
-    List<DeepfakeDetectionLog> findByCitizenIdOrderByDetectedAtDesc(Long citizenId);
+    List<DeepfakeDetectionLog> findByCitizenIdOrderByDetectedAtDesc(UUID citizenId);
 
     // Find logs where deepfake was detected
     List<DeepfakeDetectionLog> findByDeepfakeDetectedTrueOrderByDetectedAtDesc();
