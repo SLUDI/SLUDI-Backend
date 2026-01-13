@@ -20,12 +20,12 @@
 - **Multi-Organization Support**: Role-based access control for organizations
 
 ### Security Features
-- ✅ Field-level AES-256 encryption for PII
-- ✅ Dual JWT authentication (Citizen & Organization)
-- ✅ Digital signatures (SHA256withECDSA)
-- ✅ Hash-based indexing for privacy
-- ✅ Immutable blockchain audit trail
-- ✅ TLS/SSL encrypted communications
+-   Field-level AES-256 encryption for PII
+-   Dual JWT authentication (Citizen & Organization)
+-   Digital signatures (SHA256withECDSA)
+-   Hash-based indexing for privacy
+-   Immutable blockchain audit trail
+-   TLS/SSL encrypted communications
 
 ## 🏗️ Architecture
 
@@ -281,7 +281,7 @@ docker-compose up -d ipfs
 docker-compose logs -f backend
 ```
 
-## 🔄 Key Workflows
+##   Key Workflows
 
 ### 1. Citizen Registration
 ```
