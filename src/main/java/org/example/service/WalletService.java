@@ -535,7 +535,7 @@ public class WalletService {
         String normalizedInput = normalizeKey(publicKey);
 
         for (PublicKey pk : storedKeys) {
-            String normalizedStored = normalizeKey(pk.getPublicKey());
+            String normalizedStored = normalizeKey(pk.getPublicKeyBase58());
             if (normalizedInput.equals(normalizedStored)) {
                 log.info("Public key match found for recovery!");
                 return true;
