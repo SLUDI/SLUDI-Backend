@@ -29,470 +29,505 @@ import java.util.Map;
 @Validated
 public class WalletController {
 
-    private final WalletService walletService;
-    private final VerifiableCredentialService verifiableCredentialService;
-
-    public WalletController(
-            WalletService walletService,
-            VerifiableCredentialService verifiableCredentialService
-    ) {
-        this.walletService = walletService;
-        this.verifiableCredentialService = verifiableCredentialService;
-    }
-
-    /**
-     * Verify DID and initiate wallet creation
-     */
-    @PostMapping("/verify-did")
-    public ResponseEntity<ApiResponseDto<String>> verifyDid(
-            @Valid @RequestBody DidVerificationRequest request) {
-
-        String did = "did:sludi:" + request.getDid();
-        log.info("Received DID verification request for DID [{}]", did);
-
-        try {
-            String result = walletService.initiateWalletCreation(did);
-            log.info("DID [{}] verified successfully", did);
-
-            return ResponseEntity.ok(ApiResponseDto.<String>builder()
-                    .success(true)
-                    .message("DID verification successful")
-                    .data(result)
-                    .timestamp(Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            log.warn("DID verification failed for [{}], errorCode [{}], message [{}]",
-                    did, e.getErrorCode(), e.getMessage());
-
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<String>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            log.error("Unexpected error while verifying DID [{}]: {}", did, e.getMessage(), e);
-
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<String>builder()
-                            .success(false)
-                            .message("Failed to verify DID")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Verify OTP for DID
-     */
-    @PostMapping("/verify-otp")
-    public ResponseEntity<ApiResponseDto<String>> verifyOTP(
-            @Valid @RequestBody OtpVerificationRequest request) {
-
-        String did = "did:sludi:" + request.getDid();
-        log.info("Received OTP verification request for DID [{}]", did);
-
-        try {
-            boolean isVerified = walletService.verifyOTP(did, request.getOtp());
-
-            if (isVerified) {
-                log.info("OTP verified successfully for DID [{}]", did);
-                return ResponseEntity.ok(ApiResponseDto.<String>builder()
-                        .success(true)
-                        .message("OTP verified successfully.")
-                        .timestamp(Instant.now())
-                        .build());
-            } else {
-                log.warn("OTP verification failed for DID [{}] with OTP [{}]", did, request.getOtp());
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(ApiResponseDto.<String>builder()
-                                .success(false)
-                                .message("Invalid or expired OTP.")
-                                .errorCode("INVALID_OTP")
-                                .timestamp(Instant.now())
-                                .build());
-            }
-
-        } catch (Exception e) {
-            log.error("Unexpected error while verifying OTP for DID [{}]: {}", did, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<String>builder()
-                            .success(false)
-                            .message("Failed to verify OTP")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Create wallet with password
-     */
-    @PostMapping("/create")
-    public ResponseEntity<ApiResponseDto<Map<String, String>>> createWallet(
-            @Valid @RequestBody WalletRequest request) {
-        try {
-            String id = "did:sludi:" + request.getDid();
-            Map<String, String> result = walletService.createWallet(id, request.getPublicKey());
-            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
-                    .success(true)
-                    .message("Wallet created successfully")
-                    .data(result)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message("Failed to create Wallet")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Generate and store challenge (nonce)
-     */
-    @PostMapping("/generate-challenge")
-    public ResponseEntity<ApiResponseDto<Map<String, String>>> generateChallenge(
-            @Valid @RequestBody WalletChallengeRequestDto request) {
-
-        String did = "did:sludi:" + request.getDid();
-        log.info("Generating authentication challenge for DID [{}]", did);
-
-        try {
-            String nonce = walletService.generateChallenge(did);
-            Map<String, String> response = Map.of("nonce", nonce);
-
-            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
-                    .success(true)
-                    .message("Challenge generated successfully")
-                    .data(response)
-                    .timestamp(Instant.now())
-                    .build());
-
-        } catch (Exception e) {
-            log.error("Error generating challenge for DID [{}]: {}", did, e.getMessage(), e);
-
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message("Failed to generate challenge")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Verify challenge signature and issue JWT
-     */
-    @PostMapping("/verify-challenge")
-    public ResponseEntity<ApiResponseDto<Map<String, String>>> verifyChallenge(
-            @Valid @RequestBody WalletVerificationRequestDto request) {
-
-        String did = "did:sludi:" + request.getDid();
-        log.info("Verifying challenge for DID [{}]", did);
-
-        try {
-            Map<String, String> result = walletService.verifyChallenge(did, request.getSignature());
-            return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
-                    .success(true)
-                    .message("Authentication successful")
-                    .data(result)
-                    .timestamp(Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            log.warn("Challenge verification failed for [{}]: {}", did, e.getMessage());
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(Instant.now())
-                            .build());
-
-        } catch (Exception e) {
-            log.error("Unexpected error verifying challenge for DID [{}]: {}", did, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, String>>builder()
-                            .success(false)
-                            .message("Failed to verify challenge")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Get wallet status
-     */
-    @GetMapping("/retrieve")
-    @Operation(
-            security = {@SecurityRequirement(name = "bearerAuth")}
-    )
-    public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(Authentication authentication) {
-        try {
-            String fullDid = getString(authentication);
-
-            // Retrieve wallet using DID
-            WalletDto walletDto = walletService.retrieveWallet(fullDid);
-
-            return ResponseEntity.ok(ApiResponseDto.<WalletDto>builder()
-                    .success(true)
-                    .message("Wallet retrieved successfully")
-                    .data(walletDto)
-                    .timestamp(java.time.Instant.now())
-                    .build());
-
-        } catch (SludiException e) {
-            return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<WalletDto>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<WalletDto>builder()
-                            .success(false)
-                            .message("Failed to retrieve Wallet")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    @GetMapping("/photo/{cid}")
-    @Operation(security = {@SecurityRequirement(name = "bearerAuth")})
-    public ResponseEntity<ApiResponseDto<byte[]>> getProfilePhoto(@PathVariable String cid) {
-
-        try {
-            // Retrieve image bytes
-            byte[] data = walletService.getProfilePhoto(cid);
-
-            return ResponseEntity.ok(
-                    ApiResponseDto.<byte[]>builder()
-                            .success(true)
-                            .message("Profile photo retrieved successfully")
-                            .data(data)
-                            .timestamp(java.time.Instant.now())
-                            .build()
-            );
-
-        } catch (SludiException e) {
-
-            return ResponseEntity
-                    .status(HttpStatusHandler.getStatus(e.getErrorCode()))
-                    .body(ApiResponseDto.<byte[]>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .errorCode(e.getErrorCode())
-                            .timestamp(java.time.Instant.now())
-                            .build()
-                    );
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<byte[]>builder()
-                            .success(false)
-                            .message("Failed to retrieve profile photo")
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(java.time.Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Get Presentation Request
-     * GET /api/wallet/driving-license/request/{sessionId}
-     */
-    @GetMapping("/driving-license/request/{sessionId}")
-    @Operation(
-            security = {@SecurityRequirement(name = "bearerAuth")}
-    )
-    public ResponseEntity<ApiResponseDto<PresentationRequestDto>> getPresentationRequest(
-            @PathVariable String sessionId) {
-
-        log.info("Received request to get presentation request for sessionId: {}", sessionId);
-
-        try {
-            PresentationRequestDto request = verifiableCredentialService.getPresentationRequest(sessionId);
-
-            ApiResponseDto<PresentationRequestDto> apiResponse = ApiResponseDto.<PresentationRequestDto>builder()
-                    .success(true)
-                    .message("Presentation request retrieved successfully")
-                    .data(request)
-                    .build();
-
-            return ResponseEntity.ok(apiResponse);
-
-        } catch (SludiException e) {
-            ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto.<PresentationRequestDto>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-
-        } catch (Exception e) {
-            ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto.<PresentationRequestDto>builder()
-                    .success(false)
-                    .message("Failed to retrieve presentation request")
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
-    /**
-     * Submit Verifiable Presentation
-     * POST /api/wallet/driving-license/presentation/{sessionId}
-     */
-    @PostMapping("/driving-license/presentation/{sessionId}")
-    @Operation(
-            security = {@SecurityRequirement(name = "bearerAuth")}
-    )
-    public ResponseEntity<ApiResponseDto<VerifiablePresentationResponseDto>> submitVerifiablePresentation(
-            @PathVariable String sessionId,
-            @RequestBody @Valid VerifiablePresentationDto vpDto) {
-
-        log.info("Received verifiable presentation for sessionId: {}", sessionId);
-
-        try {
-            VerifiablePresentationResponseDto response = verifiableCredentialService.submitVerifiablePresentation(sessionId, vpDto);
-
-            ApiResponseDto<VerifiablePresentationResponseDto> apiResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
-                    .success(true)
-                    .message("Verifiable presentation submitted successfully")
-                    .data(response)
-                    .build();
-
-            return ResponseEntity.ok(apiResponse);
-
-        } catch (SludiException e) {
-            ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
-                    .success(false)
-                    .message(e.getMessage())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-
-        } catch (Exception e) {
-            ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto.<VerifiablePresentationResponseDto>builder()
-                    .success(false)
-                    .message("Failed to submit verifiable presentation")
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
-    @PostMapping(path = "/verify-identity", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponseDto<Map<String, Object>>> verifyIdentity(
-            @RequestParam("file") MultipartFile videoFile,
-            @RequestParam("did") String citizenId) {
-
-        try {
-            Map<String, Object> result = walletService.verifyIdentity(videoFile, citizenId);
-
-            return ResponseEntity.ok(
-                    ApiResponseDto.<Map<String, Object>>builder()
-                            .success(true)
-                            .message("Face authentication successful")
-                            .data(result)
-                            .timestamp(Instant.now())
-                            .build()
-            );
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponseDto.<Map<String, Object>>builder()
-                            .success(false)
-                            .message("Failed to authenticate user: " + e.getMessage())
-                            .errorCode("INTERNAL_ERROR")
-                            .timestamp(Instant.now())
-                            .build());
-        }
-    }
-
-    /**
-     * Get Presentation Request History for a Holder
-     * GET /api/wallet/presentation/history
-     */
-    @GetMapping("/presentation/history")
-    @Operation(
-            security = {@SecurityRequirement(name = "bearerAuth")}
-    )
-    public ResponseEntity<ApiResponseDto<List<PresentationRequestHistoryDto>>> getHolderRequestHistory(
-            Authentication authentication) {
-
-        String holderDid = getString(authentication);
-
-        log.info("Fetching presentation request history for holderDid: {}", holderDid);
-
-        try {
-            List<PresentationRequestHistoryDto> history =
-                    walletService.getHolderRequestHistory(holderDid);
-
-            ApiResponseDto<List<PresentationRequestHistoryDto>> apiResponse =
-                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
-                            .success(true)
-                            .message("Presentation request history fetched successfully")
-                            .data(history)
-                            .build();
-
-            return ResponseEntity.ok(apiResponse);
-
-        } catch (SludiException e) {
-
-            ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse =
-                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
-                            .success(false)
-                            .message(e.getMessage())
-                            .build();
-
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-
-        } catch (Exception e) {
-
-            ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse =
-                    ApiResponseDto.<List<PresentationRequestHistoryDto>>builder()
-                            .success(false)
-                            .message("Failed to fetch presentation request history")
-                            .build();
-
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
-    private static String getString(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");
+        private final WalletService walletService;
+        private final VerifiableCredentialService verifiableCredentialService;
+
+        public WalletController(
+                        WalletService walletService,
+                        VerifiableCredentialService verifiableCredentialService) {
+                this.walletService = walletService;
+                this.verifiableCredentialService = verifiableCredentialService;
         }
 
-        // Extract the authenticated user's DID
-        String didId;
-        Object principal = authentication.getPrincipal();
+        /**
+         * Verify DID and initiate wallet creation
+         */
+        @PostMapping("/verify-did")
+        public ResponseEntity<ApiResponseDto<String>> verifyDid(
+                        @Valid @RequestBody DidVerificationRequest request) {
 
-        if (principal instanceof UserDetails userDetails) {
-            didId = userDetails.getUsername(); // because loadUserByUsername(did) in your service
-        } else {
-            didId = principal.toString();
+                String did = "did:sludi:" + request.getDid();
+                log.info("Received DID verification request for DID [{}]", did);
+
+                try {
+                        String result = walletService.initiateWalletCreation(did);
+                        log.info("DID [{}] verified successfully", did);
+
+                        return ResponseEntity.ok(ApiResponseDto.<String>builder()
+                                        .success(true)
+                                        .message("DID verification successful")
+                                        .data(result)
+                                        .timestamp(Instant.now())
+                                        .build());
+
+                } catch (SludiException e) {
+                        log.warn("DID verification failed for [{}], errorCode [{}], message [{}]",
+                                        did, e.getErrorCode(), e.getMessage());
+
+                        return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                                        .body(ApiResponseDto.<String>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .errorCode(e.getErrorCode())
+                                                        .timestamp(Instant.now())
+                                                        .build());
+
+                } catch (Exception e) {
+                        log.error("Unexpected error while verifying DID [{}]: {}", did, e.getMessage(), e);
+
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<String>builder()
+                                                        .success(false)
+                                                        .message("Failed to verify DID")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
         }
 
-        // Ensure the DID is in full form
-        return didId.startsWith("did:sludi:") ? didId : "did:sludi:" + didId;
-    }
+        /**
+         * Verify OTP for DID
+         */
+        @PostMapping("/verify-otp")
+        public ResponseEntity<ApiResponseDto<String>> verifyOTP(
+                        @Valid @RequestBody OtpVerificationRequest request) {
+
+                String did = "did:sludi:" + request.getDid();
+                log.info("Received OTP verification request for DID [{}]", did);
+
+                try {
+                        boolean isVerified = walletService.verifyOTP(did, request.getOtp());
+
+                        if (isVerified) {
+                                log.info("OTP verified successfully for DID [{}]", did);
+                                return ResponseEntity.ok(ApiResponseDto.<String>builder()
+                                                .success(true)
+                                                .message("OTP verified successfully.")
+                                                .timestamp(Instant.now())
+                                                .build());
+                        } else {
+                                log.warn("OTP verification failed for DID [{}] with OTP [{}]", did, request.getOtp());
+                                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                                .body(ApiResponseDto.<String>builder()
+                                                                .success(false)
+                                                                .message("Invalid or expired OTP.")
+                                                                .errorCode("INVALID_OTP")
+                                                                .timestamp(Instant.now())
+                                                                .build());
+                        }
+
+                } catch (Exception e) {
+                        log.error("Unexpected error while verifying OTP for DID [{}]: {}", did, e.getMessage(), e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<String>builder()
+                                                        .success(false)
+                                                        .message("Failed to verify OTP")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Create wallet with password
+         */
+        @PostMapping("/create")
+        public ResponseEntity<ApiResponseDto<Map<String, String>>> createWallet(
+                        @Valid @RequestBody WalletRequest request) {
+                try {
+                        String id = "did:sludi:" + request.getDid();
+                        Map<String, String> result = walletService.createWallet(id, request.getPublicKey());
+                        return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                                        .success(true)
+                                        .message("Wallet created successfully")
+                                        .data(result)
+                                        .timestamp(java.time.Instant.now())
+                                        .build());
+                } catch (SludiException e) {
+                        return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                                        .body(ApiResponseDto.<Map<String, String>>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .errorCode(e.getErrorCode())
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<Map<String, String>>builder()
+                                                        .success(false)
+                                                        .message("Failed to create Wallet")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Generate and store challenge (nonce)
+         */
+        @PostMapping("/generate-challenge")
+        public ResponseEntity<ApiResponseDto<Map<String, String>>> generateChallenge(
+                        @Valid @RequestBody WalletChallengeRequestDto request) {
+
+                String did = "did:sludi:" + request.getDid();
+                log.info("Generating authentication challenge for DID [{}]", did);
+
+                try {
+                        String nonce = walletService.generateChallenge(did);
+                        Map<String, String> response = Map.of("nonce", nonce);
+
+                        return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                                        .success(true)
+                                        .message("Challenge generated successfully")
+                                        .data(response)
+                                        .timestamp(Instant.now())
+                                        .build());
+
+                } catch (Exception e) {
+                        log.error("Error generating challenge for DID [{}]: {}", did, e.getMessage(), e);
+
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<Map<String, String>>builder()
+                                                        .success(false)
+                                                        .message("Failed to generate challenge")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Verify challenge signature and issue JWT
+         */
+        @PostMapping("/verify-challenge")
+        public ResponseEntity<ApiResponseDto<Map<String, String>>> verifyChallenge(
+                        @Valid @RequestBody WalletVerificationRequestDto request) {
+
+                String did = "did:sludi:" + request.getDid();
+                log.info("Verifying challenge for DID [{}]", did);
+
+                try {
+                        Map<String, String> result = walletService.verifyChallenge(did, request.getSignature());
+                        return ResponseEntity.ok(ApiResponseDto.<Map<String, String>>builder()
+                                        .success(true)
+                                        .message("Authentication successful")
+                                        .data(result)
+                                        .timestamp(Instant.now())
+                                        .build());
+
+                } catch (SludiException e) {
+                        log.warn("Challenge verification failed for [{}]: {}", did, e.getMessage());
+                        return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                                        .body(ApiResponseDto.<Map<String, String>>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .errorCode(e.getErrorCode())
+                                                        .timestamp(Instant.now())
+                                                        .build());
+
+                } catch (Exception e) {
+                        log.error("Unexpected error verifying challenge for DID [{}]: {}", did, e.getMessage(), e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<Map<String, String>>builder()
+                                                        .success(false)
+                                                        .message("Failed to verify challenge")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Get wallet status
+         */
+        @GetMapping("/retrieve")
+        @Operation(security = { @SecurityRequirement(name = "bearerAuth") })
+        public ResponseEntity<ApiResponseDto<WalletDto>> getWalletStatus(Authentication authentication) {
+                try {
+                        String fullDid = getString(authentication);
+
+                        // Retrieve wallet using DID
+                        WalletDto walletDto = walletService.retrieveWallet(fullDid);
+
+                        return ResponseEntity.ok(ApiResponseDto.<WalletDto>builder()
+                                        .success(true)
+                                        .message("Wallet retrieved successfully")
+                                        .data(walletDto)
+                                        .timestamp(java.time.Instant.now())
+                                        .build());
+
+                } catch (SludiException e) {
+                        return ResponseEntity.status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                                        .body(ApiResponseDto.<WalletDto>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .errorCode(e.getErrorCode())
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<WalletDto>builder()
+                                                        .success(false)
+                                                        .message("Failed to retrieve Wallet")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+                }
+        }
+
+        @GetMapping("/photo/{cid}")
+        @Operation(security = { @SecurityRequirement(name = "bearerAuth") })
+        public ResponseEntity<ApiResponseDto<byte[]>> getProfilePhoto(@PathVariable String cid) {
+
+                try {
+                        // Retrieve image bytes
+                        byte[] data = walletService.getProfilePhoto(cid);
+
+                        return ResponseEntity.ok(
+                                        ApiResponseDto.<byte[]>builder()
+                                                        .success(true)
+                                                        .message("Profile photo retrieved successfully")
+                                                        .data(data)
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+
+                } catch (SludiException e) {
+
+                        return ResponseEntity
+                                        .status(HttpStatusHandler.getStatus(e.getErrorCode()))
+                                        .body(ApiResponseDto.<byte[]>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .errorCode(e.getErrorCode())
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<byte[]>builder()
+                                                        .success(false)
+                                                        .message("Failed to retrieve profile photo")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(java.time.Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Get Presentation Request
+         * GET /api/wallet/driving-license/request/{sessionId}
+         */
+        @GetMapping("/driving-license/request/{sessionId}")
+        @Operation(security = { @SecurityRequirement(name = "bearerAuth") })
+        public ResponseEntity<ApiResponseDto<PresentationRequestDto>> getPresentationRequest(
+                        @PathVariable String sessionId) {
+
+                log.info("Received request to get presentation request for sessionId: {}", sessionId);
+
+                try {
+                        PresentationRequestDto request = verifiableCredentialService.getPresentationRequest(sessionId);
+
+                        ApiResponseDto<PresentationRequestDto> apiResponse = ApiResponseDto
+                                        .<PresentationRequestDto>builder()
+                                        .success(true)
+                                        .message("Presentation request retrieved successfully")
+                                        .data(request)
+                                        .build();
+
+                        return ResponseEntity.ok(apiResponse);
+
+                } catch (SludiException e) {
+                        ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto
+                                        .<PresentationRequestDto>builder()
+                                        .success(false)
+                                        .message(e.getMessage())
+                                        .build();
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+                } catch (Exception e) {
+                        ApiResponseDto<PresentationRequestDto> errorResponse = ApiResponseDto
+                                        .<PresentationRequestDto>builder()
+                                        .success(false)
+                                        .message("Failed to retrieve presentation request")
+                                        .build();
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+        }
+
+        /**
+         * Submit Verifiable Presentation
+         * POST /api/wallet/driving-license/presentation/{sessionId}
+         */
+        @PostMapping("/driving-license/presentation/{sessionId}")
+        @Operation(security = { @SecurityRequirement(name = "bearerAuth") })
+        public ResponseEntity<ApiResponseDto<VerifiablePresentationResponseDto>> submitVerifiablePresentation(
+                        @PathVariable String sessionId,
+                        @RequestBody @Valid VerifiablePresentationDto vpDto) {
+
+                log.info("Received verifiable presentation for sessionId: {}", sessionId);
+
+                try {
+                        VerifiablePresentationResponseDto response = verifiableCredentialService
+                                        .submitVerifiablePresentation(sessionId, vpDto);
+
+                        ApiResponseDto<VerifiablePresentationResponseDto> apiResponse = ApiResponseDto
+                                        .<VerifiablePresentationResponseDto>builder()
+                                        .success(true)
+                                        .message("Verifiable presentation submitted successfully")
+                                        .data(response)
+                                        .build();
+
+                        return ResponseEntity.ok(apiResponse);
+
+                } catch (SludiException e) {
+                        ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto
+                                        .<VerifiablePresentationResponseDto>builder()
+                                        .success(false)
+                                        .message(e.getMessage())
+                                        .build();
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+                } catch (Exception e) {
+                        ApiResponseDto<VerifiablePresentationResponseDto> errorResponse = ApiResponseDto
+                                        .<VerifiablePresentationResponseDto>builder()
+                                        .success(false)
+                                        .message("Failed to submit verifiable presentation")
+                                        .build();
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+        }
+
+        @PostMapping(path = "/verify-identity", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        public ResponseEntity<ApiResponseDto<Map<String, Object>>> verifyIdentity(
+                        @RequestParam("file") MultipartFile videoFile,
+                        @RequestParam("did") String citizenId) {
+
+                try {
+                        Map<String, Object> result = walletService.verifyIdentity(videoFile, citizenId);
+
+                        return ResponseEntity.ok(
+                                        ApiResponseDto.<Map<String, Object>>builder()
+                                                        .success(true)
+                                                        .message("Face authentication successful")
+                                                        .data(result)
+                                                        .timestamp(Instant.now())
+                                                        .build());
+
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<Map<String, Object>>builder()
+                                                        .success(false)
+                                                        .message("Failed to authenticate user: " + e.getMessage())
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
+        }
+
+        /**
+         * Get Presentation Request History for a Holder
+         * GET /api/wallet/presentation/history
+         */
+        @GetMapping("/presentation/history")
+        @Operation(security = { @SecurityRequirement(name = "bearerAuth") })
+        public ResponseEntity<ApiResponseDto<List<PresentationRequestHistoryDto>>> getHolderRequestHistory(
+                        Authentication authentication) {
+
+                String holderDid = getString(authentication);
+
+                log.info("Fetching presentation request history for holderDid: {}", holderDid);
+
+                try {
+                        List<PresentationRequestHistoryDto> history = walletService.getHolderRequestHistory(holderDid);
+
+                        ApiResponseDto<List<PresentationRequestHistoryDto>> apiResponse = ApiResponseDto
+                                        .<List<PresentationRequestHistoryDto>>builder()
+                                        .success(true)
+                                        .message("Presentation request history fetched successfully")
+                                        .data(history)
+                                        .build();
+
+                        return ResponseEntity.ok(apiResponse);
+
+                } catch (SludiException e) {
+
+                        ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse = ApiResponseDto
+                                        .<List<PresentationRequestHistoryDto>>builder()
+                                        .success(false)
+                                        .message(e.getMessage())
+                                        .build();
+
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
+                } catch (Exception e) {
+
+                        ApiResponseDto<List<PresentationRequestHistoryDto>> errorResponse = ApiResponseDto
+                                        .<List<PresentationRequestHistoryDto>>builder()
+                                        .success(false)
+                                        .message("Failed to fetch presentation request history")
+                                        .build();
+
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
+        }
+
+        /**
+         * Verify Recovery with Mnemonic (Public Key check)
+         */
+        @PostMapping("/verify-recovery")
+        public ResponseEntity<ApiResponseDto<Boolean>> verifyRecovery(@Valid @RequestBody WalletRequest request) {
+                String did = "did:sludi:" + request.getDid();
+                log.info("Received recovery verification request for DID [{}]", did);
+
+                try {
+                        boolean isValid = walletService.verifyRecovery(did, request.getPublicKey());
+
+                        if (isValid) {
+                                return ResponseEntity.ok(ApiResponseDto.<Boolean>builder()
+                                                .success(true)
+                                                .message("Recovery verification successful")
+                                                .data(true)
+                                                .timestamp(Instant.now())
+                                                .build());
+                        } else {
+                                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                                .body(ApiResponseDto.<Boolean>builder()
+                                                                .success(false)
+                                                                .message("Recovery verification failed: Invalid mnemonic or user not found")
+                                                                .data(false)
+                                                                .errorCode("RECOVERY_FAILED")
+                                                                .timestamp(Instant.now())
+                                                                .build());
+                        }
+
+                } catch (Exception e) {
+                        log.error("Error verifying recovery for DID [{}]: {}", did, e.getMessage(), e);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponseDto.<Boolean>builder()
+                                                        .success(false)
+                                                        .message("Internal error during recovery verification")
+                                                        .errorCode("INTERNAL_ERROR")
+                                                        .timestamp(Instant.now())
+                                                        .build());
+                }
+        }
+
+        private static String getString(Authentication authentication) {
+                if (authentication == null || authentication.getPrincipal() == null) {
+                        throw new SludiException(ErrorCodes.UNAUTHORIZED, "Authentication is missing or invalid");
+                }
+
+                // Extract the authenticated user's DID
+                String didId;
+                Object principal = authentication.getPrincipal();
+
+                if (principal instanceof UserDetails userDetails) {
+                        didId = userDetails.getUsername(); // because loadUserByUsername(did) in your service
+                } else {
+                        didId = principal.toString();
+                }
+
+                // Ensure the DID is in full form
+                return didId.startsWith("did:sludi:") ? didId : "did:sludi:" + didId;
+        }
 }

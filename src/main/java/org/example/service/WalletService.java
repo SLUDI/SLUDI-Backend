@@ -510,4 +510,47 @@ public class WalletService {
 
         return dto;
     }
+
+    /**
+     * Verify that the public key matches the DID for recovery
+     */
+    public boolean verifyRecovery(String did, String publicKey) {
+        log.info("Verifying recovery for DID [{}] with Public Key", did);
+
+        // Find Citizen User
+        CitizenUser user = citizenUserRepository.findByAnyHash(null, null, HashUtil.sha256(did));
+        if (user == null) {
+            log.warn("User not found for DID [{}]", did);
+            return false;
+        }
+
+        // Find Public Keys for User
+        List<PublicKey> storedKeys = publicKeyRepository.findAllByCitizenUser(user);
+        if (storedKeys == null || storedKeys.isEmpty()) {
+            log.warn("No public keys found for DID [{}]", did);
+            return false;
+        }
+
+        // Basic normalization just in case
+        String normalizedInput = normalizeKey(publicKey);
+
+        for (PublicKey pk : storedKeys) {
+            String normalizedStored = normalizeKey(pk.getPublicKeyBase58());
+            if (normalizedInput.equals(normalizedStored)) {
+                log.info("Public key match found for recovery!");
+                return true;
+            }
+        }
+
+        log.warn("No matching public key found for recovery attempt.");
+        return false;
+    }
+
+    private String normalizeKey(String key) {
+        if (key == null)
+            return "";
+        return key.replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s+", "");
+    }
 }
