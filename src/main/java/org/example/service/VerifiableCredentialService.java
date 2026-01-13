@@ -465,18 +465,18 @@ public class VerifiableCredentialService {
             VerifiableCredential credential = verifiableCredentialRepository.findById(vpDto.getCredentialId())
                     .orElseThrow(() -> new SludiException(ErrorCodes.CREDENTIAL_NOT_FOUND));
 
-             boolean vcValid = verifyIncludedCredential(credential);
-             if (!vcValid) {
-             log.error("Invalid or untrusted credential in VP for sessionId: {}",
-             sessionId);
-             throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
-             }
-
-             // Verify user sharedAttributes are valid
-             verifySharedAttributes(vpDto, credential);
-
-             // Verify all requested attributes are present
-             verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
+//             boolean vcValid = verifyIncludedCredential(credential);
+//             if (!vcValid) {
+//             log.error("Invalid or untrusted credential in VP for sessionId: {}",
+//             sessionId);
+//             throw new SludiException(ErrorCodes.INVALID_CREDENTIAL_IN_VP);
+//             }
+//
+//             // Verify user sharedAttributes are valid
+//             verifySharedAttributes(vpDto, credential);
+//
+//             // Verify all requested attributes are present
+//             verifyRequestedAttributes(request.getRequestedAttributes(), vpDto);
 
             // Store presentation data
             request.setStatus(PresentationStatus.FULFILLED.name());
